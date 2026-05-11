@@ -1,0 +1,10 @@
+[project]
+name = "hacienda-ai"
+version = "0.1.0"
+description = "Copiloto Fiscal IRPF España auditable y basado en reglas"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
