@@ -33,6 +33,7 @@ Las deducciones del lote 1 (estatales 2025) consultan los siguientes campos del 
 | `taxable_base.liquidable` | número | tope del 10 % en donativos (lote 2) |
 | `taxable_base.general` | número | tope alternativo `max_percentage_of_base_general` |
 | `taxable_base.savings` | número | tope alternativo `max_percentage_of_base_savings` |
+| `taxable_base.net_work_and_economic_income` | número | suma de rendimientos netos del trabajo + actividades económicas. Usado por planes de pensiones (art. 52 LIRPF, cap del 30 %) |
 | `personal.is_eligible_maternity_deduction` | booleano | maternidad (lote 3) |
 | `family.maternity_qualifying_child_months` | entero ≥ 0 | maternidad: suma de meses cualificantes a través de hijos elegibles (lote 3) |
 | `personal.large_family_category` | "general" \| "especial" | familia numerosa (lote 3) |
@@ -47,6 +48,7 @@ Cada deducción puede declarar `taxable_base_limits` con claves del conjunto:
 - `max_percentage_of_base_liquidable` → consulta `taxable_base.liquidable` del perfil.
 - `max_percentage_of_base_general` → consulta `taxable_base.general`.
 - `max_percentage_of_base_savings` → consulta `taxable_base.savings`.
+- `max_percentage_of_net_work_and_economic_income` → consulta `taxable_base.net_work_and_economic_income`. Específico del art. 52 LIRPF (planes de pensiones).
 
 Los valores son porcentajes entre 0 y 1. El motor aplica el mínimo de todos los topes que estén declarados, además del `limit` global de la deducción. Si una deducción requiere un tope y el perfil no incluye la base correspondiente, el motor devuelve `missing_data` con la ruta exacta del campo ausente.
 

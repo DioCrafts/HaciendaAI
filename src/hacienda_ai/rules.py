@@ -18,6 +18,7 @@ TAXABLE_BASE_LIMIT_FIELDS: dict[str, str] = {
     "max_percentage_of_base_liquidable": "taxable_base.liquidable",
     "max_percentage_of_base_general": "taxable_base.general",
     "max_percentage_of_base_savings": "taxable_base.savings",
+    "max_percentage_of_net_work_and_economic_income": "taxable_base.net_work_and_economic_income",
 }
 
 

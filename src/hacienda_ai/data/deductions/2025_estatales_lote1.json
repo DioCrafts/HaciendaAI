@@ -67,8 +67,8 @@
     },
     {
       "id": "es_aportaciones_plan_pensiones_individual_2025",
-      "name": "Aportaciones a planes de pensiones individuales",
-      "description": "Reducción de la base imponible general por aportaciones del contribuyente a planes de pensiones individuales. Límite general 1.500 € anuales en 2025 (art. 52 Ley 35/2006 IRPF). No incluye aportaciones empresariales, que tienen límite adicional.",
+      "name": "Aportaciones del contribuyente a planes de pensiones y otros sistemas de previsión social (régimen individual)",
+      "description": "Reducción de la base imponible general por aportaciones del propio contribuyente a planes de pensiones, mutualidades de previsión social, planes de previsión asegurados (PPA), planes de previsión social empresarial y seguros privados de dependencia, en los términos del art. 51 LIRPF. Tiene dos límites concurrentes (art. 52.1 LIRPF, redacción vigente tras la Ley 22/2021 de PGE para 2022): (a) límite absoluto de 1.500 € anuales y (b) límite relativo del 30 % de la suma de los rendimientos netos del trabajo y de actividades económicas percibidos individualmente en el ejercicio. Se aplica el menor de los dos. Las contribuciones empresariales a planes de empleo del art. 17.1.e LIRPF abren un límite adicional de hasta 8.500 € que NO está modelado en esta regla (se modela aparte cuando se añada al corpus).",
       "tax_year": 2025,
       "scope": "estatal",
       "region": null,
@@ -78,23 +78,29 @@
       ],
       "calculation": {"type": "amount_field", "base_field": "expenses.pension_plan_contribution_amount"},
       "limit": 1500.0,
-      "taxable_base_limits": {},
+      "taxable_base_limits": {"max_percentage_of_net_work_and_economic_income": 0.30},
       "incompatibilities": [],
       "required_documents": ["Certificado de aportación al plan de pensiones"],
       "rent_web_boxes": [],
       "sources": [
         {
           "type": "ley",
-          "title": "Ley 35/2006 del IRPF, art. 52",
-          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764",
-          "checked_at": null
+          "title": "Ley 35/2006 IRPF, art. 52 (texto consolidado tras Ley 22/2021)",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a52",
+          "checked_at": "2026-05-14"
+        },
+        {
+          "type": "ley",
+          "title": "Ley 22/2021 de PGE 2022 — reducción del límite individual a 1.500 €",
+          "url": "https://www.boe.es/buscar/doc.php?id=BOE-A-2021-21653",
+          "checked_at": "2026-05-14"
         }
       ],
       "effective_from": "2025-01-01",
       "effective_to": "2025-12-31",
-      "last_reviewed_at": null,
+      "last_reviewed_at": "2026-05-14",
       "risk_level": "bajo",
-      "validation_status": "pendiente_tests"
+      "validation_status": "validada"
     },
     {
       "id": "es_aportaciones_plan_pensiones_conyuge_2025",

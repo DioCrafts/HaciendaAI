@@ -32,6 +32,9 @@ def _profile(**overrides: Any) -> TaxProfile:
         "region": "Madrid",
         "income": {"work_income": 30000.0},
         "expenses": {},
+        # Por defecto alto, para que el cap del 30 % en planes de pensiones no
+        # haga binding salvo en los tests que lo bajan a propósito.
+        "taxable_base": {"net_work_and_economic_income": 30000.0},
         "documents": [],
     }
     data.update(overrides)
@@ -117,7 +120,57 @@ def test_pension_plan_individual_caps_amount_at_1500() -> None:
     )
     result = evaluate_deduction(deduction, profile)
     assert result.status == "applies"
-    assert result.estimated_amount == 1500.0
+    assert result.estimated_amount == 1500.0  # cap absoluto art. 52.1 LIRPF
+
+
+def test_pension_plan_individual_caps_at_30_percent_of_net_work_income() -> None:
+    """Aportación bajo el límite absoluto pero por encima del 30 % de
+    rendimientos netos del trabajo y de actividades económicas: aplica
+    sólo el 30 % (art. 52.1 LIRPF)."""
+    deduction = _load_validated("es_aportaciones_plan_pensiones_individual_2025")
+    profile = _profile(
+        expenses={"pension_plan_contribution_amount": 1500.0},
+        taxable_base={"net_work_and_economic_income": 4000.0},
+        documents=["Certificado de aportación al plan de pensiones"],
+    )
+    result = evaluate_deduction(deduction, profile)
+    assert result.status == "applies"
+    assert result.estimated_amount == 1200.0  # 4000 * 0.30
+
+
+def test_pension_plan_individual_takes_lower_of_both_caps() -> None:
+    """Si los dos límites son inferiores a la aportación, se aplica el menor."""
+    deduction = _load_validated("es_aportaciones_plan_pensiones_individual_2025")
+    profile = _profile(
+        expenses={"pension_plan_contribution_amount": 5000.0},
+        taxable_base={"net_work_and_economic_income": 2000.0},
+        documents=["Certificado de aportación al plan de pensiones"],
+    )
+    result = evaluate_deduction(deduction, profile)
+    # min(5000, 1500_absoluto, 600_relativo) = 600
+    assert result.estimated_amount == 600.0
+
+
+def test_pension_plan_individual_returns_missing_data_without_net_income() -> None:
+    deduction = _load_validated("es_aportaciones_plan_pensiones_individual_2025")
+    profile = _profile(
+        expenses={"pension_plan_contribution_amount": 1200.0},
+        taxable_base={},
+        documents=["Certificado de aportación al plan de pensiones"],
+    )
+    result = evaluate_deduction(deduction, profile)
+    assert result.status == "missing_data"
+    assert "taxable_base.net_work_and_economic_income" in result.missing_fields
+
+
+def test_pension_plan_individual_is_validada_in_corpus() -> None:
+    """La regla ya no es pendiente_tests: contrastada con LIRPF art. 52
+    y promovida tras revisión humana."""
+    deductions = {d.id: d for d in load_deductions()}
+    deduction = deductions["es_aportaciones_plan_pensiones_individual_2025"]
+    assert deduction.validation_status == ValidationStatus.VALIDADA
+    assert deduction.last_reviewed_at is not None
+    assert all(source.checked_at is not None for source in deduction.sources)
 
 
 # ---------- es_aportaciones_plan_pensiones_conyuge_2025 ----------

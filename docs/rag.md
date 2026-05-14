@@ -64,3 +64,14 @@ La caché vive por defecto en `~/.cache/hacienda_ai/rag/`. Cada documento se alm
 - Un mismo artículo puede tener interpretaciones distintas según la doctrina administrativa.
 - El motor presenta importes cuantificados al usuario; un error en una regla `validada` se traduce directamente en una recomendación fiscal incorrecta.
 - La revisión humana por regla es una garantía no opcional.
+
+## Caso de referencia: planes de pensiones individuales
+
+La primera regla promovida a `validada` siguiendo este flujo es `es_aportaciones_plan_pensiones_individual_2025` (art. 52 LIRPF). La promoción exigió, además de actualizar `sources[].checked_at`:
+
+1. **Modelar correctamente el doble límite del art. 52.1**: el motor sólo cubría caps absolutos (`limit`) y por porcentaje sobre las bases imponibles. El art. 52 introduce un cap del 30 % sobre los **rendimientos netos del trabajo + actividades económicas** — un concepto distinto de la base imponible. Para soportarlo se añadieron dos piezas:
+   - Nueva clave `max_percentage_of_net_work_and_economic_income` en `taxable_base_limits`.
+   - Nuevo campo del perfil `taxable_base.net_work_and_economic_income`.
+2. **Tests fiscales** que verifican: aplica por debajo de ambos caps, recorta al 1.500 € absoluto, recorta al 30 % relativo, toma el menor de los dos cuando ambos se superan, devuelve `missing_data` si falta el dato del perfil.
+
+Patrón a seguir para la siguiente regla: si el motor no soporta una restricción concreta, extender primero el motor y los tests, después promover la regla.

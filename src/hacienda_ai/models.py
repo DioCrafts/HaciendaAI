@@ -198,6 +198,7 @@ TAXABLE_BASE_LIMIT_KEYS: frozenset[str] = frozenset(
         "max_percentage_of_base_liquidable",
         "max_percentage_of_base_general",
         "max_percentage_of_base_savings",
+        "max_percentage_of_net_work_and_economic_income",
     }
 )
 

@@ -60,7 +60,8 @@
           "properties": {
             "max_percentage_of_base_liquidable": {"type": "number", "minimum": 0, "maximum": 1},
             "max_percentage_of_base_general": {"type": "number", "minimum": 0, "maximum": 1},
-            "max_percentage_of_base_savings": {"type": "number", "minimum": 0, "maximum": 1}
+            "max_percentage_of_base_savings": {"type": "number", "minimum": 0, "maximum": 1},
+            "max_percentage_of_net_work_and_economic_income": {"type": "number", "minimum": 0, "maximum": 1}
           }
         },
         "incompatibilities": {
