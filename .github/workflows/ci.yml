@@ -32,7 +32,7 @@ jobs:
         run: ruff format --check .
 
       - name: Mypy strict
-        run: mypy
+        run: python -m mypy
 
       - name: Pytest
         run: python -m pytest -q

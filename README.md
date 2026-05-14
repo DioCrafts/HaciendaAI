@@ -70,6 +70,23 @@ hacienda-ai evaluate --profile profile.json --deductions ruta/a/deducciones.json
 
 El CLI imprime un resumen por estado (`Aplica`, `Falta documentación`, `Faltan datos`, `Pendiente de validación`, `No aplica`) y el importe estimado total. También puede invocarse como `python -m hacienda_ai evaluate ...`.
 
+### API HTTP
+
+```bash
+pip install -e ".[api]"             # extras HTTP (FastAPI + Uvicorn)
+hacienda-ai serve --port 8000       # arranca el servidor
+```
+
+Endpoints:
+
+- `GET /health` — liveness y versión del paquete.
+- `GET /v1/deductions?region=Madrid&tax_year=2025` — resumen del corpus, opcionalmente filtrado por CCAA y/o ejercicio.
+- `POST /v1/evaluate` — body = perfil fiscal JSON; devuelve la lista de `RuleEvaluation`.
+- `POST /v1/simulate` — body = perfil fiscal JSON; devuelve la simulación completa (3 escenarios × 2 modos de tributación + modo recomendado).
+- `GET /docs` y `GET /openapi.json` — OpenAPI / Swagger UI automáticos de FastAPI.
+
+`ValidationError` del motor se traduce a HTTP 400 con el detalle del campo problemático. La API **no tiene autenticación**: pensada para uso local o detrás de un proxy/gateway que añada la capa de seguridad.
+
 ### Simulador
 
 ```bash
@@ -91,7 +108,7 @@ Además repite la simulación cambiando `filing_mode` entre `individual` y `conj
 python -m pytest      # tests
 ruff check .          # lint
 ruff format --check . # formato
-mypy                  # type checking estricto
+python -m mypy        # type checking estricto
 ```
 
 Cada PR ejecuta automáticamente las cuatro comprobaciones en GitHub Actions (`.github/workflows/ci.yml`). Para reproducir el mismo control antes de cada commit:

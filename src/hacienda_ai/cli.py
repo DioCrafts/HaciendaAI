@@ -50,6 +50,8 @@ def main(argv: list[str] | None = None) -> int:
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
+    if args.command == "serve":
+        return _run_serve(host=args.host, port=args.port, reload=args.reload, stderr=sys.stderr)
     parser.error(f"Comando no soportado: {args.command}")
     return 2  # unreachable: parser.error sale con SystemExit
 
@@ -95,6 +97,14 @@ def _build_parser() -> argparse.ArgumentParser:
     simulate_cmd.add_argument("--profile", required=True, type=Path)
     simulate_cmd.add_argument("--deductions", type=Path, default=DEFAULT_DEDUCTIONS_DIR)
     simulate_cmd.add_argument("--format", choices=("text", "json"), default="text")
+
+    serve_cmd = subparsers.add_parser(
+        "serve",
+        help="Lanza el servidor HTTP (FastAPI + Uvicorn). Requiere instalar el extra [api].",
+    )
+    serve_cmd.add_argument("--host", default="127.0.0.1", help="Interfaz de escucha (por defecto: 127.0.0.1).")
+    serve_cmd.add_argument("--port", type=int, default=8000, help="Puerto de escucha (por defecto: 8000).")
+    serve_cmd.add_argument("--reload", action="store_true", help="Activa autoreload para desarrollo.")
     return parser
 
 
@@ -172,6 +182,20 @@ def _load_profile_and_deductions(
 
 def _evaluation_to_dict(evaluation: RuleEvaluation) -> dict[str, Any]:
     return asdict(evaluation)
+
+
+def _run_serve(*, host: str, port: int, reload: bool, stderr: Any) -> int:
+    try:
+        import uvicorn
+    except ImportError:
+        print(
+            "Error: el subcomando 'serve' requiere el extra [api]. "
+            "Instala las dependencias HTTP con: pip install 'hacienda-ai[api]'",
+            file=stderr,
+        )
+        return 2
+    uvicorn.run("hacienda_ai.api:app", host=host, port=port, reload=reload)
+    return 0
 
 
 def _print_simulation_report(report: SimulationReport, stdout: Any) -> None:

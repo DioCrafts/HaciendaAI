@@ -21,7 +21,10 @@
 
 ## Fase 4: API
 
-- Endpoints de perfil, deducciones, simulación, optimización e informe.
+- FastAPI expuesto en `src/hacienda_ai/api.py` con `/health`, `/v1/deductions`, `/v1/evaluate`, `/v1/simulate`.
+- CLI `hacienda-ai serve` arranca Uvicorn con import lazy (extra `[api]`).
+- `ValidationError` del motor → HTTP 400 con detalle. OpenAPI/Swagger UI automáticos.
+- Pendiente: endpoints de informes generados, auth/API keys, persistencia de perfiles, despliegue.
 
 ## Fase 5: Frontend
 
