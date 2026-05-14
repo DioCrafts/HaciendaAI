@@ -49,6 +49,27 @@ python -m pip install -U pip
 python -m pip install -e ".[dev]"
 ```
 
+## Uso del CLI
+
+```bash
+hacienda-ai evaluate --profile profile.json
+hacienda-ai evaluate --profile profile.json --format json
+hacienda-ai evaluate --profile profile.json --deductions ruta/a/deducciones.json
+```
+
+`profile.json` mínimo:
+
+```json
+{
+  "tax_year": 2025,
+  "region": "Madrid",
+  "expenses": {"union_dues_amount": 250},
+  "documents": ["Justificante de cuotas sindicales"]
+}
+```
+
+El CLI imprime un resumen por estado (`Aplica`, `Falta documentación`, `Faltan datos`, `Pendiente de validación`, `No aplica`) y el importe estimado total. También puede invocarse como `python -m hacienda_ai evaluate ...`.
+
 ## Ejecutar tests, lint y type checking
 
 ```bash
