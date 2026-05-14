@@ -4,7 +4,7 @@ import pytest
 
 from hacienda_ai.deductions import load_deductions
 from hacienda_ai.models import Deduction, TaxProfile, ValidationError
-from hacienda_ai.rules import evaluate_deduction
+from hacienda_ai.rules import evaluate_deduction, evaluate_deductions
 from hacienda_ai.safety import screen_user_request
 
 
@@ -161,3 +161,80 @@ def test_deduction_accepts_null_for_optional_list_fields():
 def test_deduction_accepts_null_required_documents():
     deduction = validated_deduction(required_documents=None)
     assert deduction.required_documents == ()
+
+
+def test_autonomic_deduction_requires_region():
+    with pytest.raises(ValidationError, match="scope='autonomico'"):
+        validated_deduction(scope="autonomico", region=None)
+
+
+def test_effective_to_before_tax_year_marks_deduction_as_not_applying():
+    deduction = validated_deduction(effective_from="2024-01-01", effective_to="2024-12-31", tax_year=2024)
+    result = evaluate_deduction(deduction, profile(tax_year=2024))
+    assert result.status == "applies"
+    expired = validated_deduction(effective_from="2023-01-01", effective_to="2024-12-31")
+    result = evaluate_deduction(expired, profile())
+    assert result.status == "does_not_apply"
+    assert "vigor" in result.reason
+
+
+def test_effective_from_after_tax_year_marks_deduction_as_not_applying():
+    deduction = validated_deduction(effective_from="2026-01-01", effective_to="2026-12-31")
+    result = evaluate_deduction(deduction, profile())
+    assert result.status == "does_not_apply"
+    assert "vigor" in result.reason
+
+
+def test_invalid_effective_date_is_rejected_at_parse_time():
+    with pytest.raises(ValidationError, match="ISO"):
+        validated_deduction(effective_from="hoy")
+
+
+def test_effective_from_after_effective_to_is_rejected():
+    with pytest.raises(ValidationError, match="effective_from"):
+        validated_deduction(effective_from="2025-12-31", effective_to="2025-01-01")
+
+
+def test_incompatibilities_keep_only_highest_estimated_amount():
+    bigger = validated_deduction(
+        id="big",
+        incompatibilities=["small"],
+    )
+    smaller = validated_deduction(
+        id="small",
+        incompatibilities=["big"],
+        calculation={"type": "fixed_amount", "fixed_amount": 10.0},
+    )
+    results = evaluate_deductions([bigger, smaller], profile())
+    by_id = {r.deduction_id: r for r in results}
+    assert by_id["big"].status == "applies"
+    assert by_id["big"].estimated_amount == 100.0
+    assert by_id["small"].status == "does_not_apply"
+    assert by_id["small"].estimated_amount == 0.0
+    assert "Incompatible con la deducción big" in by_id["small"].reason
+
+
+def test_incompatibility_relation_is_symmetric_when_declared_one_way():
+    bigger = validated_deduction(id="big", incompatibilities=[])
+    smaller = validated_deduction(
+        id="small",
+        incompatibilities=["big"],
+        calculation={"type": "fixed_amount", "fixed_amount": 10.0},
+    )
+    results = evaluate_deductions([bigger, smaller], profile())
+    by_id = {r.deduction_id: r for r in results}
+    assert by_id["big"].status == "applies"
+    assert by_id["small"].status == "does_not_apply"
+
+
+def test_incompatibility_ignored_when_only_one_side_applies():
+    applies = validated_deduction(id="applies_ok", incompatibilities=["missing"])
+    missing = validated_deduction(
+        id="missing",
+        incompatibilities=["applies_ok"],
+        requirements=[{"field": "expenses.nonexistent", "operator": ">", "value": 0}],
+    )
+    results = evaluate_deductions([applies, missing], profile())
+    by_id = {r.deduction_id: r for r in results}
+    assert by_id["applies_ok"].status == "applies"
+    assert by_id["missing"].status == "missing_data"

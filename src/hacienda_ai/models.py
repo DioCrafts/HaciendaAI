@@ -8,6 +8,7 @@ modelos pueden migrarse a Pydantic manteniendo los mismos campos públicos.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from enum import Enum
 from typing import Any, Literal
 
@@ -167,13 +168,21 @@ class Deduction:
         if not sources:
             raise ValidationError("Cada deducción debe incluir al menos una fuente o una marca pendiente de fuente")
         tax_year = as_tax_year(data["tax_year"], "tax_year")
+        scope = Scope(data["scope"])
+        region = as_optional_str(data.get("region"), "region")
+        if scope == Scope.AUTONOMICO and not region:
+            raise ValidationError("Las deducciones con scope='autonomico' deben especificar 'region'")
+        effective_from = as_optional_iso_date(data.get("effective_from"), "effective_from")
+        effective_to = as_optional_iso_date(data.get("effective_to"), "effective_to")
+        if effective_from and effective_to and effective_from > effective_to:
+            raise ValidationError("effective_from no puede ser posterior a effective_to")
         return cls(
             id=as_non_empty_str(data["id"], "id"),
             name=as_non_empty_str(data["name"], "name"),
             description=as_non_empty_str(data["description"], "description"),
             tax_year=tax_year,
-            scope=Scope(data["scope"]),
-            region=as_optional_str(data.get("region"), "region"),
+            scope=scope,
+            region=region,
             category=DeductionCategory(data["category"]),
             requirements=tuple(Requirement.from_dict(item) for item in as_list(data["requirements"], "requirements")),
             calculation=Calculation.from_dict(data["calculation"]),
@@ -183,8 +192,8 @@ class Deduction:
             required_documents=tuple(as_non_empty_str(item, "required_document") for item in (data.get("required_documents") or [])),
             rent_web_boxes=tuple(as_non_empty_str(item, "rent_web_box") for item in (data.get("rent_web_boxes") or [])),
             sources=sources,
-            effective_from=as_optional_str(data.get("effective_from"), "effective_from"),
-            effective_to=as_optional_str(data.get("effective_to"), "effective_to"),
+            effective_from=effective_from,
+            effective_to=effective_to,
             last_reviewed_at=as_optional_str(data.get("last_reviewed_at"), "last_reviewed_at"),
             risk_level=RiskLevel(data["risk_level"]),
             validation_status=ValidationStatus(data["validation_status"]),
@@ -287,3 +296,14 @@ def as_tax_year(value: Any, field_name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 2000:
         raise ValidationError(f"{field_name} debe ser un entero válido")
     return value
+
+
+def as_optional_iso_date(value: Any, field_name: str) -> str | None:
+    text = as_optional_str(value, field_name)
+    if text is None:
+        return None
+    try:
+        date.fromisoformat(text)
+    except ValueError as exc:
+        raise ValidationError(f"{field_name} debe ser una fecha ISO YYYY-MM-DD") from exc
+    return text

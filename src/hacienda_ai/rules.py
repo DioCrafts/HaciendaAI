@@ -6,6 +6,8 @@ solo fórmulas declaradas y devuelve estados auditables.
 
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import date
 from typing import Any
 
 from .models import Deduction, RuleEvaluation, TaxProfile, ValidationStatus
@@ -19,6 +21,8 @@ def evaluate_deduction(deduction: Deduction, profile: TaxProfile) -> RuleEvaluat
         return _result(deduction, "does_not_apply", "La deducción pertenece a otro ejercicio fiscal.", confidence=0.9)
     if deduction.region and deduction.region.lower() != profile.region.lower():
         return _result(deduction, "does_not_apply", "La deducción pertenece a otra comunidad autónoma.", confidence=0.9)
+    if not _within_effective_range(deduction, profile.tax_year):
+        return _result(deduction, "does_not_apply", "La deducción no estaba en vigor durante el ejercicio fiscal.", confidence=0.9)
     if deduction.validation_status != ValidationStatus.VALIDADA:
         return _result(
             deduction,
@@ -79,7 +83,60 @@ def evaluate_deduction(deduction: Deduction, profile: TaxProfile) -> RuleEvaluat
 
 
 def evaluate_deductions(deductions: list[Deduction], profile: TaxProfile) -> list[RuleEvaluation]:
-    return [evaluate_deduction(deduction, profile) for deduction in deductions]
+    evaluations = [evaluate_deduction(deduction, profile) for deduction in deductions]
+    return _resolve_incompatibilities(deductions, evaluations)
+
+
+def _within_effective_range(deduction: Deduction, tax_year: int) -> bool:
+    year_start = date(tax_year, 1, 1)
+    year_end = date(tax_year, 12, 31)
+    if deduction.effective_from and date.fromisoformat(deduction.effective_from) > year_end:
+        return False
+    if deduction.effective_to and date.fromisoformat(deduction.effective_to) < year_start:
+        return False
+    return True
+
+
+def _resolve_incompatibilities(
+    deductions: list[Deduction],
+    evaluations: list[RuleEvaluation],
+) -> list[RuleEvaluation]:
+    conflicts: dict[str, set[str]] = {}
+    for deduction in deductions:
+        conflicts.setdefault(deduction.id, set()).update(deduction.incompatibilities)
+    for deduction_id, related in list(conflicts.items()):
+        for other_id in related:
+            conflicts.setdefault(other_id, set()).add(deduction_id)
+
+    applying = [
+        (deduction, evaluation)
+        for deduction, evaluation in zip(deductions, evaluations)
+        if evaluation.status == "applies"
+    ]
+    applying.sort(key=lambda pair: (-pair[1].estimated_amount, pair[0].id))
+
+    accepted: set[str] = set()
+    losers: dict[str, str] = {}
+    for deduction, _ in applying:
+        clash = conflicts.get(deduction.id, set()) & accepted
+        if clash:
+            losers[deduction.id] = sorted(clash)[0]
+        else:
+            accepted.add(deduction.id)
+
+    if not losers:
+        return evaluations
+    return [
+        replace(
+            evaluation,
+            status="does_not_apply",
+            estimated_amount=0.0,
+            reason=f"Incompatible con la deducción {losers[deduction.id]}, que se prioriza por importe estimado más alto.",
+        )
+        if deduction.id in losers
+        else evaluation
+        for deduction, evaluation in zip(deductions, evaluations)
+    ]
 
 
 def calculate_amount(deduction: Deduction, facts: dict[str, Any]) -> float:
