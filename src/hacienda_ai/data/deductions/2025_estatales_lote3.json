@@ -1,0 +1,160 @@
+{
+  "deductions": [
+    {
+      "id": "es_maternidad_2025",
+      "name": "Deducción por maternidad",
+      "description": "Deducción de la cuota diferencial de 1.200 € anuales por cada hijo menor de 3 años para mujeres trabajadoras (alta en SS o mutua, autónomas o, tras la Ley 6/2023, mujeres con prestación por desempleo). Se prorratea por meses en que se cumplen los requisitos. El campo del perfil family.maternity_qualifying_child_months es la suma de meses cualificantes a través de todos los hijos elegibles (12 meses por hijo × hijos elegibles). No tiene tope anual de meses al haber varios hijos posibles (art. 81 LIRPF).",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {"field": "personal.is_eligible_maternity_deduction", "operator": "==", "value": true},
+        {"field": "family.maternity_qualifying_child_months", "operator": ">", "value": 0}
+      ],
+      "calculation": {
+        "type": "prorated_fixed_amount",
+        "monthly_amount": 100.0,
+        "months_field": "family.maternity_qualifying_child_months"
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Libro de familia o certificación equivalente", "Vida laboral o documento que acredite la situación laboral"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "ley", "title": "Ley 35/2006 del IRPF, art. 81 (deducción por maternidad)", "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764", "checked_at": null},
+        {"type": "ley", "title": "Ley 6/2023 ampliación del ámbito subjetivo de la deducción por maternidad", "url": "https://www.boe.es/buscar/doc.php?id=BOE-A-2023-7771", "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "bajo",
+      "validation_status": "pendiente_tests"
+    },
+    {
+      "id": "es_familia_numerosa_general_2025",
+      "name": "Deducción por familia numerosa de categoría general",
+      "description": "Deducción de la cuota diferencial de 1.200 € anuales para titulares de familia numerosa de categoría general. Se prorratea por meses en que se mantiene la condición. El motor no calcula el incremento de 600 € por cada hijo a partir del 4º; ese complemento debe sumarse aparte o tratarse en un PR específico. Incompatible con la categoría especial (art. 81 bis LIRPF).",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {"field": "personal.large_family_category", "operator": "==", "value": "general"},
+        {"field": "family.large_family_qualifying_months", "operator": ">", "value": 0}
+      ],
+      "calculation": {
+        "type": "prorated_fixed_amount",
+        "monthly_amount": 100.0,
+        "months_field": "family.large_family_qualifying_months",
+        "months_cap": 12
+      },
+      "limit": 1200.0,
+      "taxable_base_limits": {},
+      "incompatibilities": ["es_familia_numerosa_especial_2025"],
+      "required_documents": ["Título de familia numerosa en vigor"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "ley", "title": "Ley 35/2006 del IRPF, art. 81 bis (familia numerosa categoría general)", "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764", "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "bajo",
+      "validation_status": "pendiente_tests"
+    },
+    {
+      "id": "es_familia_numerosa_especial_2025",
+      "name": "Deducción por familia numerosa de categoría especial",
+      "description": "Deducción de la cuota diferencial de 2.400 € anuales para titulares de familia numerosa de categoría especial. Se prorratea por meses. Incompatible con la categoría general. El motor no calcula el incremento de 600 € por hijo a partir del 6º (art. 81 bis LIRPF).",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {"field": "personal.large_family_category", "operator": "==", "value": "especial"},
+        {"field": "family.large_family_qualifying_months", "operator": ">", "value": 0}
+      ],
+      "calculation": {
+        "type": "prorated_fixed_amount",
+        "monthly_amount": 200.0,
+        "months_field": "family.large_family_qualifying_months",
+        "months_cap": 12
+      },
+      "limit": 2400.0,
+      "taxable_base_limits": {},
+      "incompatibilities": ["es_familia_numerosa_general_2025"],
+      "required_documents": ["Título de familia numerosa en vigor"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "ley", "title": "Ley 35/2006 del IRPF, art. 81 bis (familia numerosa categoría especial)", "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764", "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "bajo",
+      "validation_status": "pendiente_tests"
+    },
+    {
+      "id": "es_descendiente_discapacidad_2025",
+      "name": "Deducción por descendiente con discapacidad",
+      "description": "Deducción de la cuota diferencial de 1.200 € anuales por cada descendiente con discapacidad que dé derecho al mínimo por descendientes con discapacidad. Se prorratea por meses en que se cumplen los requisitos; el campo family.disabled_descendants_qualifying_months es la suma de meses a través de todos los descendientes elegibles (art. 81 bis LIRPF).",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {"field": "family.disabled_descendants_qualifying_months", "operator": ">", "value": 0}
+      ],
+      "calculation": {
+        "type": "prorated_fixed_amount",
+        "monthly_amount": 100.0,
+        "months_field": "family.disabled_descendants_qualifying_months"
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Certificado de discapacidad del descendiente"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "ley", "title": "Ley 35/2006 del IRPF, art. 81 bis (descendientes con discapacidad)", "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764", "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "bajo",
+      "validation_status": "pendiente_tests"
+    },
+    {
+      "id": "es_ascendiente_discapacidad_2025",
+      "name": "Deducción por ascendiente con discapacidad",
+      "description": "Deducción de la cuota diferencial de 1.200 € anuales por cada ascendiente con discapacidad que dé derecho al mínimo por ascendientes con discapacidad. Se prorratea por meses; el campo family.disabled_ascendants_qualifying_months es la suma de meses a través de todos los ascendientes elegibles (art. 81 bis LIRPF).",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {"field": "family.disabled_ascendants_qualifying_months", "operator": ">", "value": 0}
+      ],
+      "calculation": {
+        "type": "prorated_fixed_amount",
+        "monthly_amount": 100.0,
+        "months_field": "family.disabled_ascendants_qualifying_months"
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Certificado de discapacidad del ascendiente"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "ley", "title": "Ley 35/2006 del IRPF, art. 81 bis (ascendientes con discapacidad)", "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764", "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "bajo",
+      "validation_status": "pendiente_tests"
+    }
+  ]
+}

@@ -118,6 +118,9 @@ class Calculation:
     cap: float | None = None
     fixed_amount: float | None = None
     tiers: tuple[Tier, ...] = ()
+    monthly_amount: float | None = None
+    months_field: str | None = None
+    months_cap: float | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Calculation:
@@ -129,6 +132,7 @@ class Calculation:
             "percentage_with_cap",
             "fixed_amount",
             "tiered_percentage",
+            "prorated_fixed_amount",
         }:
             raise ValidationError(f"Tipo de cálculo no soportado: {calculation_type}")
         percentage = as_optional_number(data.get("percentage"), "calculation.percentage")
@@ -146,6 +150,24 @@ class Calculation:
             if tiers_raw:
                 raise ValidationError("calculation.tiers solo se acepta con type=tiered_percentage")
             tiers = ()
+        monthly_amount = as_optional_number(data.get("monthly_amount"), "calculation.monthly_amount")
+        months_field = as_optional_str(data.get("months_field"), "calculation.months_field")
+        months_cap = as_optional_number(data.get("months_cap"), "calculation.months_cap")
+        if calculation_type == "prorated_fixed_amount":
+            if monthly_amount is None or monthly_amount < 0:
+                raise ValidationError("calculation.monthly_amount es obligatorio y >= 0 para prorated_fixed_amount")
+            if not months_field:
+                raise ValidationError("calculation.months_field es obligatorio para prorated_fixed_amount")
+            if months_cap is not None and months_cap <= 0:
+                raise ValidationError("calculation.months_cap debe ser positivo o null")
+        else:
+            for extra_field, value in (
+                ("monthly_amount", monthly_amount),
+                ("months_field", months_field),
+                ("months_cap", months_cap),
+            ):
+                if value is not None:
+                    raise ValidationError(f"calculation.{extra_field} solo se acepta con type=prorated_fixed_amount")
         return cls(
             type=calculation_type,
             base_field=as_optional_str(data.get("base_field"), "calculation.base_field"),
@@ -153,6 +175,9 @@ class Calculation:
             cap=cap,
             fixed_amount=fixed_amount,
             tiers=tiers,
+            monthly_amount=monthly_amount,
+            months_field=months_field,
+            months_cap=months_cap,
         )
 
 

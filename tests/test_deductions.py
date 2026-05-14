@@ -55,6 +55,11 @@ def test_loads_state_corpus_with_normalized_schema():
         "es_aportaciones_plan_pensiones_conyuge_2025",
         "es_donativos_no_recurrente_2025",
         "es_donativos_recurrente_2025",
+        "es_maternidad_2025",
+        "es_familia_numerosa_general_2025",
+        "es_familia_numerosa_especial_2025",
+        "es_descendiente_discapacidad_2025",
+        "es_ascendiente_discapacidad_2025",
     }
     assert all(deduction.sources for deduction in deductions)
 
@@ -392,6 +397,79 @@ def test_taxable_base_limits_applies_minimum_of_multiple_caps():
     # cap_liquidable = 5.000; cap_general = 2.000; importe = 10.000 → min = 2.000
     assert result.status == "applies"
     assert result.estimated_amount == 2000.0
+
+
+# ---------- prorated_fixed_amount ----------
+
+
+def _prorated_deduction(**overrides):
+    defaults = dict(
+        id="prorated_test",
+        calculation={
+            "type": "prorated_fixed_amount",
+            "monthly_amount": 100.0,
+            "months_field": "family.qualifying_months",
+            "months_cap": 12,
+        },
+        requirements=[{"field": "family.qualifying_months", "operator": ">", "value": 0}],
+        limit=None,
+    )
+    defaults.update(overrides)
+    return validated_deduction(**defaults)
+
+
+def test_prorated_basic_computes_monthly_times_months():
+    result = evaluate_deduction(_prorated_deduction(), profile(family={"qualifying_months": 6}))
+    assert result.status == "applies"
+    assert result.estimated_amount == 600.0
+
+
+def test_prorated_caps_at_months_cap():
+    result = evaluate_deduction(_prorated_deduction(), profile(family={"qualifying_months": 18}))
+    assert result.estimated_amount == 1200.0  # 12 * 100
+
+
+def test_prorated_without_months_cap_allows_more_than_12():
+    deduction = _prorated_deduction(
+        calculation={
+            "type": "prorated_fixed_amount",
+            "monthly_amount": 100.0,
+            "months_field": "family.qualifying_months",
+        },
+    )
+    result = evaluate_deduction(deduction, profile(family={"qualifying_months": 24}))
+    assert result.estimated_amount == 2400.0
+
+
+def test_prorated_respects_deduction_limit_after_prorrating():
+    deduction = _prorated_deduction(limit=500.0)
+    result = evaluate_deduction(deduction, profile(family={"qualifying_months": 10}))
+    assert result.estimated_amount == 500.0  # 1000 capped at 500
+
+
+def test_prorated_rejects_missing_monthly_amount():
+    with pytest.raises(ValidationError, match="monthly_amount"):
+        validated_deduction(
+            calculation={"type": "prorated_fixed_amount", "months_field": "family.qualifying_months"},
+        )
+
+
+def test_prorated_rejects_missing_months_field():
+    with pytest.raises(ValidationError, match="months_field"):
+        validated_deduction(
+            calculation={"type": "prorated_fixed_amount", "monthly_amount": 100.0},
+        )
+
+
+def test_other_calculation_types_reject_prorated_fields():
+    with pytest.raises(ValidationError, match="monthly_amount solo se acepta"):
+        validated_deduction(
+            calculation={
+                "type": "fixed_amount",
+                "fixed_amount": 100.0,
+                "monthly_amount": 50.0,
+            },
+        )
 
 
 def test_calculation_rejects_tiers_for_non_tiered_type():

@@ -139,6 +139,16 @@ Lote 2 (2 deducciones estatales 2025, donativos Ley 49/2002 art. 19, tras Ley 7/
 
 El límite global del 10 % sobre la base liquidable se aplica por el motor a partir de `taxable_base.liquidable` en el perfil. Si el perfil no incluye `taxable_base.liquidable`, el motor devuelve `missing_data` indicando el campo concreto.
 
+Lote 3 (5 deducciones estatales 2025, prorrateadas por meses):
+
+- `es_maternidad_2025`: 100 €/mes por hijo menor de 3 años elegible (1.200 € anuales por hijo, sin tope global de meses, art. 81 LIRPF + Ley 6/2023).
+- `es_familia_numerosa_general_2025`: 100 €/mes hasta 1.200 € anuales (art. 81 bis LIRPF). Incompatible con la categoría especial.
+- `es_familia_numerosa_especial_2025`: 200 €/mes hasta 2.400 € anuales. Incompatible con la categoría general.
+- `es_descendiente_discapacidad_2025`: 100 €/mes por descendiente con discapacidad elegible.
+- `es_ascendiente_discapacidad_2025`: 100 €/mes por ascendiente con discapacidad elegible.
+
+Los campos de meses (`family.maternity_qualifying_child_months`, etc.) se entienden como suma de meses elegibles a través de todos los hijos/ascendientes; el wizard que recoja datos debe normalizarlos. Los complementos por hijo adicional en familia numerosa (600 €/hijo a partir del 4º o 6º) no están modelados todavía.
+
 Todas las reglas están marcadas como `pendiente_tests`: tienen referencia legal y tests del motor, pero **requieren revisión fiscal humana contra el Manual práctico de Renta AEAT 2025** antes de promoverlas a `validada`. Mientras tanto, el motor las muestra como `Pendiente de validación` y no las recomienda directamente.
 
 Para promover una regla: editar su `validation_status` en `src/hacienda_ai/data/deductions/` y poner `checked_at` y `last_reviewed_at` con la fecha de la revisión.

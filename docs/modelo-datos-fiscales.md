@@ -33,6 +33,12 @@ Las deducciones del lote 1 (estatales 2025) consultan los siguientes campos del 
 | `taxable_base.liquidable` | número | tope del 10 % en donativos (lote 2) |
 | `taxable_base.general` | número | tope alternativo `max_percentage_of_base_general` |
 | `taxable_base.savings` | número | tope alternativo `max_percentage_of_base_savings` |
+| `personal.is_eligible_maternity_deduction` | booleano | maternidad (lote 3) |
+| `family.maternity_qualifying_child_months` | entero ≥ 0 | maternidad: suma de meses cualificantes a través de hijos elegibles (lote 3) |
+| `personal.large_family_category` | "general" \| "especial" | familia numerosa (lote 3) |
+| `family.large_family_qualifying_months` | entero 0-12 | familia numerosa: meses con título en vigor (lote 3) |
+| `family.disabled_descendants_qualifying_months` | entero ≥ 0 | descendiente con discapacidad: suma de meses (lote 3) |
+| `family.disabled_ascendants_qualifying_months` | entero ≥ 0 | ascendiente con discapacidad: suma de meses (lote 3) |
 
 ## Límites por base imponible
 

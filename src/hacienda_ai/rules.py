@@ -181,6 +181,16 @@ def calculate_amount(deduction: Deduction, facts: dict[str, Any]) -> float:
         base = float(value) if found and isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
         amount = _apply_tiers(base, calculation.tiers)
         return min(amount, deduction.limit) if deduction.limit is not None else amount
+    if calculation.type == "prorated_fixed_amount":
+        if not calculation.months_field or calculation.monthly_amount is None:
+            return 0.0
+        found, value = get_path(facts, calculation.months_field)
+        months = float(value) if found and isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
+        months = max(months, 0.0)
+        if calculation.months_cap is not None:
+            months = min(months, calculation.months_cap)
+        amount = months * calculation.monthly_amount
+        return min(amount, deduction.limit) if deduction.limit is not None else amount
     return 0.0
 
 

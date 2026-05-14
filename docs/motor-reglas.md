@@ -17,6 +17,7 @@ El motor vive en `src/hacienda_ai/rules.py`.
 - `amount_field`: copia el valor de `base_field` del perfil; aplica `limit` si está fijado.
 - `percentage_with_cap`: aplica `percentage` (0-1) sobre `base_field` y respeta `cap` y `limit`.
 - `tiered_percentage`: tramos progresivos definidos en `tiers`. Cada tramo tiene `up_to` (umbral acumulado, `null` solo en el último) y `percentage` (0-1). Los umbrales deben ser estrictamente crecientes. Ejemplo (donativos Ley 49/2002): `[{"up_to": 250, "percentage": 0.80}, {"up_to": null, "percentage": 0.40}]`.
+- `prorated_fixed_amount`: `monthly_amount * meses_cualificantes`, donde los meses se leen del campo `months_field` del perfil. Si `months_cap` está fijado se aplica como tope (típicamente 12 para deducciones anuales). Adicionalmente `deduction.limit` actúa como tope absoluto. Ejemplo (familia numerosa categoría general): `{"monthly_amount": 100, "months_field": "family.large_family_qualifying_months", "months_cap": 12}`.
 
 ## Límites por base imponible
 
