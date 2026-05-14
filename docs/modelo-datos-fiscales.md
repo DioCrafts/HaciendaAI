@@ -28,5 +28,7 @@ Las deducciones del lote 1 (estatales 2025) consultan los siguientes campos del 
 | `expenses.pension_plan_contribution_amount` | número | aportaciones plan de pensiones individual |
 | `expenses.spouse_pension_plan_contribution_amount` | número | aportaciones plan de pensiones cónyuge |
 | `family.spouse.work_income` | número | aportaciones plan de pensiones cónyuge |
+| `expenses.donations_amount` | número | donativos Ley 49/2002 (lote 2) |
+| `personal.donations_recurrent_qualifying` | booleano | donativos recurrentes (lote 2) |
 
 Si una regla no encuentra un campo obligatorio en el perfil, el motor responde `missing_data` indicando exactamente qué falta.

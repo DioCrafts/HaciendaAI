@@ -94,31 +94,78 @@ class Requirement:
 
 
 @dataclass(frozen=True)
+class Tier:
+    up_to: float | None
+    percentage: float
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Tier:
+        require_keys(data, ["percentage"], "tier")
+        percentage = as_optional_number(data["percentage"], "tier.percentage")
+        if percentage is None or not (0 <= percentage <= 1):
+            raise ValidationError("tier.percentage debe ser un número entre 0 y 1")
+        up_to = as_optional_number(data.get("up_to"), "tier.up_to")
+        if up_to is not None and up_to <= 0:
+            raise ValidationError("tier.up_to debe ser positivo o null")
+        return cls(up_to=up_to, percentage=percentage)
+
+
+@dataclass(frozen=True)
 class Calculation:
     type: str
     base_field: str | None = None
     percentage: float | None = None
     cap: float | None = None
     fixed_amount: float | None = None
+    tiers: tuple[Tier, ...] = ()
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Calculation:
         require_keys(data, ["type"], "calculation")
         calculation_type = as_non_empty_str(data["type"], "calculation.type")
-        if calculation_type not in {"manual_review", "amount_field", "percentage_with_cap", "fixed_amount"}:
+        if calculation_type not in {
+            "manual_review",
+            "amount_field",
+            "percentage_with_cap",
+            "fixed_amount",
+            "tiered_percentage",
+        }:
             raise ValidationError(f"Tipo de cálculo no soportado: {calculation_type}")
         percentage = as_optional_number(data.get("percentage"), "calculation.percentage")
         cap = as_optional_number(data.get("cap"), "calculation.cap")
         fixed_amount = as_optional_number(data.get("fixed_amount"), "calculation.fixed_amount")
         if calculation_type == "percentage_with_cap" and percentage is not None and not (0 <= percentage <= 1):
             raise ValidationError("calculation.percentage debe expresarse entre 0 y 1")
+        tiers_raw = data.get("tiers")
+        if calculation_type == "tiered_percentage":
+            if not tiers_raw:
+                raise ValidationError("calculation.tiers es obligatorio para type=tiered_percentage")
+            tiers = tuple(Tier.from_dict(item) for item in as_list(tiers_raw, "calculation.tiers"))
+            _validate_tier_thresholds(tiers)
+        else:
+            if tiers_raw:
+                raise ValidationError("calculation.tiers solo se acepta con type=tiered_percentage")
+            tiers = ()
         return cls(
             type=calculation_type,
             base_field=as_optional_str(data.get("base_field"), "calculation.base_field"),
             percentage=percentage,
             cap=cap,
             fixed_amount=fixed_amount,
+            tiers=tiers,
         )
+
+
+def _validate_tier_thresholds(tiers: tuple[Tier, ...]) -> None:
+    last_threshold = 0.0
+    for index, tier in enumerate(tiers):
+        if tier.up_to is None:
+            if index != len(tiers) - 1:
+                raise ValidationError("Solo el último tier puede tener up_to=null")
+        else:
+            if tier.up_to <= last_threshold:
+                raise ValidationError("Los thresholds 'up_to' deben ser estrictamente crecientes")
+            last_threshold = tier.up_to
 
 
 @dataclass(frozen=True)

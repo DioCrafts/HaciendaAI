@@ -125,12 +125,19 @@ tests/
 
 ## Corpus de deducciones
 
-El lote 1 incluye 4 deducciones estatales para el ejercicio 2025:
+Lote 1 (4 deducciones estatales 2025):
 
 - `es_cuotas_sindicales_2025`: gasto deducible por cuotas sindicales (art. 19.2.a LIRPF).
 - `es_cuotas_colegios_profesionales_2025`: gasto deducible por cuotas colegiales obligatorias, tope 500 € (art. 19.2.d LIRPF).
 - `es_aportaciones_plan_pensiones_individual_2025`: reducción por aportaciones a plan de pensiones, tope 1.500 € (art. 52 LIRPF).
 - `es_aportaciones_plan_pensiones_conyuge_2025`: reducción por aportaciones al plan del cónyuge si su renta es inferior a 8.000 €, tope 1.000 € (art. 51.7 LIRPF).
+
+Lote 2 (2 deducciones estatales 2025, donativos Ley 49/2002 art. 19, tras Ley 7/2024):
+
+- `es_donativos_no_recurrente_2025`: 80% sobre los primeros 250 € + 40% sobre el exceso.
+- `es_donativos_recurrente_2025`: 80% sobre los primeros 250 € + 45% sobre el exceso si el contribuyente ha donado a la misma entidad importes iguales o superiores en los dos ejercicios anteriores. Incompatible con el régimen no recurrente; cuando ambas reglas serían aplicables, el motor selecciona la recurrente por mayor importe.
+
+El límite global del 10% sobre la base liquidable está declarado en `taxable_base_limits` pero **aún no se aplica** por el motor; debe verificarse manualmente.
 
 Todas las reglas están marcadas como `pendiente_tests`: tienen referencia legal y tests del motor, pero **requieren revisión fiscal humana contra el Manual práctico de Renta AEAT 2025** antes de promoverlas a `validada`. Mientras tanto, el motor las muestra como `Pendiente de validación` y no las recomienda directamente.
 

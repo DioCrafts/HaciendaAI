@@ -46,13 +46,15 @@ def profile(**overrides):
     return TaxProfile.from_dict(data)
 
 
-def test_loads_state_corpus_lote1_with_normalized_schema():
+def test_loads_state_corpus_with_normalized_schema():
     deductions = load_deductions()
-    assert {deduction.id for deduction in deductions} == {
+    assert {deduction.id for deduction in deductions} >= {
         "es_cuotas_sindicales_2025",
         "es_cuotas_colegios_profesionales_2025",
         "es_aportaciones_plan_pensiones_individual_2025",
         "es_aportaciones_plan_pensiones_conyuge_2025",
+        "es_donativos_no_recurrente_2025",
+        "es_donativos_recurrente_2025",
     }
     assert all(deduction.sources for deduction in deductions)
 
@@ -244,3 +246,126 @@ def test_incompatibility_ignored_when_only_one_side_applies():
     by_id = {r.deduction_id: r for r in results}
     assert by_id["applies_ok"].status == "applies"
     assert by_id["missing"].status == "missing_data"
+
+
+# ---------- tiered_percentage ----------
+
+
+def _tiered_deduction(**overrides):
+    defaults = dict(
+        id="tiered_test",
+        calculation={
+            "type": "tiered_percentage",
+            "base_field": "expenses.tiered_base",
+            "tiers": [
+                {"up_to": 250, "percentage": 0.80},
+                {"up_to": None, "percentage": 0.40},
+            ],
+        },
+        requirements=[{"field": "expenses.tiered_base", "operator": ">", "value": 0}],
+        limit=None,
+    )
+    defaults.update(overrides)
+    return validated_deduction(**defaults)
+
+
+def test_tiered_percentage_applies_only_first_tier_when_below_threshold():
+    result = evaluate_deduction(_tiered_deduction(), profile(expenses={"tiered_base": 100.0}))
+    assert result.status == "applies"
+    assert result.estimated_amount == 80.0  # 100 * 0.80
+
+
+def test_tiered_percentage_at_threshold_uses_first_tier_only():
+    result = evaluate_deduction(_tiered_deduction(), profile(expenses={"tiered_base": 250.0}))
+    assert result.estimated_amount == 200.0  # 250 * 0.80
+
+
+def test_tiered_percentage_splits_amount_across_tiers():
+    result = evaluate_deduction(_tiered_deduction(), profile(expenses={"tiered_base": 300.0}))
+    assert result.estimated_amount == 220.0  # 250 * 0.80 + 50 * 0.40
+
+
+def test_tiered_percentage_handles_large_amounts():
+    result = evaluate_deduction(_tiered_deduction(), profile(expenses={"tiered_base": 1000.0}))
+    assert result.estimated_amount == 500.0  # 250 * 0.80 + 750 * 0.40
+
+
+def test_tiered_percentage_respects_global_limit():
+    deduction = _tiered_deduction(limit=150.0)
+    result = evaluate_deduction(deduction, profile(expenses={"tiered_base": 1000.0}))
+    assert result.estimated_amount == 150.0
+
+
+def test_tiered_percentage_with_three_tiers():
+    deduction = validated_deduction(
+        id="tiered_three",
+        calculation={
+            "type": "tiered_percentage",
+            "base_field": "expenses.tiered_base",
+            "tiers": [
+                {"up_to": 100, "percentage": 0.90},
+                {"up_to": 300, "percentage": 0.50},
+                {"up_to": None, "percentage": 0.20},
+            ],
+        },
+        requirements=[{"field": "expenses.tiered_base", "operator": ">", "value": 0}],
+        limit=None,
+    )
+    result = evaluate_deduction(deduction, profile(expenses={"tiered_base": 500.0}))
+    # 100*0.90 + 200*0.50 + 200*0.20 = 90 + 100 + 40 = 230
+    assert result.estimated_amount == 230.0
+
+
+def test_tiered_percentage_rejects_empty_tiers():
+    with pytest.raises(ValidationError, match="tiers es obligatorio"):
+        validated_deduction(calculation={"type": "tiered_percentage", "base_field": "x"})
+
+
+def test_tiered_percentage_rejects_non_ascending_thresholds():
+    with pytest.raises(ValidationError, match="crecientes"):
+        validated_deduction(
+            calculation={
+                "type": "tiered_percentage",
+                "base_field": "x",
+                "tiers": [
+                    {"up_to": 300, "percentage": 0.50},
+                    {"up_to": 200, "percentage": 0.20},
+                ],
+            },
+        )
+
+
+def test_tiered_percentage_rejects_unbounded_tier_in_the_middle():
+    with pytest.raises(ValidationError, match="último tier"):
+        validated_deduction(
+            calculation={
+                "type": "tiered_percentage",
+                "base_field": "x",
+                "tiers": [
+                    {"up_to": None, "percentage": 0.50},
+                    {"up_to": 500, "percentage": 0.20},
+                ],
+            },
+        )
+
+
+def test_tier_rejects_percentage_out_of_range():
+    with pytest.raises(ValidationError, match="entre 0 y 1"):
+        validated_deduction(
+            calculation={
+                "type": "tiered_percentage",
+                "base_field": "x",
+                "tiers": [{"up_to": 100, "percentage": 1.5}],
+            },
+        )
+
+
+def test_calculation_rejects_tiers_for_non_tiered_type():
+    with pytest.raises(ValidationError, match="tiers solo se acepta"):
+        validated_deduction(
+            calculation={
+                "type": "amount_field",
+                "base_field": "x",
+                "tiers": [{"up_to": 100, "percentage": 0.50}],
+            },
+        )

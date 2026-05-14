@@ -10,7 +10,7 @@ from dataclasses import replace
 from datetime import date
 from typing import Any
 
-from .models import Deduction, RuleEvaluation, TaxProfile, ValidationStatus
+from .models import Deduction, RuleEvaluation, TaxProfile, Tier, ValidationStatus
 
 RISK_MAP = {"bajo": "low", "medio": "medium", "alto": "high"}
 
@@ -159,7 +159,32 @@ def calculate_amount(deduction: Deduction, facts: dict[str, Any]) -> float:
         amount = base * calculation.percentage
         caps = [cap for cap in [calculation.cap, deduction.limit] if cap is not None]
         return min([amount, *caps]) if caps else amount
+    if calculation.type == "tiered_percentage":
+        if not calculation.base_field or not calculation.tiers:
+            return 0.0
+        found, value = get_path(facts, calculation.base_field)
+        base = float(value) if found and isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
+        amount = _apply_tiers(base, calculation.tiers)
+        return min(amount, deduction.limit) if deduction.limit is not None else amount
     return 0.0
+
+
+def _apply_tiers(base: float, tiers: tuple[Tier, ...]) -> float:
+    total = 0.0
+    remaining = base
+    floor = 0.0
+    for tier in tiers:
+        if remaining <= 0:
+            break
+        if tier.up_to is None:
+            chunk = remaining
+        else:
+            capacity = max(0.0, tier.up_to - floor)
+            chunk = min(remaining, capacity)
+            floor = tier.up_to
+        total += chunk * tier.percentage
+        remaining -= chunk
+    return total
 
 
 def get_path(data: dict[str, Any], path: str) -> tuple[bool, Any]:

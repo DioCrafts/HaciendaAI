@@ -1,0 +1,96 @@
+{
+  "deductions": [
+    {
+      "id": "es_donativos_no_recurrente_2025",
+      "name": "Donativos a entidades del art. 16 Ley 49/2002 (no recurrentes)",
+      "description": "Deducción por donativos, donaciones y aportaciones a entidades sin fines lucrativos acogidas a la Ley 49/2002 (fundaciones, asociaciones de utilidad pública, ONGD, entidades religiosas con acuerdo, etc.). Régimen general no recurrente: 80% sobre los primeros 250 € y 40% sobre el exceso (art. 19.1 Ley 49/2002 tras la modificación de la Ley 7/2024). El importe total deducible está limitado al 10% de la base liquidable; ese límite no se aplica todavía por el motor y debe verificarse manualmente.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.donations_amount", "operator": ">", "value": 0}
+      ],
+      "calculation": {
+        "type": "tiered_percentage",
+        "base_field": "expenses.donations_amount",
+        "tiers": [
+          {"up_to": 250, "percentage": 0.80},
+          {"up_to": null, "percentage": 0.40}
+        ]
+      },
+      "limit": null,
+      "taxable_base_limits": {"max_percentage_of_base_liquidable": 0.10},
+      "incompatibilities": ["es_donativos_recurrente_2025"],
+      "required_documents": ["Certificado de donativo expedido por la entidad beneficiaria"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "type": "ley",
+          "title": "Ley 49/2002 régimen fiscal entidades sin fines lucrativos, art. 19",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2002-25039",
+          "checked_at": null
+        },
+        {
+          "type": "ley",
+          "title": "Ley 7/2024 modificación art. 19 Ley 49/2002 (porcentajes 80%/40%/45% y umbral 250 €)",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2024-26521",
+          "checked_at": null
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "bajo",
+      "validation_status": "pendiente_tests"
+    },
+    {
+      "id": "es_donativos_recurrente_2025",
+      "name": "Donativos a entidades del art. 16 Ley 49/2002 (recurrentes)",
+      "description": "Régimen incrementado por donativo recurrente: el contribuyente ha donado a la misma entidad cantidades iguales o superiores en los dos ejercicios inmediatos anteriores. Tipo del 80% sobre los primeros 250 € y 45% sobre el exceso (art. 19.1 párrafo segundo Ley 49/2002 tras la modificación de la Ley 7/2024). Excluyente del régimen no recurrente.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.donations_amount", "operator": ">", "value": 0},
+        {"field": "personal.donations_recurrent_qualifying", "operator": "==", "value": true}
+      ],
+      "calculation": {
+        "type": "tiered_percentage",
+        "base_field": "expenses.donations_amount",
+        "tiers": [
+          {"up_to": 250, "percentage": 0.80},
+          {"up_to": null, "percentage": 0.45}
+        ]
+      },
+      "limit": null,
+      "taxable_base_limits": {"max_percentage_of_base_liquidable": 0.10},
+      "incompatibilities": ["es_donativos_no_recurrente_2025"],
+      "required_documents": [
+        "Certificado de donativo expedido por la entidad beneficiaria",
+        "Justificación de donativos a la misma entidad en los dos ejercicios anteriores por importe igual o superior"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "type": "ley",
+          "title": "Ley 49/2002 régimen fiscal entidades sin fines lucrativos, art. 19",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2002-25039",
+          "checked_at": null
+        },
+        {
+          "type": "ley",
+          "title": "Ley 7/2024 modificación art. 19 Ley 49/2002 (porcentajes 80%/40%/45% y umbral 250 €)",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2024-26521",
+          "checked_at": null
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "bajo",
+      "validation_status": "pendiente_tests"
+    }
+  ]
+}
