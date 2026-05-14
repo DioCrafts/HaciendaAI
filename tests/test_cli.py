@@ -111,6 +111,45 @@ def test_cli_evaluate_returns_2_on_invalid_profile_schema(tmp_path: Path, capsys
     assert "Error de validación" in captured.err
 
 
+def test_cli_simulate_text_output_shows_three_scenarios(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    profile = _write_json(tmp_path / "profile.json", _profile_payload())
+    deductions = _write_json(tmp_path / "ded.json", [_validated_deduction_payload()])
+    exit_code = main(["simulate", "--profile", str(profile), "--deductions", str(deductions)])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Simulación fiscal — Ejercicio 2025, Madrid" in captured.out
+    assert "Tributación individual" in captured.out
+    assert "Tributación conjunta" in captured.out
+    assert "conservador" in captured.out
+    assert "esperado" in captured.out
+    assert "optimizado" in captured.out
+
+
+def test_cli_simulate_json_output_includes_recommendation(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    profile = _write_json(tmp_path / "profile.json", _profile_payload())
+    deductions = _write_json(tmp_path / "ded.json", [_validated_deduction_payload()])
+    exit_code = main(["simulate", "--profile", str(profile), "--deductions", str(deductions), "--format", "json"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["tax_year"] == 2025
+    assert payload["recommended_filing_mode"] in {"individual", "conjunta"}
+    assert {s["name"] for s in payload["individual"]["scenarios"]} == {
+        "conservador",
+        "esperado",
+        "optimizado",
+    }
+
+
+def test_cli_simulate_returns_2_on_invalid_profile(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    profile = _write_json(tmp_path / "profile.json", {"tax_year": 2025})  # falta region
+    deductions = _write_json(tmp_path / "ded.json", [_validated_deduction_payload()])
+    exit_code = main(["simulate", "--profile", str(profile), "--deductions", str(deductions)])
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "Error de validación" in captured.err
+
+
 def test_cli_requires_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as exc_info:
         main([])

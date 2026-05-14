@@ -14,8 +14,10 @@
 
 ## Fase 3: Simulador básico
 
-- Escenarios base, conservador y optimizado.
-- Individual vs conjunta simplificado.
+- Escenarios conservador / esperado / optimizado implementados en `src/hacienda_ai/simulator.py`.
+- Comparación individual vs conjunta mediante re-evaluación del perfil con `filing_mode` intercambiado y recomendación por importe estimado en el escenario `esperado`.
+- Expuesto vía CLI: `hacienda-ai simulate --profile profile.json [--format json]`.
+- Pendiente: cálculo real de cuota IRPF, mínimos personales y familiares, prorrateos.
 
 ## Fase 4: API
 

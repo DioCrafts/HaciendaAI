@@ -70,6 +70,21 @@ hacienda-ai evaluate --profile profile.json --deductions ruta/a/deducciones.json
 
 El CLI imprime un resumen por estado (`Aplica`, `Falta documentación`, `Faltan datos`, `Pendiente de validación`, `No aplica`) y el importe estimado total. También puede invocarse como `python -m hacienda_ai evaluate ...`.
 
+### Simulador
+
+```bash
+hacienda-ai simulate --profile profile.json
+hacienda-ai simulate --profile profile.json --format json
+```
+
+El simulador genera tres escenarios sobre el mismo perfil:
+
+- **conservador**: solo deducciones con requisitos cumplidos y justificantes aportados.
+- **esperado**: añade deducciones a las que solo faltan justificantes documentales.
+- **optimizado**: añade además deducciones a las que falta información estructurada del perfil.
+
+Además repite la simulación cambiando `filing_mode` entre `individual` y `conjunta`, y sugiere el modo con mayor importe estimado bajo el escenario `esperado`. La sugerencia es informativa: no calcula la cuota IRPF completa ni sustituye al asesor.
+
 ## Ejecutar tests, lint y type checking
 
 ```bash
