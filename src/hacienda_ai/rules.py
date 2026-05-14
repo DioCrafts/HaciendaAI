@@ -14,6 +14,12 @@ from .models import Deduction, RuleEvaluation, TaxProfile, Tier, ValidationStatu
 
 RISK_MAP = {"bajo": "low", "medio": "medium", "alto": "high"}
 
+TAXABLE_BASE_LIMIT_FIELDS: dict[str, str] = {
+    "max_percentage_of_base_liquidable": "taxable_base.liquidable",
+    "max_percentage_of_base_general": "taxable_base.general",
+    "max_percentage_of_base_savings": "taxable_base.savings",
+}
+
 
 def evaluate_deduction(deduction: Deduction, profile: TaxProfile) -> RuleEvaluation:
     """Evalúa una deducción contra un perfil fiscal estructurado."""
@@ -66,6 +72,15 @@ def evaluate_deduction(deduction: Deduction, profile: TaxProfile) -> RuleEvaluat
 
     missing_documents = tuple(doc for doc in deduction.required_documents if doc not in profile.documents)
     amount = calculate_amount(deduction, facts)
+    amount, missing_bases = _apply_taxable_base_limits(deduction, amount, facts)
+    if missing_bases:
+        return _result(
+            deduction,
+            "missing_data",
+            "Faltan datos de la base imponible necesarios para aplicar el límite legal de la deducción.",
+            missing_fields=tuple(missing_bases),
+            confidence=0.5,
+        )
     if missing_documents:
         return _result(
             deduction,
@@ -167,6 +182,27 @@ def calculate_amount(deduction: Deduction, facts: dict[str, Any]) -> float:
         amount = _apply_tiers(base, calculation.tiers)
         return min(amount, deduction.limit) if deduction.limit is not None else amount
     return 0.0
+
+
+def _apply_taxable_base_limits(deduction: Deduction, amount: float, facts: dict[str, Any]) -> tuple[float, list[str]]:
+    if not deduction.taxable_base_limits:
+        return amount, []
+    caps: list[float] = []
+    missing: list[str] = []
+    for limit_key, percentage in deduction.taxable_base_limits.items():
+        base_path = TAXABLE_BASE_LIMIT_FIELDS.get(limit_key)
+        if base_path is None:
+            continue
+        found, value = get_path(facts, base_path)
+        if not found or not isinstance(value, (int, float)) or isinstance(value, bool):
+            missing.append(base_path)
+            continue
+        caps.append(float(value) * percentage)
+    if missing:
+        return 0.0, missing
+    if not caps:
+        return amount, []
+    return min(amount, *caps), []
 
 
 def _apply_tiers(base: float, tiers: tuple[Tier, ...]) -> float:

@@ -137,7 +137,7 @@ Lote 2 (2 deducciones estatales 2025, donativos Ley 49/2002 art. 19, tras Ley 7/
 - `es_donativos_no_recurrente_2025`: 80% sobre los primeros 250 € + 40% sobre el exceso.
 - `es_donativos_recurrente_2025`: 80% sobre los primeros 250 € + 45% sobre el exceso si el contribuyente ha donado a la misma entidad importes iguales o superiores en los dos ejercicios anteriores. Incompatible con el régimen no recurrente; cuando ambas reglas serían aplicables, el motor selecciona la recurrente por mayor importe.
 
-El límite global del 10% sobre la base liquidable está declarado en `taxable_base_limits` pero **aún no se aplica** por el motor; debe verificarse manualmente.
+El límite global del 10 % sobre la base liquidable se aplica por el motor a partir de `taxable_base.liquidable` en el perfil. Si el perfil no incluye `taxable_base.liquidable`, el motor devuelve `missing_data` indicando el campo concreto.
 
 Todas las reglas están marcadas como `pendiente_tests`: tienen referencia legal y tests del motor, pero **requieren revisión fiscal humana contra el Manual práctico de Renta AEAT 2025** antes de promoverlas a `validada`. Mientras tanto, el motor las muestra como `Pendiente de validación` y no las recomienda directamente.
 

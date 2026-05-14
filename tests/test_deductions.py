@@ -360,6 +360,40 @@ def test_tier_rejects_percentage_out_of_range():
         )
 
 
+def test_taxable_base_limits_rejects_unknown_key():
+    with pytest.raises(ValidationError, match="clave reconocida"):
+        validated_deduction(taxable_base_limits={"max_percentage_of_unknown_base": 0.10})
+
+
+def test_taxable_base_limits_rejects_value_out_of_range():
+    with pytest.raises(ValidationError, match="entre 0 y 1"):
+        validated_deduction(taxable_base_limits={"max_percentage_of_base_liquidable": 1.5})
+
+
+def test_taxable_base_limits_rejects_non_numeric_value():
+    with pytest.raises(ValidationError, match="entre 0 y 1"):
+        validated_deduction(taxable_base_limits={"max_percentage_of_base_liquidable": True})
+
+
+def test_taxable_base_limits_applies_minimum_of_multiple_caps():
+    deduction = validated_deduction(
+        calculation={"type": "fixed_amount", "fixed_amount": 10000.0},
+        requirements=[],
+        limit=None,
+        taxable_base_limits={
+            "max_percentage_of_base_liquidable": 0.10,
+            "max_percentage_of_base_general": 0.05,
+        },
+    )
+    result = evaluate_deduction(
+        deduction,
+        profile(taxable_base={"liquidable": 50_000.0, "general": 40_000.0}),
+    )
+    # cap_liquidable = 5.000; cap_general = 2.000; importe = 10.000 → min = 2.000
+    assert result.status == "applies"
+    assert result.estimated_amount == 2000.0
+
+
 def test_calculation_rejects_tiers_for_non_tiered_type():
     with pytest.raises(ValidationError, match="tiers solo se acepta"):
         validated_deduction(

@@ -30,5 +30,18 @@ Las deducciones del lote 1 (estatales 2025) consultan los siguientes campos del 
 | `family.spouse.work_income` | número | aportaciones plan de pensiones cónyuge |
 | `expenses.donations_amount` | número | donativos Ley 49/2002 (lote 2) |
 | `personal.donations_recurrent_qualifying` | booleano | donativos recurrentes (lote 2) |
+| `taxable_base.liquidable` | número | tope del 10 % en donativos (lote 2) |
+| `taxable_base.general` | número | tope alternativo `max_percentage_of_base_general` |
+| `taxable_base.savings` | número | tope alternativo `max_percentage_of_base_savings` |
+
+## Límites por base imponible
+
+Cada deducción puede declarar `taxable_base_limits` con claves del conjunto:
+
+- `max_percentage_of_base_liquidable` → consulta `taxable_base.liquidable` del perfil.
+- `max_percentage_of_base_general` → consulta `taxable_base.general`.
+- `max_percentage_of_base_savings` → consulta `taxable_base.savings`.
+
+Los valores son porcentajes entre 0 y 1. El motor aplica el mínimo de todos los topes que estén declarados, además del `limit` global de la deducción. Si una deducción requiere un tope y el perfil no incluye la base correspondiente, el motor devuelve `missing_data` con la ruta exacta del campo ausente.
 
 Si una regla no encuentra un campo obligatorio en el perfil, el motor responde `missing_data` indicando exactamente qué falta.

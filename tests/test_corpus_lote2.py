@@ -29,6 +29,9 @@ def _profile(**overrides: Any) -> TaxProfile:
         "region": "Madrid",
         "income": {"work_income": 30000.0},
         "expenses": {},
+        # base liquidable alta para que el cap del 10% no haga binding en los
+        # tests por defecto. Los tests específicos del cap lo bajan a propósito.
+        "taxable_base": {"liquidable": 100_000.0},
         "documents": ["Certificado de donativo expedido por la entidad beneficiaria"],
     }
     data.update(overrides)
@@ -133,3 +136,39 @@ def test_recurrent_wins_over_non_recurrent_when_both_apply() -> None:
     assert by_id["es_donativos_no_recurrente_2025"].status == "does_not_apply"
     assert by_id["es_donativos_no_recurrente_2025"].estimated_amount == 0.0
     assert "Incompatible con" in by_id["es_donativos_no_recurrente_2025"].reason
+
+
+# ---------- límite del 10% de la base liquidable ----------
+
+
+def test_donations_capped_at_10_percent_of_base_liquidable() -> None:
+    deduction = _load_validated("es_donativos_no_recurrente_2025")
+    # Sin cap: 250*0.80 + 750*0.40 = 500. Con base liquidable de 3.000 €, el
+    # 10% = 300 € actúa como tope. La deducción se recorta de 500 a 300.
+    profile = _profile(
+        expenses={"donations_amount": 1000.0},
+        taxable_base={"liquidable": 3000.0},
+    )
+    result = evaluate_deduction(deduction, profile)
+    assert result.status == "applies"
+    assert result.estimated_amount == 300.0
+
+
+def test_donations_not_capped_when_base_liquidable_is_high() -> None:
+    deduction = _load_validated("es_donativos_no_recurrente_2025")
+    profile = _profile(
+        expenses={"donations_amount": 1000.0},
+        taxable_base={"liquidable": 100_000.0},
+    )
+    result = evaluate_deduction(deduction, profile)
+    assert result.status == "applies"
+    assert result.estimated_amount == 500.0  # 250*0.80 + 750*0.40
+
+
+def test_donations_missing_base_liquidable_returns_missing_data() -> None:
+    deduction = _load_validated("es_donativos_no_recurrente_2025")
+    profile = _profile(expenses={"donations_amount": 500.0}, taxable_base={})
+    result = evaluate_deduction(deduction, profile)
+    assert result.status == "missing_data"
+    assert result.missing_fields == ("taxable_base.liquidable",)
+    assert "límite legal" in result.reason

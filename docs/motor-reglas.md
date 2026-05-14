@@ -18,6 +18,10 @@ El motor vive en `src/hacienda_ai/rules.py`.
 - `percentage_with_cap`: aplica `percentage` (0-1) sobre `base_field` y respeta `cap` y `limit`.
 - `tiered_percentage`: tramos progresivos definidos en `tiers`. Cada tramo tiene `up_to` (umbral acumulado, `null` solo en el último) y `percentage` (0-1). Los umbrales deben ser estrictamente crecientes. Ejemplo (donativos Ley 49/2002): `[{"up_to": 250, "percentage": 0.80}, {"up_to": null, "percentage": 0.40}]`.
 
+## Límites por base imponible
+
+Tras calcular el importe, el motor aplica `deduction.taxable_base_limits` recortando por el porcentaje declarado sobre el campo correspondiente del perfil (`taxable_base.liquidable`, `taxable_base.general` o `taxable_base.savings`). Si varios topes son aplicables se toma el mínimo. Si falta la base requerida, el estado pasa a `missing_data` con la ruta exacta del campo ausente.
+
 ## Límites
 
 El motor solo evalúa datos estructurados. No interpreta texto libre ni inventa importes.

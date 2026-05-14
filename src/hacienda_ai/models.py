@@ -168,6 +168,34 @@ def _validate_tier_thresholds(tiers: tuple[Tier, ...]) -> None:
             last_threshold = tier.up_to
 
 
+TAXABLE_BASE_LIMIT_KEYS: frozenset[str] = frozenset(
+    {
+        "max_percentage_of_base_liquidable",
+        "max_percentage_of_base_general",
+        "max_percentage_of_base_savings",
+    }
+)
+
+
+def _validate_taxable_base_limits(limits: dict[str, Any]) -> None:
+    for key, value in limits.items():
+        if key not in TAXABLE_BASE_LIMIT_KEYS:
+            raise ValidationError(
+                f"taxable_base_limits.{key} no es una clave reconocida. Permitidas: {sorted(TAXABLE_BASE_LIMIT_KEYS)}"
+            )
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not (0 <= value <= 1):
+            raise ValidationError(f"taxable_base_limits.{key} debe ser un número entre 0 y 1")
+
+
+def _parse_taxable_base_limits(raw: Any) -> dict[str, float]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValidationError("taxable_base_limits debe ser un objeto JSON")
+    _validate_taxable_base_limits(raw)
+    return {key: float(value) for key, value in raw.items()}
+
+
 @dataclass(frozen=True)
 class Deduction:
     id: str
@@ -180,7 +208,7 @@ class Deduction:
     requirements: tuple[Requirement, ...]
     calculation: Calculation
     limit: float | None
-    taxable_base_limits: dict[str, Any]
+    taxable_base_limits: dict[str, float]
     incompatibilities: tuple[str, ...]
     required_documents: tuple[str, ...]
     rent_web_boxes: tuple[str, ...]
@@ -234,7 +262,7 @@ class Deduction:
             requirements=tuple(Requirement.from_dict(item) for item in as_list(data["requirements"], "requirements")),
             calculation=Calculation.from_dict(data["calculation"]),
             limit=as_optional_number(data.get("limit"), "limit"),
-            taxable_base_limits=dict(data.get("taxable_base_limits") or {}),
+            taxable_base_limits=_parse_taxable_base_limits(data.get("taxable_base_limits")),
             incompatibilities=tuple(
                 as_non_empty_str(item, "incompatibility") for item in (data.get("incompatibilities") or [])
             ),
@@ -274,6 +302,7 @@ class TaxProfile:
     income: dict[str, Any] = field(default_factory=dict)
     withholdings: list[dict[str, Any]] = field(default_factory=list)
     expenses: Any = field(default_factory=dict)
+    taxable_base: dict[str, Any] = field(default_factory=dict)
     deduction_candidates: list[str] = field(default_factory=list)
     documents: list[str] = field(default_factory=list)
 
@@ -290,6 +319,7 @@ class TaxProfile:
             income=dict(data.get("income") or {}),
             withholdings=list(data.get("withholdings") or []),
             expenses=data.get("expenses") or {},
+            taxable_base=dict(data.get("taxable_base") or {}),
             deduction_candidates=list(data.get("deduction_candidates") or []),
             documents=list(data.get("documents") or []),
         )
@@ -304,6 +334,7 @@ class TaxProfile:
             "income": self.income,
             "withholdings": self.withholdings,
             "expenses": self.expenses,
+            "taxable_base": self.taxable_base,
             "deduction_candidates": self.deduction_candidates,
             "documents": self.documents,
         }
