@@ -18,6 +18,7 @@ El motor vive en `src/hacienda_ai/rules.py`.
 - `percentage_with_cap`: aplica `percentage` (0-1) sobre `base_field` y respeta `cap` y `limit`.
 - `tiered_percentage`: tramos progresivos definidos en `tiers`. Cada tramo tiene `up_to` (umbral acumulado, `null` solo en el último) y `percentage` (0-1). Los umbrales deben ser estrictamente crecientes. Ejemplo (donativos Ley 49/2002): `[{"up_to": 250, "percentage": 0.80}, {"up_to": null, "percentage": 0.40}]`.
 - `prorated_fixed_amount`: `monthly_amount * meses_cualificantes`, donde los meses se leen del campo `months_field` del perfil. Si `months_cap` está fijado se aplica como tope (típicamente 12 para deducciones anuales). Adicionalmente `deduction.limit` actúa como tope absoluto. Ejemplo (familia numerosa categoría general): `{"monthly_amount": 100, "months_field": "family.large_family_qualifying_months", "months_cap": 12}`.
+- `cuota_bonification`: `percentage * cuota_field` (porcentaje fijo aplicado a un valor de cuota leído del perfil). Diferente del resto de tipos porque opera sobre la **cuota íntegra**, no sobre la base imponible ni sobre un gasto. `deduction.limit` actúa como tope absoluto si está fijado. Ejemplo (art. 68.4 LIRPF Ceuta/Melilla): `{"percentage": 0.60, "cuota_field": "cuota.attributable_to_ceuta_melilla"}`. El cálculo de la fracción atribuible queda fuera del motor: lo provee el wizard o el asesor.
 
 ## Límites por base imponible
 

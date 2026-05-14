@@ -186,6 +186,11 @@ Lote 1 (4 deducciones estatales 2025):
 - `es_aportaciones_plan_pensiones_individual_2025` ✅ **validada**: reducción por aportaciones individuales a plan de pensiones, art. 52 LIRPF. Doble cap: absoluto 1.500 € y relativo 30 % de `taxable_base.net_work_and_economic_income` (rendimientos netos del trabajo + actividades económicas). El motor aplica el menor de ambos. Primer caso del repo de regla promovida tras revisión humana documentada en `sources[].checked_at`.
 - `es_aportaciones_plan_pensiones_conyuge_2025`: reducción por aportaciones al plan del cónyuge si su renta es inferior a 8.000 €, tope 1.000 € (art. 51.7 LIRPF).
 
+Bonificaciones Ceuta/Melilla (art. 68.4 LIRPF):
+
+- `es_bonificacion_ceuta_2025`: 60 % de la cuota íntegra atribuible a rentas obtenidas en Ceuta. Nuevo tipo de cálculo `cuota_bonification`. Estado `pendiente_tests` — el porcentaje es estable pero la atribución de cuota requiere análisis fiscal humano.
+- `es_bonificacion_melilla_2025`: análogo para Melilla; incompatible con la de Ceuta.
+
 Lote 2 (2 deducciones estatales 2025, donativos Ley 49/2002 art. 19, tras Ley 7/2024):
 
 - `es_donativos_no_recurrente_2025`: 80% sobre los primeros 250 € + 40% sobre el exceso.

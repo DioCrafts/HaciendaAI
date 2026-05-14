@@ -192,6 +192,14 @@ def calculate_amount(deduction: Deduction, facts: dict[str, Any]) -> float:
             months = min(months, calculation.months_cap)
         amount = months * calculation.monthly_amount
         return min(amount, deduction.limit) if deduction.limit is not None else amount
+    if calculation.type == "cuota_bonification":
+        if not calculation.cuota_field or calculation.percentage is None:
+            return 0.0
+        found, value = get_path(facts, calculation.cuota_field)
+        cuota = float(value) if found and isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
+        cuota = max(cuota, 0.0)
+        amount = cuota * calculation.percentage
+        return min(amount, deduction.limit) if deduction.limit is not None else amount
     return 0.0
 
 

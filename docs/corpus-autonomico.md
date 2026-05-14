@@ -28,7 +28,7 @@ El corpus autonómico inicial (`src/hacienda_ai/data/deductions/2025_autonomicas
 
 - **País Vasco**: régimen foral (Diputaciones Forales de Álava, Bizkaia y Gipuzkoa). El IRPF no se rige por la Ley 35/2006; cada Territorio Histórico tiene su propia normativa foral. No procede modelarlo como una deducción autonómica del régimen común.
 - **Comunidad Foral de Navarra**: régimen foral propio. Mismo motivo.
-- **Ceuta** y **Melilla**: no aplican deducciones autonómicas como tales. La especialidad fiscal es una bonificación general del 60 % sobre la cuota íntegra del IRPF para los residentes (art. 68.4 LIRPF). Modelado pendiente con un tipo de regla distinto (bonificación general).
+- **Ceuta** y **Melilla**: no aplican deducciones autonómicas como tales, pero sí la bonificación del 60 % sobre la cuota íntegra correspondiente a rentas obtenidas en esas ciudades (art. 68.4 LIRPF). Ya están en el corpus como reglas **estatales con region asignada** (`es_bonificacion_ceuta_2025` y `es_bonificacion_melilla_2025`), usando el tipo de cálculo `cuota_bonification`. El motor aplica el 60 % al campo `cuota.attributable_to_ceuta_melilla` del perfil; la atribución la calcula el wizard/asesor. Estado: `pendiente_tests` mientras la atribución no esté contrastada por un humano.
 
 ## Flujo de promoción de una regla a producción
 

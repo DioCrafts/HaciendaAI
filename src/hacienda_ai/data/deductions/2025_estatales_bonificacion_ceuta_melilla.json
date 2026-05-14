@@ -1,0 +1,74 @@
+{
+  "deductions": [
+    {
+      "id": "es_bonificacion_ceuta_2025",
+      "name": "Bonificación del 60 % de la cuota correspondiente a rentas de Ceuta (art. 68.4 LIRPF)",
+      "description": "Deducción estatal del 60 % de la parte de la cuota íntegra del IRPF correspondiente a rentas obtenidas en Ceuta o, si el contribuyente reside en Ceuta, también de las restantes rentas en los términos del art. 68.4 LIRPF. El motor NO calcula la fracción atribuible: el campo cuota.attributable_to_ceuta_melilla del perfil debe contener el importe de la cuota íntegra al que se aplica la bonificación (responsabilidad del wizard o asesor que recopile los datos). Por eso esta regla queda como 'pendiente_tests': el porcentaje (60 %) es estable, pero la atribución correcta requiere análisis fiscal caso a caso (residentes vs no residentes; tipos de renta; antigüedad de residencia ≥ 3 años para el régimen completo de otras rentas).",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": "Ceuta",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "cuota.attributable_to_ceuta_melilla", "operator": ">", "value": 0}
+      ],
+      "calculation": {
+        "type": "cuota_bonification",
+        "percentage": 0.60,
+        "cuota_field": "cuota.attributable_to_ceuta_melilla"
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": ["es_bonificacion_melilla_2025"],
+      "required_documents": ["Certificado de residencia o documentación que acredite la obtención de rentas en Ceuta"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "type": "ley",
+          "title": "Ley 35/2006 IRPF, art. 68.4 — deducciones por rentas obtenidas en Ceuta y Melilla",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a68",
+          "checked_at": null
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_tests"
+    },
+    {
+      "id": "es_bonificacion_melilla_2025",
+      "name": "Bonificación del 60 % de la cuota correspondiente a rentas de Melilla (art. 68.4 LIRPF)",
+      "description": "Equivalente al art. 68.4 LIRPF para Melilla. El motor aplica el 60 % al campo cuota.attributable_to_ceuta_melilla del perfil; la atribución correcta de cuota es responsabilidad del wizard o del asesor. Incompatible con la bonificación de Ceuta para el mismo contribuyente.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": "Melilla",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "cuota.attributable_to_ceuta_melilla", "operator": ">", "value": 0}
+      ],
+      "calculation": {
+        "type": "cuota_bonification",
+        "percentage": 0.60,
+        "cuota_field": "cuota.attributable_to_ceuta_melilla"
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": ["es_bonificacion_ceuta_2025"],
+      "required_documents": ["Certificado de residencia o documentación que acredite la obtención de rentas en Melilla"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "type": "ley",
+          "title": "Ley 35/2006 IRPF, art. 68.4 — deducciones por rentas obtenidas en Ceuta y Melilla",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a68",
+          "checked_at": null
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_tests"
+    }
+  ]
+}

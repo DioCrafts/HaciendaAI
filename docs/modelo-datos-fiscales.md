@@ -34,6 +34,7 @@ Las deducciones del lote 1 (estatales 2025) consultan los siguientes campos del 
 | `taxable_base.general` | número | tope alternativo `max_percentage_of_base_general` |
 | `taxable_base.savings` | número | tope alternativo `max_percentage_of_base_savings` |
 | `taxable_base.net_work_and_economic_income` | número | suma de rendimientos netos del trabajo + actividades económicas. Usado por planes de pensiones (art. 52 LIRPF, cap del 30 %) |
+| `cuota.attributable_to_ceuta_melilla` | número | parte de la cuota íntegra atribuible a rentas obtenidas en Ceuta/Melilla; usado por la bonificación del art. 68.4 LIRPF. Lo calcula el wizard/asesor, no el motor |
 | `personal.is_eligible_maternity_deduction` | booleano | maternidad (lote 3) |
 | `family.maternity_qualifying_child_months` | entero ≥ 0 | maternidad: suma de meses cualificantes a través de hijos elegibles (lote 3) |
 | `personal.large_family_category` | "general" \| "especial" | familia numerosa (lote 3) |

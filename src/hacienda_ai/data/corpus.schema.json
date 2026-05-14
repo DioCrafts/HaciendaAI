@@ -143,7 +143,8 @@
             "percentage_with_cap",
             "fixed_amount",
             "tiered_percentage",
-            "prorated_fixed_amount"
+            "prorated_fixed_amount",
+            "cuota_bonification"
           ]
         },
         "base_field": {"type": ["string", "null"]},
@@ -156,7 +157,8 @@
         },
         "monthly_amount": {"type": ["number", "null"], "minimum": 0},
         "months_field": {"type": ["string", "null"]},
-        "months_cap": {"type": ["number", "null"], "exclusiveMinimum": 0}
+        "months_cap": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "cuota_field": {"type": ["string", "null"]}
       },
       "allOf": [
         {
@@ -169,6 +171,10 @@
         {
           "if": {"properties": {"type": {"const": "prorated_fixed_amount"}}, "required": ["type"]},
           "then": {"required": ["monthly_amount", "months_field"]}
+        },
+        {
+          "if": {"properties": {"type": {"const": "cuota_bonification"}}, "required": ["type"]},
+          "then": {"required": ["percentage", "cuota_field"]}
         },
         {
           "if": {
@@ -187,6 +193,12 @@
               {"not": {"required": ["months_cap"]}}
             ]
           }
+        },
+        {
+          "if": {
+            "not": {"properties": {"type": {"const": "cuota_bonification"}}, "required": ["type"]}
+          },
+          "then": {"not": {"required": ["cuota_field"]}}
         }
       ]
     }

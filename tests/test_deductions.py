@@ -473,6 +473,71 @@ def test_other_calculation_types_reject_prorated_fields():
         )
 
 
+# ---------- cuota_bonification ----------
+
+
+def _cuota_bonification_deduction(**overrides):
+    defaults = dict(
+        id="cuota_bonification_test",
+        calculation={
+            "type": "cuota_bonification",
+            "percentage": 0.60,
+            "cuota_field": "cuota.attributable_to_ceuta_melilla",
+        },
+        requirements=[{"field": "cuota.attributable_to_ceuta_melilla", "operator": ">", "value": 0}],
+        limit=None,
+    )
+    defaults.update(overrides)
+    return validated_deduction(**defaults)
+
+
+def test_cuota_bonification_applies_60_percent_of_cuota():
+    result = evaluate_deduction(
+        _cuota_bonification_deduction(),
+        profile(cuota={"attributable_to_ceuta_melilla": 5000.0}),
+    )
+    assert result.status == "applies"
+    assert result.estimated_amount == 3000.0  # 5000 * 0.60
+
+
+def test_cuota_bonification_respects_absolute_limit():
+    deduction = _cuota_bonification_deduction(limit=1000.0)
+    result = evaluate_deduction(deduction, profile(cuota={"attributable_to_ceuta_melilla": 5000.0}))
+    assert result.estimated_amount == 1000.0  # cap absoluto
+
+
+def test_cuota_bonification_returns_missing_data_when_field_absent():
+    result = evaluate_deduction(_cuota_bonification_deduction(), profile(cuota={}))
+    assert result.status == "missing_data"
+    assert "cuota.attributable_to_ceuta_melilla" in result.missing_fields
+
+
+def test_cuota_bonification_rejects_missing_percentage():
+    with pytest.raises(ValidationError, match="percentage"):
+        validated_deduction(
+            calculation={
+                "type": "cuota_bonification",
+                "cuota_field": "cuota.attributable_to_ceuta_melilla",
+            }
+        )
+
+
+def test_cuota_bonification_rejects_missing_cuota_field():
+    with pytest.raises(ValidationError, match="cuota_field"):
+        validated_deduction(calculation={"type": "cuota_bonification", "percentage": 0.60})
+
+
+def test_other_calculation_types_reject_cuota_field():
+    with pytest.raises(ValidationError, match="cuota_field solo se acepta"):
+        validated_deduction(
+            calculation={
+                "type": "fixed_amount",
+                "fixed_amount": 100.0,
+                "cuota_field": "cuota.x",
+            }
+        )
+
+
 def test_calculation_rejects_tiers_for_non_tiered_type():
     with pytest.raises(ValidationError, match="tiers solo se acepta"):
         validated_deduction(

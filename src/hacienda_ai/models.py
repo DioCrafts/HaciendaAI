@@ -121,6 +121,7 @@ class Calculation:
     monthly_amount: float | None = None
     months_field: str | None = None
     months_cap: float | None = None
+    cuota_field: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Calculation:
@@ -133,6 +134,7 @@ class Calculation:
             "fixed_amount",
             "tiered_percentage",
             "prorated_fixed_amount",
+            "cuota_bonification",
         }:
             raise ValidationError(f"Tipo de cálculo no soportado: {calculation_type}")
         percentage = as_optional_number(data.get("percentage"), "calculation.percentage")
@@ -168,6 +170,15 @@ class Calculation:
             ):
                 if value is not None:
                     raise ValidationError(f"calculation.{extra_field} solo se acepta con type=prorated_fixed_amount")
+        cuota_field = as_optional_str(data.get("cuota_field"), "calculation.cuota_field")
+        if calculation_type == "cuota_bonification":
+            if percentage is None or not (0 <= percentage <= 1):
+                raise ValidationError("calculation.percentage (0..1) es obligatorio para type=cuota_bonification")
+            if not cuota_field:
+                raise ValidationError("calculation.cuota_field es obligatorio para type=cuota_bonification")
+        else:
+            if cuota_field is not None:
+                raise ValidationError("calculation.cuota_field solo se acepta con type=cuota_bonification")
         return cls(
             type=calculation_type,
             base_field=as_optional_str(data.get("base_field"), "calculation.base_field"),
@@ -178,6 +189,7 @@ class Calculation:
             monthly_amount=monthly_amount,
             months_field=months_field,
             months_cap=months_cap,
+            cuota_field=cuota_field,
         )
 
 
@@ -329,6 +341,7 @@ class TaxProfile:
     withholdings: list[dict[str, Any]] = field(default_factory=list)
     expenses: Any = field(default_factory=dict)
     taxable_base: dict[str, Any] = field(default_factory=dict)
+    cuota: dict[str, Any] = field(default_factory=dict)
     deduction_candidates: list[str] = field(default_factory=list)
     documents: list[str] = field(default_factory=list)
 
@@ -346,6 +359,7 @@ class TaxProfile:
             withholdings=list(data.get("withholdings") or []),
             expenses=data.get("expenses") or {},
             taxable_base=dict(data.get("taxable_base") or {}),
+            cuota=dict(data.get("cuota") or {}),
             deduction_candidates=list(data.get("deduction_candidates") or []),
             documents=list(data.get("documents") or []),
         )
@@ -361,6 +375,7 @@ class TaxProfile:
             "withholdings": self.withholdings,
             "expenses": self.expenses,
             "taxable_base": self.taxable_base,
+            "cuota": self.cuota,
             "deduction_candidates": self.deduction_candidates,
             "documents": self.documents,
         }
