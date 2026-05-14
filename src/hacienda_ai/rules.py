@@ -22,7 +22,9 @@ def evaluate_deduction(deduction: Deduction, profile: TaxProfile) -> RuleEvaluat
     if deduction.region and deduction.region.lower() != profile.region.lower():
         return _result(deduction, "does_not_apply", "La deducción pertenece a otra comunidad autónoma.", confidence=0.9)
     if not _within_effective_range(deduction, profile.tax_year):
-        return _result(deduction, "does_not_apply", "La deducción no estaba en vigor durante el ejercicio fiscal.", confidence=0.9)
+        return _result(
+            deduction, "does_not_apply", "La deducción no estaba en vigor durante el ejercicio fiscal.", confidence=0.9
+        )
     if deduction.validation_status != ValidationStatus.VALIDADA:
         return _result(
             deduction,
@@ -92,9 +94,7 @@ def _within_effective_range(deduction: Deduction, tax_year: int) -> bool:
     year_end = date(tax_year, 12, 31)
     if deduction.effective_from and date.fromisoformat(deduction.effective_from) > year_end:
         return False
-    if deduction.effective_to and date.fromisoformat(deduction.effective_to) < year_start:
-        return False
-    return True
+    return not (deduction.effective_to and date.fromisoformat(deduction.effective_to) < year_start)
 
 
 def _resolve_incompatibilities(
@@ -110,7 +110,7 @@ def _resolve_incompatibilities(
 
     applying = [
         (deduction, evaluation)
-        for deduction, evaluation in zip(deductions, evaluations)
+        for deduction, evaluation in zip(deductions, evaluations, strict=False)
         if evaluation.status == "applies"
     ]
     applying.sort(key=lambda pair: (-pair[1].estimated_amount, pair[0].id))
@@ -135,7 +135,7 @@ def _resolve_incompatibilities(
         )
         if deduction.id in losers
         else evaluation
-        for deduction, evaluation in zip(deductions, evaluations)
+        for deduction, evaluation in zip(deductions, evaluations, strict=False)
     ]
 
 
@@ -178,9 +178,9 @@ def compare(value: Any, operator: str, expected: Any) -> bool:
     if operator == "not_exists":
         return value is None
     if operator == "==":
-        return value == expected
+        return bool(value == expected)
     if operator == "!=":
-        return value != expected
+        return bool(value != expected)
     if operator == "in":
         return value in expected if isinstance(expected, list | tuple | set) else False
     if operator in {">", ">=", "<", "<="}:
@@ -188,7 +188,9 @@ def compare(value: Any, operator: str, expected: Any) -> bool:
             return False
         if not isinstance(expected, (int, float)) or isinstance(expected, bool):
             return False
-        return {">": value > expected, ">=": value >= expected, "<": value < expected, "<=": value <= expected}[operator]
+        return {">": value > expected, ">=": value >= expected, "<": value < expected, "<=": value <= expected}[
+            operator
+        ]
     return False
 
 

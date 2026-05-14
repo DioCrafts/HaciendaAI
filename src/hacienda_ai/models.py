@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Literal
 
 
@@ -17,13 +17,13 @@ class ValidationError(ValueError):
     """Error de validación de datos fiscales o reglas."""
 
 
-class Scope(str, Enum):
+class Scope(StrEnum):
     ESTATAL = "estatal"
     AUTONOMICO = "autonomico"
     LOCAL = "local"
 
 
-class DeductionCategory(str, Enum):
+class DeductionCategory(StrEnum):
     DEDUCCION = "deduccion"
     REDUCCION = "reduccion"
     EXENCION = "exencion"
@@ -33,13 +33,13 @@ class DeductionCategory(str, Enum):
     AJUSTE = "ajuste"
 
 
-class RiskLevel(str, Enum):
+class RiskLevel(StrEnum):
     BAJO = "bajo"
     MEDIO = "medio"
     ALTO = "alto"
 
 
-class ValidationStatus(str, Enum):
+class ValidationStatus(StrEnum):
     VALIDADA = "validada"
     PENDIENTE_FUENTE = "pendiente_fuente"
     PENDIENTE_TESTS = "pendiente_tests"
@@ -64,7 +64,7 @@ class Source:
     checked_at: str | None = None
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Source":
+    def from_dict(cls, data: dict[str, Any]) -> Source:
         require_keys(data, ["type", "title"], "source")
         return cls(
             type=as_non_empty_str(data["type"], "source.type"),
@@ -81,7 +81,7 @@ class Requirement:
     value: Any = None
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Requirement":
+    def from_dict(cls, data: dict[str, Any]) -> Requirement:
         require_keys(data, ["field", "operator"], "requirement")
         operator = as_non_empty_str(data["operator"], "requirement.operator")
         if operator not in {"==", "!=", ">", ">=", "<", "<=", "exists", "not_exists", "in"}:
@@ -102,7 +102,7 @@ class Calculation:
     fixed_amount: float | None = None
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Calculation":
+    def from_dict(cls, data: dict[str, Any]) -> Calculation:
         require_keys(data, ["type"], "calculation")
         calculation_type = as_non_empty_str(data["type"], "calculation.type")
         if calculation_type not in {"manual_review", "amount_field", "percentage_with_cap", "fixed_amount"}:
@@ -145,7 +145,7 @@ class Deduction:
     validation_status: ValidationStatus
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Deduction":
+    def from_dict(cls, data: dict[str, Any]) -> Deduction:
         require_keys(
             data,
             [
@@ -188,8 +188,12 @@ class Deduction:
             calculation=Calculation.from_dict(data["calculation"]),
             limit=as_optional_number(data.get("limit"), "limit"),
             taxable_base_limits=dict(data.get("taxable_base_limits") or {}),
-            incompatibilities=tuple(as_non_empty_str(item, "incompatibility") for item in (data.get("incompatibilities") or [])),
-            required_documents=tuple(as_non_empty_str(item, "required_document") for item in (data.get("required_documents") or [])),
+            incompatibilities=tuple(
+                as_non_empty_str(item, "incompatibility") for item in (data.get("incompatibilities") or [])
+            ),
+            required_documents=tuple(
+                as_non_empty_str(item, "required_document") for item in (data.get("required_documents") or [])
+            ),
             rent_web_boxes=tuple(as_non_empty_str(item, "rent_web_box") for item in (data.get("rent_web_boxes") or [])),
             sources=sources,
             effective_from=effective_from,
@@ -227,7 +231,7 @@ class TaxProfile:
     documents: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "TaxProfile":
+    def from_dict(cls, data: dict[str, Any]) -> TaxProfile:
         require_keys(data, ["tax_year", "region"], "tax_profile")
         tax_year = as_tax_year(data["tax_year"], "tax_profile.tax_year")
         return cls(
@@ -295,7 +299,7 @@ def as_list(value: Any, field_name: str) -> list[Any]:
 def as_tax_year(value: Any, field_name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 2000:
         raise ValidationError(f"{field_name} debe ser un entero válido")
-    return value
+    return int(value)
 
 
 def as_optional_iso_date(value: Any, field_name: str) -> str | None:

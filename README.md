@@ -45,13 +45,23 @@ El núcleo inicial no requiere dependencias de producción externas.
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install -U pip pytest
+python -m pip install -U pip
+python -m pip install -e ".[dev]"
 ```
 
-## Ejecutar tests
+## Ejecutar tests, lint y type checking
 
 ```bash
-python -m pytest
+python -m pytest      # tests
+ruff check .          # lint
+ruff format --check . # formato
+mypy                  # type checking estricto
+```
+
+Cada PR ejecuta automáticamente las cuatro comprobaciones en GitHub Actions (`.github/workflows/ci.yml`). Para reproducir el mismo control antes de cada commit:
+
+```bash
+pre-commit install
 ```
 
 ## Estructura del proyecto

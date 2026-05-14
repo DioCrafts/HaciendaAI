@@ -145,7 +145,7 @@ def test_tax_year_rejects_boolean_value():
 
 
 def test_tax_profile_tax_year_rejects_boolean_value():
-    with pytest.raises(ValidationError, match="tax_profile.tax_year"):
+    with pytest.raises(ValidationError, match=r"tax_profile\.tax_year"):
         TaxProfile.from_dict({"tax_year": True, "region": "Madrid"})
 
 

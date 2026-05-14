@@ -13,10 +13,7 @@ DEFAULT_DEDUCTIONS_DIR = Path(__file__).parent / "data" / "deductions"
 def load_deductions(path: Path | str = DEFAULT_DEDUCTIONS_DIR) -> list[Deduction]:
     """Carga deducciones desde JSON y valida identificadores duplicados."""
     root = Path(path)
-    if root.is_file():
-        files = [root]
-    else:
-        files = sorted(root.glob("*.json"))
+    files = [root] if root.is_file() else sorted(root.glob("*.json"))
     deductions: list[Deduction] = []
     seen: set[str] = set()
     for file_path in files:
