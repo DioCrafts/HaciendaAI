@@ -30,3 +30,7 @@ Auth opcional vía API key en header `X-API-Key`. Se activa definiendo la variab
 ## JSON Schema del corpus
 
 `src/hacienda_ai/data/corpus.schema.json` (Draft 2020-12) describe la estructura de los ficheros del corpus. Está mantenido en paralelo a los dataclasses de `models.py`: cualquier cambio de schema requiere editar ambos sitios. El subcomando `hacienda-ai schema PATH...` valida ficheros contra el schema y la CI lo ejecuta sobre todo el corpus en cada PR. El test `tests/test_schema.py` blinda que el schema acepta el corpus actual y rechaza mutaciones inválidas conocidas, evitando deriva entre dataclasses y schema.
+
+## Frontend (React + Vite)
+
+`frontend/` contiene un cliente web mínimo en React 18 + TypeScript. No comparte código con Python: los tipos en `frontend/src/types.ts` son una réplica manual de los dataclasses del motor; cualquier cambio del modelo obliga a tocar ambos sitios. La capa `frontend/src/api.ts` envuelve los endpoints `/v1/*` con `fetch` nativo y tipa la respuesta. Sin estado global ni librerías de UI: solo `useState` + CSS plano con tema claro/oscuro automático.

@@ -94,6 +94,16 @@ Endpoints:
 
 **Autenticación**: si la variable de entorno `HACIENDA_AI_API_KEY` está definida, todos los endpoints `/v1/*` exigen el header `X-API-Key` coincidente. Si no está definida, la API funciona abierta (modo de desarrollo). `/health` queda siempre accesible (útil para monitores y load balancers). La comparación se hace con `secrets.compare_digest` para evitar ataques de timing.
 
+### Frontend (React + TypeScript)
+
+```bash
+cd frontend
+npm install
+npm run dev          # http://localhost:5173 con hot reload
+```
+
+Single-page con tres bloques: barra de configuración del API (URL base + `X-API-Key` opcional), formulario del perfil fiscal y panel de resultados con dos pestañas (Evaluación / Simulación). Detalles en `frontend/README.md`.
+
 ### Simulador
 
 ```bash
