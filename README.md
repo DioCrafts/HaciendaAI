@@ -149,6 +149,10 @@ Lote 3 (5 deducciones estatales 2025, prorrateadas por meses):
 
 Los campos de meses (`family.maternity_qualifying_child_months`, etc.) se entienden como suma de meses elegibles a través de todos los hijos/ascendientes; el wizard que recoja datos debe normalizarlos. Los complementos por hijo adicional en familia numerosa (600 €/hijo a partir del 4º o 6º) no están modelados todavía.
 
+Corpus autonómico base (15 CCAA de régimen común, 1 placeholder por comunidad):
+
+Cubre las 15 CCAA de régimen común con la deducción autonómica por arrendamiento de vivienda habitual para jóvenes. Todas en `pendiente_fuente`: el motor las carga y filtra por región pero NO las recomienda hasta que un asesor contraste porcentaje, edad y tope contra la normativa autonómica vigente. País Vasco y Navarra quedan fuera (régimen foral). Ceuta y Melilla quedan fuera (aplican bonificación general del 60 %). Detalle en `docs/corpus-autonomico.md`.
+
 Todas las reglas están marcadas como `pendiente_tests`: tienen referencia legal y tests del motor, pero **requieren revisión fiscal humana contra el Manual práctico de Renta AEAT 2025** antes de promoverlas a `validada`. Mientras tanto, el motor las muestra como `Pendiente de validación` y no las recomienda directamente.
 
 Para promover una regla: editar su `validation_status` en `src/hacienda_ai/data/deductions/` y poner `checked_at` y `last_reviewed_at` con la fecha de la revisión.

@@ -75,7 +75,8 @@ def test_rejects_unsupported_operator():
 
 
 def test_pending_validation_deduction_is_not_recommended_directly():
-    deduction = load_deductions()[0]
+    deductions_by_id = {d.id: d for d in load_deductions()}
+    deduction = deductions_by_id["es_cuotas_sindicales_2025"]
     assert deduction.validation_status.value != "validada"
     result = evaluate_deduction(
         deduction,

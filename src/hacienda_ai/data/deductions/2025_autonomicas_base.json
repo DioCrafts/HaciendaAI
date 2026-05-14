@@ -1,0 +1,484 @@
+{
+  "deductions": [
+    {
+      "id": "auto_andalucia_alquiler_jovenes_2025",
+      "name": "Deducción autonómica por arrendamiento de vivienda habitual para jóvenes (Andalucía)",
+      "description": "Plantilla estructural. Porcentajes, edades, topes de renta y bases máximas pendientes de contrastar con la normativa autonómica vigente en Andalucía para el ejercicio 2025.",
+      "tax_year": 2025,
+      "scope": "autonomico",
+      "region": "Andalucía",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.rent_amount", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<", "value": 35}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.rent_amount",
+        "percentage": 0.15,
+        "cap": 600
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento y justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con normativa autonómica de Andalucía vigente en 2025", "url": null, "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "auto_aragon_alquiler_jovenes_2025",
+      "name": "Deducción autonómica por arrendamiento de vivienda habitual para jóvenes (Aragón)",
+      "description": "Plantilla estructural. Porcentajes, edades, topes de renta y bases máximas pendientes de contrastar con la normativa autonómica vigente en Aragón para el ejercicio 2025.",
+      "tax_year": 2025,
+      "scope": "autonomico",
+      "region": "Aragón",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.rent_amount", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<", "value": 35}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.rent_amount",
+        "percentage": 0.10,
+        "cap": 500
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento y justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con normativa autonómica de Aragón vigente en 2025", "url": null, "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "auto_asturias_alquiler_jovenes_2025",
+      "name": "Deducción autonómica por arrendamiento de vivienda habitual para jóvenes (Asturias)",
+      "description": "Plantilla estructural. Porcentajes, edades, topes de renta y bases máximas pendientes de contrastar con la normativa autonómica vigente en el Principado de Asturias para el ejercicio 2025.",
+      "tax_year": 2025,
+      "scope": "autonomico",
+      "region": "Asturias",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.rent_amount", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<", "value": 35}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.rent_amount",
+        "percentage": 0.10,
+        "cap": 500
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento y justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con normativa autonómica del Principado de Asturias vigente en 2025", "url": null, "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "auto_baleares_alquiler_jovenes_2025",
+      "name": "Deducción autonómica por arrendamiento de vivienda habitual para jóvenes (Illes Balears)",
+      "description": "Plantilla estructural. Porcentajes, edades, topes de renta y bases máximas pendientes de contrastar con la normativa autonómica vigente en Illes Balears para el ejercicio 2025.",
+      "tax_year": 2025,
+      "scope": "autonomico",
+      "region": "Illes Balears",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.rent_amount", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<", "value": 36}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.rent_amount",
+        "percentage": 0.15,
+        "cap": 530
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento y justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con normativa autonómica de Illes Balears vigente en 2025", "url": null, "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "auto_canarias_alquiler_jovenes_2025",
+      "name": "Deducción autonómica por arrendamiento de vivienda habitual para jóvenes (Canarias)",
+      "description": "Plantilla estructural. Porcentajes, edades, topes de renta y bases máximas pendientes de contrastar con la normativa autonómica vigente en Canarias para el ejercicio 2025.",
+      "tax_year": 2025,
+      "scope": "autonomico",
+      "region": "Canarias",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.rent_amount", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<", "value": 35}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.rent_amount",
+        "percentage": 0.20,
+        "cap": 600
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento y justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con normativa autonómica de Canarias vigente en 2025", "url": null, "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "auto_cantabria_alquiler_jovenes_2025",
+      "name": "Deducción autonómica por arrendamiento de vivienda habitual para jóvenes (Cantabria)",
+      "description": "Plantilla estructural. Porcentajes, edades, topes de renta y bases máximas pendientes de contrastar con la normativa autonómica vigente en Cantabria para el ejercicio 2025.",
+      "tax_year": 2025,
+      "scope": "autonomico",
+      "region": "Cantabria",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.rent_amount", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<", "value": 35}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.rent_amount",
+        "percentage": 0.10,
+        "cap": 300
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento y justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con normativa autonómica de Cantabria vigente en 2025", "url": null, "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "auto_castilla_la_mancha_alquiler_jovenes_2025",
+      "name": "Deducción autonómica por arrendamiento de vivienda habitual para jóvenes (Castilla-La Mancha)",
+      "description": "Plantilla estructural. Porcentajes, edades, topes de renta y bases máximas pendientes de contrastar con la normativa autonómica vigente en Castilla-La Mancha para el ejercicio 2025.",
+      "tax_year": 2025,
+      "scope": "autonomico",
+      "region": "Castilla-La Mancha",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.rent_amount", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<", "value": 36}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.rent_amount",
+        "percentage": 0.15,
+        "cap": 450
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento y justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con normativa autonómica de Castilla-La Mancha vigente en 2025", "url": null, "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "auto_castilla_y_leon_alquiler_jovenes_2025",
+      "name": "Deducción autonómica por arrendamiento de vivienda habitual para jóvenes (Castilla y León)",
+      "description": "Plantilla estructural. Porcentajes, edades, topes de renta y bases máximas pendientes de contrastar con la normativa autonómica vigente en Castilla y León para el ejercicio 2025.",
+      "tax_year": 2025,
+      "scope": "autonomico",
+      "region": "Castilla y León",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.rent_amount", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<", "value": 36}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.rent_amount",
+        "percentage": 0.20,
+        "cap": 459
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento y justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con normativa autonómica de Castilla y León vigente en 2025", "url": null, "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "auto_cataluna_alquiler_jovenes_2025",
+      "name": "Deducció autonòmica per lloguer d'habitatge habitual per a joves (Catalunya)",
+      "description": "Plantilla estructural. Porcentajes, edades, topes de renta y bases máximas pendientes de contrastar con la normativa autonómica vigente en Catalunya para el ejercicio 2025.",
+      "tax_year": 2025,
+      "scope": "autonomico",
+      "region": "Cataluña",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.rent_amount", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<", "value": 33}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.rent_amount",
+        "percentage": 0.10,
+        "cap": 300
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento y justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con normativa autonómica de Catalunya vigente en 2025", "url": null, "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "auto_madrid_alquiler_jovenes_2025",
+      "name": "Deducción autonómica por arrendamiento de vivienda habitual para jóvenes (Comunidad de Madrid)",
+      "description": "Plantilla estructural. Porcentajes, edades, topes de renta y bases máximas pendientes de contrastar con la normativa autonómica vigente en la Comunidad de Madrid para el ejercicio 2025.",
+      "tax_year": 2025,
+      "scope": "autonomico",
+      "region": "Madrid",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.rent_amount", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<", "value": 35}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.rent_amount",
+        "percentage": 0.30,
+        "cap": 1237.20
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento y justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con normativa autonómica de la Comunidad de Madrid vigente en 2025", "url": null, "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "auto_valenciana_alquiler_jovenes_2025",
+      "name": "Deducció autonòmica per arrendament d'habitatge habitual per a joves (Comunitat Valenciana)",
+      "description": "Plantilla estructural. Porcentajes, edades, topes de renta y bases máximas pendientes de contrastar con la normativa autonómica vigente en la Comunitat Valenciana para el ejercicio 2025.",
+      "tax_year": 2025,
+      "scope": "autonomico",
+      "region": "Comunitat Valenciana",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.rent_amount", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<", "value": 35}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.rent_amount",
+        "percentage": 0.15,
+        "cap": 550
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento y justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con normativa autonómica de la Comunitat Valenciana vigente en 2025", "url": null, "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "auto_extremadura_alquiler_jovenes_2025",
+      "name": "Deducción autonómica por arrendamiento de vivienda habitual para jóvenes (Extremadura)",
+      "description": "Plantilla estructural. Porcentajes, edades, topes de renta y bases máximas pendientes de contrastar con la normativa autonómica vigente en Extremadura para el ejercicio 2025.",
+      "tax_year": 2025,
+      "scope": "autonomico",
+      "region": "Extremadura",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.rent_amount", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<", "value": 36}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.rent_amount",
+        "percentage": 0.10,
+        "cap": 400
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento y justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con normativa autonómica de Extremadura vigente en 2025", "url": null, "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "auto_galicia_alquiler_jovenes_2025",
+      "name": "Dedución autonómica polo arrendamento de vivenda habitual para mozos (Galicia)",
+      "description": "Plantilla estructural. Porcentajes, edades, topes de renta y bases máximas pendientes de contrastar con la normativa autonómica vigente en Galicia para el ejercicio 2025.",
+      "tax_year": 2025,
+      "scope": "autonomico",
+      "region": "Galicia",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.rent_amount", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<", "value": 36}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.rent_amount",
+        "percentage": 0.10,
+        "cap": 300
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento y justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con normativa autonómica de Galicia vigente en 2025", "url": null, "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "auto_la_rioja_alquiler_jovenes_2025",
+      "name": "Deducción autonómica por arrendamiento de vivienda habitual para jóvenes (La Rioja)",
+      "description": "Plantilla estructural. Porcentajes, edades, topes de renta y bases máximas pendientes de contrastar con la normativa autonómica vigente en La Rioja para el ejercicio 2025.",
+      "tax_year": 2025,
+      "scope": "autonomico",
+      "region": "La Rioja",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.rent_amount", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<", "value": 36}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.rent_amount",
+        "percentage": 0.10,
+        "cap": 300
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento y justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con normativa autonómica de La Rioja vigente en 2025", "url": null, "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "auto_murcia_alquiler_jovenes_2025",
+      "name": "Deducción autonómica por arrendamiento de vivienda habitual para jóvenes (Región de Murcia)",
+      "description": "Plantilla estructural. Porcentajes, edades, topes de renta y bases máximas pendientes de contrastar con la normativa autonómica vigente en la Región de Murcia para el ejercicio 2025.",
+      "tax_year": 2025,
+      "scope": "autonomico",
+      "region": "Murcia",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.rent_amount", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<", "value": 35}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.rent_amount",
+        "percentage": 0.10,
+        "cap": 300
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento y justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con normativa autonómica de la Región de Murcia vigente en 2025", "url": null, "checked_at": null}
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "medio",
+      "validation_status": "pendiente_fuente"
+    }
+  ]
+}
