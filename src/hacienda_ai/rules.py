@@ -32,6 +32,10 @@ def evaluate_deduction(deduction: Deduction, profile: TaxProfile) -> RuleEvaluat
     facts = profile.to_dict()
     for requirement in deduction.requirements:
         found, value = get_path(facts, requirement.field)
+        if requirement.operator in {"exists", "not_exists"}:
+            if not compare(value if found else None, requirement.operator, requirement.value):
+                failed.append(requirement.field)
+            continue
         if not found:
             missing_fields.append(requirement.field)
             continue

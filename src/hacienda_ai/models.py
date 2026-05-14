@@ -166,9 +166,7 @@ class Deduction:
         sources = tuple(Source.from_dict(item) for item in as_list(data["sources"], "sources"))
         if not sources:
             raise ValidationError("Cada deducción debe incluir al menos una fuente o una marca pendiente de fuente")
-        tax_year = data["tax_year"]
-        if not isinstance(tax_year, int) or tax_year < 2000:
-            raise ValidationError("tax_year debe ser un entero válido")
+        tax_year = as_tax_year(data["tax_year"], "tax_year")
         return cls(
             id=as_non_empty_str(data["id"], "id"),
             name=as_non_empty_str(data["name"], "name"),
@@ -181,9 +179,9 @@ class Deduction:
             calculation=Calculation.from_dict(data["calculation"]),
             limit=as_optional_number(data.get("limit"), "limit"),
             taxable_base_limits=dict(data.get("taxable_base_limits") or {}),
-            incompatibilities=tuple(as_non_empty_str(item, "incompatibility") for item in data.get("incompatibilities", [])),
-            required_documents=tuple(as_non_empty_str(item, "required_document") for item in data.get("required_documents", [])),
-            rent_web_boxes=tuple(as_non_empty_str(item, "rent_web_box") for item in data.get("rent_web_boxes", [])),
+            incompatibilities=tuple(as_non_empty_str(item, "incompatibility") for item in (data.get("incompatibilities") or [])),
+            required_documents=tuple(as_non_empty_str(item, "required_document") for item in (data.get("required_documents") or [])),
+            rent_web_boxes=tuple(as_non_empty_str(item, "rent_web_box") for item in (data.get("rent_web_boxes") or [])),
             sources=sources,
             effective_from=as_optional_str(data.get("effective_from"), "effective_from"),
             effective_to=as_optional_str(data.get("effective_to"), "effective_to"),
@@ -222,9 +220,7 @@ class TaxProfile:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TaxProfile":
         require_keys(data, ["tax_year", "region"], "tax_profile")
-        tax_year = data["tax_year"]
-        if not isinstance(tax_year, int) or tax_year < 2000:
-            raise ValidationError("tax_profile.tax_year debe ser un entero válido")
+        tax_year = as_tax_year(data["tax_year"], "tax_profile.tax_year")
         return cls(
             tax_year=tax_year,
             region=as_non_empty_str(data["region"], "tax_profile.region"),
@@ -284,4 +280,10 @@ def as_optional_number(value: Any, field_name: str) -> float | None:
 def as_list(value: Any, field_name: str) -> list[Any]:
     if not isinstance(value, list):
         raise ValidationError(f"{field_name} debe ser una lista")
+    return value
+
+
+def as_tax_year(value: Any, field_name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 2000:
+        raise ValidationError(f"{field_name} debe ser un entero válido")
     return value

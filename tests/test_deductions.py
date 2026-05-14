@@ -117,3 +117,47 @@ def test_safety_allows_legal_optimization_request():
     allowed, message = screen_user_request("Quiero revisar deducciones legales y documentación necesaria")
     assert allowed is True
     assert message is None
+
+
+def test_exists_operator_treats_missing_path_as_unmet_requirement():
+    deduction = validated_deduction(
+        requirements=[{"field": "personal.disability_certificate", "operator": "exists"}],
+        calculation={"type": "fixed_amount", "fixed_amount": 50.0},
+    )
+    result = evaluate_deduction(deduction, profile())
+    assert result.status == "does_not_apply"
+    assert result.missing_fields == ()
+
+
+def test_not_exists_operator_passes_when_path_is_missing():
+    deduction = validated_deduction(
+        requirements=[{"field": "personal.disability_certificate", "operator": "not_exists"}],
+        calculation={"type": "fixed_amount", "fixed_amount": 50.0},
+    )
+    result = evaluate_deduction(deduction, profile())
+    assert result.status == "applies"
+    assert result.estimated_amount == 50.0
+
+
+def test_tax_year_rejects_boolean_value():
+    with pytest.raises(ValidationError, match="tax_year"):
+        validated_deduction(tax_year=True)
+
+
+def test_tax_profile_tax_year_rejects_boolean_value():
+    with pytest.raises(ValidationError, match="tax_profile.tax_year"):
+        TaxProfile.from_dict({"tax_year": True, "region": "Madrid"})
+
+
+def test_deduction_accepts_null_for_optional_list_fields():
+    deduction = validated_deduction(
+        incompatibilities=None,
+        rent_web_boxes=None,
+    )
+    assert deduction.incompatibilities == ()
+    assert deduction.rent_web_boxes == ()
+
+
+def test_deduction_accepts_null_required_documents():
+    deduction = validated_deduction(required_documents=None)
+    assert deduction.required_documents == ()
