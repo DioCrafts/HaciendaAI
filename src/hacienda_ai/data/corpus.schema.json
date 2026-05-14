@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/diocrafts/haciendaai/blob/main/src/hacienda_ai/data/corpus.schema.json",
+  "title": "Corpus de deducciones HaciendaAI",
+  "description": "Schema del fichero de corpus de deducciones IRPF. Mantenido en sincronía con los dataclasses de src/hacienda_ai/models.py. Editar ambos sitios cuando cambien.",
+  "type": "object",
+  "required": ["deductions"],
+  "additionalProperties": false,
+  "properties": {
+    "deductions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/deduction"}
+    }
+  },
+  "$defs": {
+    "deduction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "description",
+        "tax_year",
+        "scope",
+        "category",
+        "requirements",
+        "calculation",
+        "required_documents",
+        "sources",
+        "risk_level",
+        "validation_status"
+      ],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "tax_year": {"type": "integer", "minimum": 2000},
+        "scope": {"enum": ["estatal", "autonomico", "local"]},
+        "region": {"type": ["string", "null"]},
+        "category": {
+          "enum": [
+            "deduccion",
+            "reduccion",
+            "exencion",
+            "gasto_deducible",
+            "minimo_personal_familiar",
+            "compensacion",
+            "ajuste"
+          ]
+        },
+        "requirements": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/requirement"}
+        },
+        "calculation": {"$ref": "#/$defs/calculation"},
+        "limit": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "taxable_base_limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max_percentage_of_base_liquidable": {"type": "number", "minimum": 0, "maximum": 1},
+            "max_percentage_of_base_general": {"type": "number", "minimum": 0, "maximum": 1},
+            "max_percentage_of_base_savings": {"type": "number", "minimum": 0, "maximum": 1}
+          }
+        },
+        "incompatibilities": {
+          "type": ["array", "null"],
+          "items": {"type": "string", "minLength": 1}
+        },
+        "required_documents": {
+          "type": ["array", "null"],
+          "items": {"type": "string", "minLength": 1}
+        },
+        "rent_web_boxes": {
+          "type": ["array", "null"],
+          "items": {"type": "string", "minLength": 1}
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/source"}
+        },
+        "effective_from": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+        "effective_to": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+        "last_reviewed_at": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+        "risk_level": {"enum": ["bajo", "medio", "alto"]},
+        "validation_status": {
+          "enum": ["validada", "pendiente_fuente", "pendiente_tests", "obsoleta", "dudosa"]
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"scope": {"const": "autonomico"}}},
+          "then": {
+            "properties": {"region": {"type": "string", "minLength": 1}},
+            "required": ["region"]
+          }
+        }
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "title"],
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "url": {"type": ["string", "null"]},
+        "checked_at": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$"}
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "operator"],
+      "properties": {
+        "field": {"type": "string", "minLength": 1},
+        "operator": {
+          "enum": ["==", "!=", ">", ">=", "<", "<=", "exists", "not_exists", "in"]
+        },
+        "value": {}
+      }
+    },
+    "tier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["percentage"],
+      "properties": {
+        "up_to": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "percentage": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "calculation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": [
+            "manual_review",
+            "amount_field",
+            "percentage_with_cap",
+            "fixed_amount",
+            "tiered_percentage",
+            "prorated_fixed_amount"
+          ]
+        },
+        "base_field": {"type": ["string", "null"]},
+        "percentage": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "cap": {"type": ["number", "null"]},
+        "fixed_amount": {"type": ["number", "null"]},
+        "tiers": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/tier"}
+        },
+        "monthly_amount": {"type": ["number", "null"], "minimum": 0},
+        "months_field": {"type": ["string", "null"]},
+        "months_cap": {"type": ["number", "null"], "exclusiveMinimum": 0}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"type": {"const": "tiered_percentage"}}, "required": ["type"]},
+          "then": {
+            "required": ["tiers"],
+            "properties": {"tiers": {"minItems": 1}}
+          }
+        },
+        {
+          "if": {"properties": {"type": {"const": "prorated_fixed_amount"}}, "required": ["type"]},
+          "then": {"required": ["monthly_amount", "months_field"]}
+        },
+        {
+          "if": {
+            "not": {"properties": {"type": {"const": "tiered_percentage"}}, "required": ["type"]}
+          },
+          "then": {"not": {"required": ["tiers"]}}
+        },
+        {
+          "if": {
+            "not": {"properties": {"type": {"const": "prorated_fixed_amount"}}, "required": ["type"]}
+          },
+          "then": {
+            "allOf": [
+              {"not": {"required": ["monthly_amount"]}},
+              {"not": {"required": ["months_field"]}},
+              {"not": {"required": ["months_cap"]}}
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

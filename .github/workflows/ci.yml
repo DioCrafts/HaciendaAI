@@ -36,3 +36,6 @@ jobs:
 
       - name: Pytest
         run: python -m pytest -q
+
+      - name: Schema validate corpus files
+        run: python -m hacienda_ai schema src/hacienda_ai/data/deductions/*.json

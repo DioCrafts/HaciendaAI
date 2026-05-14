@@ -156,6 +156,78 @@ def test_openapi_schema_is_exposed() -> None:
 # ---------- CLI 'serve' (sin levantar uvicorn) ----------
 
 
+# ---------- Auth ----------
+
+
+def test_v1_endpoints_are_open_when_api_key_env_var_is_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("HACIENDA_AI_API_KEY", raising=False)
+    response = client.post("/v1/evaluate", json=_profile_payload())
+    assert response.status_code == 200
+
+
+def test_v1_endpoints_require_api_key_when_env_var_is_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HACIENDA_AI_API_KEY", "secret-key")
+    response = client.post("/v1/evaluate", json=_profile_payload())
+    assert response.status_code == 401
+    assert response.headers.get("www-authenticate") == "ApiKey"
+
+
+def test_v1_endpoints_accept_correct_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HACIENDA_AI_API_KEY", "secret-key")
+    response = client.post(
+        "/v1/evaluate",
+        headers={"X-API-Key": "secret-key"},
+        json=_profile_payload(),
+    )
+    assert response.status_code == 200
+
+
+def test_v1_endpoints_reject_wrong_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HACIENDA_AI_API_KEY", "secret-key")
+    response = client.post(
+        "/v1/evaluate",
+        headers={"X-API-Key": "wrong-key"},
+        json=_profile_payload(),
+    )
+    assert response.status_code == 401
+
+
+def test_health_stays_open_even_when_api_key_is_required(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HACIENDA_AI_API_KEY", "secret-key")
+    response = client.get("/health")
+    assert response.status_code == 200
+
+
+def test_deductions_endpoint_also_requires_key_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HACIENDA_AI_API_KEY", "secret-key")
+    assert client.get("/v1/deductions").status_code == 401
+    assert client.get("/v1/deductions", headers={"X-API-Key": "secret-key"}).status_code == 200
+
+
+def test_simulate_endpoint_also_requires_key_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HACIENDA_AI_API_KEY", "secret-key")
+    assert client.post("/v1/simulate", json=_profile_payload()).status_code == 401
+    response = client.post(
+        "/v1/simulate",
+        headers={"X-API-Key": "secret-key"},
+        json=_profile_payload(),
+    )
+    assert response.status_code == 200
+
+
+# ---------- CLI 'serve' (sin levantar uvicorn) ----------
+
+
 def test_cli_serve_returns_2_when_uvicorn_is_missing(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

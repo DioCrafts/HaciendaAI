@@ -4,17 +4,20 @@ El módulo se importa solo cuando FastAPI está instalado (extra `[api]`).
 El resto del paquete (deducciones, motor, simulador, CLI sin `serve`)
 funciona sin ninguna dependencia HTTP.
 
-Sin autenticación: pensado para despliegues locales o detrás de un
-proxy/gateway que añada la capa de seguridad. No exponer directamente
-a internet sin añadir auth.
+Autenticación opcional vía header `X-API-Key`: cuando la variable de
+entorno `HACIENDA_AI_API_KEY` está definida, los endpoints `/v1/*`
+exigen ese header. Si no está definida, la API funciona abierta (útil
+en local). El endpoint `/health` queda siempre abierto.
 """
 
 from __future__ import annotations
 
+import os
+import secrets
 from dataclasses import asdict
 from typing import Annotated, Any
 
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
@@ -37,12 +40,31 @@ app.add_middleware(
 )
 
 
+API_KEY_ENV_VAR = "HACIENDA_AI_API_KEY"
+
+
+def verify_api_key(
+    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+) -> None:
+    """Si HACIENDA_AI_API_KEY está definida, exige el header X-API-Key
+    coincidente. Si no, no aplica auth (modo abierto para desarrollo)."""
+    expected = os.environ.get(API_KEY_ENV_VAR)
+    if not expected:
+        return
+    if x_api_key is None or not secrets.compare_digest(x_api_key, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key inválida o ausente. Envía el header X-API-Key.",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+
+
 @app.get("/health", tags=["meta"])
 def health() -> dict[str, str]:
     return {"status": "ok", "version": __version__}
 
 
-@app.get("/v1/deductions", tags=["corpus"])
+@app.get("/v1/deductions", tags=["corpus"], dependencies=[Depends(verify_api_key)])
 def list_deductions(
     region: str | None = None,
     tax_year: int | None = None,
@@ -62,7 +84,7 @@ def list_deductions(
 ProfilePayload = Annotated[dict[str, Any], Body(...)]
 
 
-@app.post("/v1/evaluate", tags=["motor"])
+@app.post("/v1/evaluate", tags=["motor"], dependencies=[Depends(verify_api_key)])
 def evaluate_profile(profile: ProfilePayload) -> list[dict[str, Any]]:
     """Evalúa el corpus completo contra el perfil fiscal recibido."""
     parsed = _parse_profile(profile)
@@ -71,7 +93,7 @@ def evaluate_profile(profile: ProfilePayload) -> list[dict[str, Any]]:
     return [asdict(evaluation) for evaluation in evaluations]
 
 
-@app.post("/v1/simulate", tags=["motor"])
+@app.post("/v1/simulate", tags=["motor"], dependencies=[Depends(verify_api_key)])
 def simulate_profile(profile: ProfilePayload) -> dict[str, Any]:
     """Genera la simulación conservador / esperado / optimizado para
     tributación individual y conjunta."""

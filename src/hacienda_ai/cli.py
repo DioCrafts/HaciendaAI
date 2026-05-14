@@ -51,7 +51,15 @@ def main(argv: list[str] | None = None) -> int:
             stderr=sys.stderr,
         )
     if args.command == "serve":
-        return _run_serve(host=args.host, port=args.port, reload=args.reload, stderr=sys.stderr)
+        return _run_serve(
+            host=args.host,
+            port=args.port,
+            reload=args.reload,
+            api_key=args.api_key,
+            stderr=sys.stderr,
+        )
+    if args.command == "schema":
+        return _run_schema_validate(paths=args.paths, stdout=sys.stdout, stderr=sys.stderr)
     parser.error(f"Comando no soportado: {args.command}")
     return 2  # unreachable: parser.error sale con SystemExit
 
@@ -105,6 +113,25 @@ def _build_parser() -> argparse.ArgumentParser:
     serve_cmd.add_argument("--host", default="127.0.0.1", help="Interfaz de escucha (por defecto: 127.0.0.1).")
     serve_cmd.add_argument("--port", type=int, default=8000, help="Puerto de escucha (por defecto: 8000).")
     serve_cmd.add_argument("--reload", action="store_true", help="Activa autoreload para desarrollo.")
+    serve_cmd.add_argument(
+        "--api-key",
+        default=None,
+        help=(
+            "Si se especifica, exige el header X-API-Key en todas las llamadas /v1/* del servidor "
+            "lanzado. Equivale a exportar HACIENDA_AI_API_KEY antes de arrancar."
+        ),
+    )
+
+    schema_cmd = subparsers.add_parser(
+        "schema",
+        help="Valida ficheros JSON del corpus contra el JSON Schema empaquetado.",
+    )
+    schema_cmd.add_argument(
+        "paths",
+        nargs="+",
+        type=Path,
+        help="Uno o más ficheros JSON del corpus a validar.",
+    )
     return parser
 
 
@@ -184,7 +211,7 @@ def _evaluation_to_dict(evaluation: RuleEvaluation) -> dict[str, Any]:
     return asdict(evaluation)
 
 
-def _run_serve(*, host: str, port: int, reload: bool, stderr: Any) -> int:
+def _run_serve(*, host: str, port: int, reload: bool, api_key: str | None, stderr: Any) -> int:
     try:
         import uvicorn
     except ImportError:
@@ -194,8 +221,48 @@ def _run_serve(*, host: str, port: int, reload: bool, stderr: Any) -> int:
             file=stderr,
         )
         return 2
+    if api_key is not None:
+        import os
+
+        os.environ["HACIENDA_AI_API_KEY"] = api_key
     uvicorn.run("hacienda_ai.api:app", host=host, port=port, reload=reload)
     return 0
+
+
+def _run_schema_validate(*, paths: list[Path], stdout: Any, stderr: Any) -> int:
+    try:
+        import jsonschema
+    except ImportError:
+        print(
+            "Error: el subcomando 'schema' requiere el extra [dev]. "
+            "Instala las dependencias con: pip install 'hacienda-ai[dev]'",
+            file=stderr,
+        )
+        return 2
+    schema_path = Path(__file__).parent / "data" / "corpus.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    validator = jsonschema.Draft202012Validator(schema)
+    errors_found = False
+    for path in paths:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            print(f"{path}: no se encontró el archivo", file=stderr)
+            errors_found = True
+            continue
+        except json.JSONDecodeError as exc:
+            print(f"{path}: JSON inválido: {exc}", file=stderr)
+            errors_found = True
+            continue
+        errors = list(validator.iter_errors(data))
+        if errors:
+            errors_found = True
+            for err in errors:
+                location = "/".join(str(part) for part in err.absolute_path) or "/"
+                print(f"{path}: {location}: {err.message}", file=stderr)
+        else:
+            print(f"{path}: OK", file=stdout)
+    return 1 if errors_found else 0
 
 
 def _print_simulation_report(report: SimulationReport, stdout: Any) -> None:

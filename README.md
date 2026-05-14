@@ -75,17 +75,24 @@ El CLI imprime un resumen por estado (`Aplica`, `Falta documentación`, `Faltan 
 ```bash
 pip install -e ".[api]"             # extras HTTP (FastAPI + Uvicorn)
 hacienda-ai serve --port 8000       # arranca el servidor
+
+# Con auth (X-API-Key header obligatorio en /v1/*):
+hacienda-ai serve --api-key 'mi-clave-secreta'
+# o equivalentemente:
+HACIENDA_AI_API_KEY='mi-clave-secreta' hacienda-ai serve
 ```
 
 Endpoints:
 
-- `GET /health` — liveness y versión del paquete.
+- `GET /health` — liveness y versión del paquete (siempre abierto).
 - `GET /v1/deductions?region=Madrid&tax_year=2025` — resumen del corpus, opcionalmente filtrado por CCAA y/o ejercicio.
 - `POST /v1/evaluate` — body = perfil fiscal JSON; devuelve la lista de `RuleEvaluation`.
 - `POST /v1/simulate` — body = perfil fiscal JSON; devuelve la simulación completa (3 escenarios × 2 modos de tributación + modo recomendado).
 - `GET /docs` y `GET /openapi.json` — OpenAPI / Swagger UI automáticos de FastAPI.
 
-`ValidationError` del motor se traduce a HTTP 400 con el detalle del campo problemático. La API **no tiene autenticación**: pensada para uso local o detrás de un proxy/gateway que añada la capa de seguridad.
+`ValidationError` del motor se traduce a HTTP 400 con el detalle del campo problemático.
+
+**Autenticación**: si la variable de entorno `HACIENDA_AI_API_KEY` está definida, todos los endpoints `/v1/*` exigen el header `X-API-Key` coincidente. Si no está definida, la API funciona abierta (modo de desarrollo). `/health` queda siempre accesible (útil para monitores y load balancers). La comparación se hace con `secrets.compare_digest` para evitar ataques de timing.
 
 ### Simulador
 
@@ -111,7 +118,15 @@ ruff format --check . # formato
 python -m mypy        # type checking estricto
 ```
 
-Cada PR ejecuta automáticamente las cuatro comprobaciones en GitHub Actions (`.github/workflows/ci.yml`). Para reproducir el mismo control antes de cada commit:
+Validar ficheros del corpus contra el JSON Schema:
+
+```bash
+hacienda-ai schema src/hacienda_ai/data/deductions/*.json
+```
+
+El schema vive en `src/hacienda_ai/data/corpus.schema.json` (Draft 2020-12). Los editores con soporte de JSON Schema (VSCode, JetBrains) pueden referenciarlo para obtener autocompletado e inline-validation al editar reglas.
+
+Cada PR ejecuta automáticamente las cinco comprobaciones en GitHub Actions (`.github/workflows/ci.yml`): ruff lint, ruff format, mypy strict, pytest y validación del corpus contra el JSON Schema. Para reproducir el mismo control antes de cada commit:
 
 ```bash
 pre-commit install

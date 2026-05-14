@@ -24,3 +24,9 @@ El LLM no calcula ni decide por sí solo. Las recomendaciones deben proceder de 
 `src/hacienda_ai/api.py` expone el motor sobre HTTP cuando el extra `[api]` está instalado. Los endpoints (`/health`, `/v1/deductions`, `/v1/evaluate`, `/v1/simulate`) sólo serializan los dataclasses del núcleo; no hay lógica fiscal duplicada en la capa HTTP. `ValidationError` del motor se traduce a HTTP 400. El subcomando `hacienda-ai serve` arranca Uvicorn con import lazy: si el extra no está instalado, el CLI sale con código 2 y mensaje claro.
 
 El módulo `api.py` no se importa desde el resto del paquete — el núcleo sigue funcionando sin FastAPI ni Uvicorn.
+
+Auth opcional vía API key en header `X-API-Key`. Se activa definiendo la variable de entorno `HACIENDA_AI_API_KEY`. Sólo afecta a `/v1/*`; `/health` queda abierto.
+
+## JSON Schema del corpus
+
+`src/hacienda_ai/data/corpus.schema.json` (Draft 2020-12) describe la estructura de los ficheros del corpus. Está mantenido en paralelo a los dataclasses de `models.py`: cualquier cambio de schema requiere editar ambos sitios. El subcomando `hacienda-ai schema PATH...` valida ficheros contra el schema y la CI lo ejecuta sobre todo el corpus en cada PR. El test `tests/test_schema.py` blinda que el schema acepta el corpus actual y rechaza mutaciones inválidas conocidas, evitando deriva entre dataclasses y schema.
