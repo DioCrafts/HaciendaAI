@@ -35,7 +35,11 @@
 
 ## Fase 6: RAG jurídico
 
-- Ingesta y búsqueda filtrada de fuentes oficiales.
+- Catálogo curado de fuentes oficiales (BOE LIRPF/RIRPF, Ley 49/2002, Ley 7/2024, Manual AEAT, textos refundidos autonómicos) en `src/hacienda_ai/rag/sources/catalog.py`.
+- Fetcher con caché local (`~/.cache/hacienda_ai/rag/`), extracción HTML→texto, búsqueda por palabra clave con snippets.
+- CLI `hacienda-ai rag list/fetch/status/search`.
+- **No auto-genera reglas**: la promoción a `validation_status: validada` sigue requiriendo revisión humana por regla.
+- Pendiente: parseo PDF, BM25/embeddings reales, ingestión de consultas vinculantes de la DGT, paginación de los resultados de búsqueda.
 
 ## Fase 7: Endurecimiento
 

@@ -60,6 +60,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.command == "schema":
         return _run_schema_validate(paths=args.paths, stdout=sys.stdout, stderr=sys.stderr)
+    if args.command == "rag":
+        return _run_rag(args, stdout=sys.stdout, stderr=sys.stderr)
     parser.error(f"Comando no soportado: {args.command}")
     return 2  # unreachable: parser.error sale con SystemExit
 
@@ -132,6 +134,28 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Uno o más ficheros JSON del corpus a validar.",
     )
+
+    rag_cmd = subparsers.add_parser(
+        "rag",
+        help="Catálogo de fuentes oficiales: descarga, índice y búsqueda. Requiere el extra [rag].",
+    )
+    rag_sub = rag_cmd.add_subparsers(dest="rag_action", required=True)
+    rag_list = rag_sub.add_parser("list", help="Lista el catálogo curado de fuentes oficiales.")
+    rag_list.add_argument("--jurisdiction", help="Filtra por jurisdicción ('estatal' o nombre de CCAA).")
+    rag_status = rag_sub.add_parser("status", help="Estado de la caché local por fuente.")
+    rag_status.add_argument("--cache-dir", type=Path, default=None)
+    rag_fetch = rag_sub.add_parser("fetch", help="Descarga las fuentes a la caché local.")
+    rag_fetch.add_argument("--id", action="append", help="ID concreto del catálogo (repetible).")
+    rag_fetch.add_argument("--all", action="store_true", help="Descarga todas las fuentes del catálogo.")
+    rag_fetch.add_argument("--cache-dir", type=Path, default=None)
+    rag_fetch.add_argument("--force", action="store_true", help="Redescarga aunque ya esté en caché.")
+    rag_search = rag_sub.add_parser(
+        "search",
+        help="Busca términos en las fuentes cacheadas; devuelve snippets con la fuente original.",
+    )
+    rag_search.add_argument("query", help="Términos a buscar (separados por espacios).")
+    rag_search.add_argument("--cache-dir", type=Path, default=None)
+    rag_search.add_argument("--top", type=int, default=5)
     return parser
 
 
@@ -227,6 +251,96 @@ def _run_serve(*, host: str, port: int, reload: bool, api_key: str | None, stder
         os.environ["HACIENDA_AI_API_KEY"] = api_key
     uvicorn.run("hacienda_ai.api:app", host=host, port=port, reload=reload)
     return 0
+
+
+def _run_rag(args: argparse.Namespace, *, stdout: Any, stderr: Any) -> int:
+    try:
+        from .rag.ingestion.fetcher import (
+            DEFAULT_CACHE_DIR,
+            cache_status,
+            fetch_all,
+            fetch_source,
+        )
+        from .rag.retrieval.search import search
+        from .rag.sources.catalog import CATALOG
+    except ImportError as exc:
+        print(
+            f"Error: el subcomando 'rag' requiere el extra [rag] ({exc.name}). "
+            "Instala las dependencias con: pip install 'hacienda-ai[rag]'",
+            file=stderr,
+        )
+        return 2
+
+    cache_dir: Path = getattr(args, "cache_dir", None) or DEFAULT_CACHE_DIR
+
+    if args.rag_action == "list":
+        jurisdiction = (args.jurisdiction or "").strip().lower()
+        for source in CATALOG:
+            if jurisdiction and source.jurisdiction.lower() != jurisdiction:
+                continue
+            print(f"{source.id}\t{source.jurisdiction}\t{source.document_type}\t{source.url}", file=stdout)
+        return 0
+
+    if args.rag_action == "status":
+        for entry in cache_status(cache_dir):
+            if entry.get("cached"):
+                print(
+                    f"{entry['id']}\tcached\t{entry.get('size_bytes')} bytes\t{entry.get('fetched_at')}",
+                    file=stdout,
+                )
+            else:
+                print(f"{entry['id']}\tmissing", file=stdout)
+        return 0
+
+    if args.rag_action == "fetch":
+        targets: tuple[Any, ...] = ()
+        if args.all:
+            targets = CATALOG
+        elif args.id:
+            ids = set(args.id)
+            targets = tuple(source for source in CATALOG if source.id in ids)
+            missing = ids - {source.id for source in CATALOG}
+            if missing:
+                print(
+                    f"Error: id desconocido en el catálogo: {', '.join(sorted(missing))}",
+                    file=stderr,
+                )
+                return 2
+        else:
+            print(
+                "Error: indica --all o --id ID (repetible) para descargar fuentes.",
+                file=stderr,
+            )
+            return 2
+        try:
+            if args.all:
+                results = fetch_all(cache_dir, force=args.force, sources=targets)
+            else:
+                results = [fetch_source(source, cache_dir, force=args.force) for source in targets]
+        except Exception as exc:
+            print(f"Error durante la descarga: {exc}", file=stderr)
+            return 1
+        for result in results:
+            label = "skipped" if result.skipped else f"{result.size_bytes} bytes"
+            print(f"{result.source_id}\t{label}\t{result.path}", file=stdout)
+        return 0
+
+    if args.rag_action == "search":
+        hits = search(args.query, cache_dir=cache_dir, top_k=args.top)
+        if not hits:
+            print(
+                "Sin coincidencias. Descarga primero las fuentes con 'hacienda-ai rag fetch --all'.",
+                file=stdout,
+            )
+            return 0
+        for hit in hits:
+            print(f"{hit.source.id}\tscore={hit.score}\t{hit.source.url}", file=stdout)
+            if hit.snippet:
+                print(f"  {hit.snippet}", file=stdout)
+        return 0
+
+    print(f"Acción RAG no soportada: {args.rag_action}", file=stderr)
+    return 2
 
 
 def _run_schema_validate(*, paths: list[Path], stdout: Any, stderr: Any) -> int:

@@ -94,6 +94,18 @@ Endpoints:
 
 **Autenticación**: si la variable de entorno `HACIENDA_AI_API_KEY` está definida, todos los endpoints `/v1/*` exigen el header `X-API-Key` coincidente. Si no está definida, la API funciona abierta (modo de desarrollo). `/health` queda siempre accesible (útil para monitores y load balancers). La comparación se hace con `secrets.compare_digest` para evitar ataques de timing.
 
+### RAG jurídico (fuentes oficiales)
+
+```bash
+pip install -e ".[rag]"
+
+hacienda-ai rag list                           # catálogo curado de fuentes
+hacienda-ai rag fetch --all                    # descarga a ~/.cache/hacienda_ai/rag/
+hacienda-ai rag search "donativos recurrentes" # búsqueda con snippets
+```
+
+Catálogo curado de **leyes y boletines oficiales** (BOE consolidado de la LIRPF, Ley 49/2002, Ley 7/2024, Manual práctico AEAT y textos refundidos autonómicos). El módulo descarga, cachea, extrae texto e indexa por palabra clave. **No genera reglas automáticamente**: la promoción de una regla a `validation_status: validada` exige revisión fiscal humana documentada con `checked_at`. Detalle del flujo en `docs/rag.md`.
+
 ### Frontend (React + TypeScript)
 
 ```bash

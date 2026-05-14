@@ -10,6 +10,10 @@ api = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
 ]
+rag = [
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
+]
 dev = [
     "pytest>=8",
     "ruff>=0.5",
@@ -17,6 +21,7 @@ dev = [
     "fastapi>=0.115",
     "httpx>=0.27",
     "jsonschema>=4.21",
+    "beautifulsoup4>=4.12",
 ]
 
 [project.scripts]
@@ -56,5 +61,5 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 
 [[tool.mypy.overrides]]
-module = ["uvicorn", "jsonschema"]
+module = ["uvicorn", "jsonschema", "bs4"]
 ignore_missing_imports = true
