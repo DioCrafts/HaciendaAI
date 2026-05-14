@@ -30,7 +30,8 @@
 
 - Frontend mínimo en `frontend/` (React 18 + TypeScript + Vite) que consume `/v1/evaluate`, `/v1/simulate` y `/v1/deductions`.
 - Single-page con barra de configuración del API (URL base + X-API-Key opcional), formulario estructurado del perfil con un botón "Cargar perfil de ejemplo" y dos pestañas (Evaluación / Simulación) con totales agrupados por estado.
-- Pendiente: wizard guiado por pasos, persistencia local del perfil, tests E2E con Playwright, soporte multi-idioma, edición avanzada en JSON crudo.
+- Tests E2E con Playwright + Chromium en `frontend/tests/e2e/`; job `e2e` independiente en GitHub Actions que arranca backend + frontend antes de ejecutar.
+- Pendiente: wizard guiado por pasos, persistencia local del perfil, soporte multi-idioma, edición avanzada en JSON crudo.
 
 ## Fase 6: RAG jurídico
 

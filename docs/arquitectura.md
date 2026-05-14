@@ -34,3 +34,7 @@ Auth opcional vía API key en header `X-API-Key`. Se activa definiendo la variab
 ## Frontend (React + Vite)
 
 `frontend/` contiene un cliente web mínimo en React 18 + TypeScript. No comparte código con Python: los tipos en `frontend/src/types.ts` son una réplica manual de los dataclasses del motor; cualquier cambio del modelo obliga a tocar ambos sitios. La capa `frontend/src/api.ts` envuelve los endpoints `/v1/*` con `fetch` nativo y tipa la respuesta. Sin estado global ni librerías de UI: solo `useState` + CSS plano con tema claro/oscuro automático.
+
+## Tests E2E (Playwright)
+
+`frontend/tests/e2e/` contiene tests Playwright que ejecutan el flujo real perfil → evaluate → simulate sobre Chromium headless. La configuración (`frontend/playwright.config.ts`) levanta dos `webServer` independientes (backend Python en :8000 y preview de Vite en :4173), espera a que ambos respondan y entonces corre los tests. La CI tiene un job `e2e` separado que instala backend + frontend, descarga Chromium con `playwright install --with-deps` y sube el reporte HTML como artefacto cuando algún test falla.

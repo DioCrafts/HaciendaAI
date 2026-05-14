@@ -17,12 +17,22 @@ hacienda-ai serve --port 8000
 
 ```bash
 cd frontend
-npm install         # primera vez
-npm run dev         # servidor de desarrollo en http://localhost:5173 (hot reload)
-npm run typecheck   # tsc --noEmit
-npm run build       # genera dist/ optimizado
-npm run preview     # sirve dist/ en http://localhost:4173
+npm install                # primera vez
+npm run dev                # servidor de desarrollo en http://localhost:5173 (hot reload)
+npm run typecheck          # tsc --noEmit
+npm run build              # genera dist/ optimizado
+npm run preview            # sirve dist/ en http://localhost:4173
+
+# Tests E2E con Playwright (la primera vez hace falta descargar Chromium):
+npm run test:e2e:install   # descarga Chromium (~290 MB)
+npm run test:e2e           # ejecuta los tests; Playwright lanza el backend y el frontend
 ```
+
+Los tests E2E asumen:
+
+- Backend instalado con el extra `[api]` (`pip install -e ".[api]"` en la raíz del repo).
+- Variable de entorno `HACIENDA_AI_API_KEY` **no definida** (la API se ejecuta en modo abierto durante los tests; los tests fuerzan el valor a vacío para el subproceso del backend).
+- Puertos 8000 (backend) y 4173 (frontend preview) libres.
 
 ## Uso
 
@@ -51,10 +61,14 @@ src/
     └── index.css              # CSS plano con tema claro/oscuro automático
 ```
 
+## Tests
+
+- **E2E** (Playwright + Chromium, headless): `tests/e2e/flow.spec.ts` cubre carga de la página, ping a `/health`, evaluación con perfil de ejemplo, simulación con badge de modo recomendado y manejo de error con perfil inválido. Playwright arranca automáticamente el backend (`python -m hacienda_ai serve`) y el preview de Vite mediante `webServer` en `playwright.config.ts`.
+- **Tests unitarios** del frontend: aún no hay (la lógica de UI es delgada; los cálculos viven en el motor Python con 147 tests).
+
 ## Limitaciones conocidas
 
 - El formulario cubre los campos consumidos por las 11 reglas estatales y la deducción autonómica de alquiler joven (los del corpus actual). Para campos no contemplados, el usuario puede editar el JSON exportado y enviarlo manualmente al API.
-- No hay tests automatizados del frontend; la verificación es visual contra el backend en local.
 - No hay almacenamiento local del perfil — al refrescar se pierde.
 - Sin internacionalización: textos en español.
 - La lista de "documentos" se rellena como texto libre (uno por línea); las reglas comparan literalmente. El ejemplo precarga los strings exactos del corpus.
