@@ -1,0 +1,132 @@
+{
+  "deductions": [
+    {
+      "id": "es_cuotas_sindicales_2025",
+      "name": "Cuotas satisfechas a sindicatos",
+      "description": "Gasto deducible de los rendimientos íntegros del trabajo por cuotas pagadas a sindicatos (art. 19.2.a Ley 35/2006 IRPF).",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "gasto_deducible",
+      "requirements": [
+        {"field": "income.work_income", "operator": ">", "value": 0},
+        {"field": "expenses.union_dues_amount", "operator": ">", "value": 0}
+      ],
+      "calculation": {"type": "amount_field", "base_field": "expenses.union_dues_amount"},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Justificante de pago de cuotas sindicales"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "type": "ley",
+          "title": "Ley 35/2006 del IRPF, art. 19.2.a",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764",
+          "checked_at": null
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "bajo",
+      "validation_status": "pendiente_tests"
+    },
+    {
+      "id": "es_cuotas_colegios_profesionales_2025",
+      "name": "Cuotas a colegios profesionales (obligatorias)",
+      "description": "Gasto deducible de los rendimientos íntegros del trabajo por cuotas pagadas a colegios profesionales cuando la colegiación sea obligatoria para el ejercicio de la actividad. Límite 500 € anuales (art. 19.2.d Ley 35/2006 IRPF).",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "gasto_deducible",
+      "requirements": [
+        {"field": "income.work_income", "operator": ">", "value": 0},
+        {"field": "expenses.professional_association_fees_amount", "operator": ">", "value": 0},
+        {"field": "personal.professional_association_required", "operator": "==", "value": true}
+      ],
+      "calculation": {"type": "amount_field", "base_field": "expenses.professional_association_fees_amount"},
+      "limit": 500.0,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Justificante de cuotas colegiales"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "type": "ley",
+          "title": "Ley 35/2006 del IRPF, art. 19.2.d",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764",
+          "checked_at": null
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "bajo",
+      "validation_status": "pendiente_tests"
+    },
+    {
+      "id": "es_aportaciones_plan_pensiones_individual_2025",
+      "name": "Aportaciones a planes de pensiones individuales",
+      "description": "Reducción de la base imponible general por aportaciones del contribuyente a planes de pensiones individuales. Límite general 1.500 € anuales en 2025 (art. 52 Ley 35/2006 IRPF). No incluye aportaciones empresariales, que tienen límite adicional.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "reduccion",
+      "requirements": [
+        {"field": "expenses.pension_plan_contribution_amount", "operator": ">", "value": 0}
+      ],
+      "calculation": {"type": "amount_field", "base_field": "expenses.pension_plan_contribution_amount"},
+      "limit": 1500.0,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Certificado de aportación al plan de pensiones"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "type": "ley",
+          "title": "Ley 35/2006 del IRPF, art. 52",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764",
+          "checked_at": null
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "bajo",
+      "validation_status": "pendiente_tests"
+    },
+    {
+      "id": "es_aportaciones_plan_pensiones_conyuge_2025",
+      "name": "Aportaciones a planes de pensiones del cónyuge",
+      "description": "Reducción adicional por aportaciones realizadas a planes de pensiones a favor del cónyuge cuando los rendimientos del trabajo o actividades económicas del cónyuge sean inferiores a 8.000 € anuales. Límite 1.000 € anuales (art. 51.7 Ley 35/2006 IRPF).",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "reduccion",
+      "requirements": [
+        {"field": "expenses.spouse_pension_plan_contribution_amount", "operator": ">", "value": 0},
+        {"field": "family.spouse.work_income", "operator": "<", "value": 8000}
+      ],
+      "calculation": {"type": "amount_field", "base_field": "expenses.spouse_pension_plan_contribution_amount"},
+      "limit": 1000.0,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Certificado de aportación al plan de pensiones del cónyuge"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "type": "ley",
+          "title": "Ley 35/2006 del IRPF, art. 51.7",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764",
+          "checked_at": null
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": null,
+      "risk_level": "bajo",
+      "validation_status": "pendiente_tests"
+    }
+  ]
+}

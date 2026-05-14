@@ -123,10 +123,22 @@ tests/
   test_deductions.py
 ```
 
+## Corpus de deducciones
+
+El lote 1 incluye 4 deducciones estatales para el ejercicio 2025:
+
+- `es_cuotas_sindicales_2025`: gasto deducible por cuotas sindicales (art. 19.2.a LIRPF).
+- `es_cuotas_colegios_profesionales_2025`: gasto deducible por cuotas colegiales obligatorias, tope 500 € (art. 19.2.d LIRPF).
+- `es_aportaciones_plan_pensiones_individual_2025`: reducción por aportaciones a plan de pensiones, tope 1.500 € (art. 52 LIRPF).
+- `es_aportaciones_plan_pensiones_conyuge_2025`: reducción por aportaciones al plan del cónyuge si su renta es inferior a 8.000 €, tope 1.000 € (art. 51.7 LIRPF).
+
+Todas las reglas están marcadas como `pendiente_tests`: tienen referencia legal y tests del motor, pero **requieren revisión fiscal humana contra el Manual práctico de Renta AEAT 2025** antes de promoverlas a `validada`. Mientras tanto, el motor las muestra como `Pendiente de validación` y no las recomienda directamente.
+
+Para promover una regla: editar su `validation_status` en `src/hacienda_ai/data/deductions/` y poner `checked_at` y `last_reviewed_at` con la fecha de la revisión.
+
 ## Limitaciones actuales
 
-- La auditoría inicial no encontró una base de deducciones previa en el repositorio.
-- Las deducciones semilla están marcadas como `pendiente_fuente` y no deben recomendarse directamente.
+- Las reglas del corpus están `pendiente_tests`; el motor no las recomienda hasta su revisión fiscal.
 - No hay backend HTTP ni frontend todavía.
 - No hay persistencia de perfiles ni documentos.
 - El RAG jurídico está solo preparado a nivel de estructura de carpetas.

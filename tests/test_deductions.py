@@ -46,11 +46,13 @@ def profile(**overrides):
     return TaxProfile.from_dict(data)
 
 
-def test_loads_seed_deductions_with_normalized_schema():
+def test_loads_state_corpus_lote1_with_normalized_schema():
     deductions = load_deductions()
     assert {deduction.id for deduction in deductions} == {
-        "es_cuotas_sindicales_2025_pendiente",
-        "es_donativos_2025_pendiente",
+        "es_cuotas_sindicales_2025",
+        "es_cuotas_colegios_profesionales_2025",
+        "es_aportaciones_plan_pensiones_individual_2025",
+        "es_aportaciones_plan_pensiones_conyuge_2025",
     }
     assert all(deduction.sources for deduction in deductions)
 
@@ -65,9 +67,13 @@ def test_rejects_unsupported_operator():
         validated_deduction(requirements=[{"field": "x", "operator": "contains", "value": 1}])
 
 
-def test_pending_source_deduction_is_not_recommended_directly():
+def test_pending_validation_deduction_is_not_recommended_directly():
     deduction = load_deductions()[0]
-    result = evaluate_deduction(deduction, profile(expenses={"union_dues_amount": 50.0}))
+    assert deduction.validation_status.value != "validada"
+    result = evaluate_deduction(
+        deduction,
+        profile(income={"work_income": 25000.0}, expenses={"union_dues_amount": 50.0}),
+    )
     assert result.status == "pending_validation"
     assert result.estimated_amount == 0.0
 
