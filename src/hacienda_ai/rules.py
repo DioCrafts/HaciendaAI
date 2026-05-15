@@ -1,29 +1,73 @@
 """Motor determinista de reglas fiscales.
 
 Este motor no interpreta texto libre: evalúa requisitos estructurados, calcula
-solo fórmulas declaradas y devuelve estados auditables.
+solo fórmulas declaradas y devuelve estados auditables. Aplica un filtro
+temporal por vigencia (de la deducción y, si se proporciona, de las normas
+citadas vía `NormaRegistry`) ANTES de cualquier otra comprobación.
 """
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
-from .models import Deduction, RuleEvaluation, TaxProfile, ValidationStatus
+from .models import (
+    Deduction,
+    NormaRegistry,
+    NormaStatus,
+    RiskLiteral,
+    RuleEvaluation,
+    RuleStatus,
+    TaxProfile,
+    ValidationStatus,
+)
 
-RISK_MAP = {"bajo": "low", "medio": "medium", "alto": "high"}
+RISK_MAP: dict[str, RiskLiteral] = {"bajo": "low", "medio": "medium", "alto": "high"}
 
 
-def evaluate_deduction(deduction: Deduction, profile: TaxProfile) -> RuleEvaluation:
-    """Evalúa una deducción contra un perfil fiscal estructurado."""
+def evaluate_deduction(
+    deduction: Deduction,
+    profile: TaxProfile,
+    registry: NormaRegistry | None = None,
+) -> RuleEvaluation:
+    """Evalúa una deducción contra un perfil fiscal estructurado.
+
+    Si `registry` está presente, se consulta el estado y la vigencia de cada
+    norma citada en la fecha del devengo. Una norma derogada o declarada
+    inconstitucional bloquea la aplicación aunque los requisitos se cumplan;
+    una suspendida degrada a `pending_validation`.
+    """
+    devengo = profile.effective_devengo_date()
+
+    temporal = _check_deduction_vigencia(deduction, devengo)
+    if temporal is not None:
+        return temporal
+
+    if registry is not None:
+        blocking = _check_norma_status(deduction, registry, devengo)
+        if blocking is not None:
+            return blocking
+
     if deduction.tax_year != profile.tax_year:
-        return _result(deduction, "does_not_apply", "La deducción pertenece a otro ejercicio fiscal.", confidence=0.9)
+        return _result(
+            deduction,
+            "does_not_apply",
+            "La deducción pertenece a otro ejercicio fiscal.",
+            confidence=0.9,
+        )
     if deduction.region and deduction.region.lower() != profile.region.lower():
-        return _result(deduction, "does_not_apply", "La deducción pertenece a otra comunidad autónoma.", confidence=0.9)
+        return _result(
+            deduction,
+            "does_not_apply",
+            "La deducción pertenece a otra comunidad autónoma.",
+            confidence=0.9,
+        )
     if deduction.validation_status != ValidationStatus.VALIDADA:
         return _result(
             deduction,
             "pending_validation",
-            "La regla no está validada con fuente y tests suficientes; no debe recomendarse su aplicación directa.",
+            "La regla no está validada con fuente y tests suficientes; "
+            "no debe recomendarse su aplicación directa.",
             confidence=0.2,
         )
 
@@ -54,7 +98,9 @@ def evaluate_deduction(deduction: Deduction, profile: TaxProfile) -> RuleEvaluat
             confidence=0.8,
         )
 
-    missing_documents = tuple(doc for doc in deduction.required_documents if doc not in profile.documents)
+    missing_documents = tuple(
+        doc for doc in deduction.required_documents if doc not in profile.documents
+    )
     amount = calculate_amount(deduction, facts)
     if missing_documents:
         return _result(
@@ -74,8 +120,76 @@ def evaluate_deduction(deduction: Deduction, profile: TaxProfile) -> RuleEvaluat
     )
 
 
-def evaluate_deductions(deductions: list[Deduction], profile: TaxProfile) -> list[RuleEvaluation]:
-    return [evaluate_deduction(deduction, profile) for deduction in deductions]
+def evaluate_deductions(
+    deductions: list[Deduction],
+    profile: TaxProfile,
+    registry: NormaRegistry | None = None,
+) -> list[RuleEvaluation]:
+    return [evaluate_deduction(deduction, profile, registry) for deduction in deductions]
+
+
+def _check_deduction_vigencia(deduction: Deduction, devengo: date) -> RuleEvaluation | None:
+    if deduction.effective_from is not None and devengo < deduction.effective_from:
+        return _result(
+            deduction,
+            "does_not_apply",
+            f"La deducción no estaba en vigor en el devengo ({devengo.isoformat()}); "
+            f"entró en vigor el {deduction.effective_from.isoformat()}.",
+            confidence=0.95,
+        )
+    if deduction.effective_to is not None and devengo > deduction.effective_to:
+        return _result(
+            deduction,
+            "does_not_apply",
+            f"La deducción dejó de estar en vigor el {deduction.effective_to.isoformat()}, "
+            f"antes del devengo ({devengo.isoformat()}).",
+            confidence=0.95,
+        )
+    return None
+
+
+def _check_norma_status(
+    deduction: Deduction,
+    registry: NormaRegistry,
+    devengo: date,
+) -> RuleEvaluation | None:
+    for source in deduction.sources:
+        if source.boe_id is None or not registry.knows(source.boe_id):
+            continue
+        version = registry.version_at(source.boe_id, devengo)
+        if version is None:
+            return _result(
+                deduction,
+                "pending_validation",
+                f"No consta versión registrada de {source.boe_id} en el devengo "
+                f"({devengo.isoformat()}); requiere revisión humana.",
+                confidence=0.2,
+            )
+        if version.status == NormaStatus.DEROGADA:
+            return _result(
+                deduction,
+                "does_not_apply",
+                f"La norma {source.boe_id} estaba derogada en el devengo "
+                f"({devengo.isoformat()}).",
+                confidence=0.95,
+            )
+        if version.status == NormaStatus.INCONSTITUCIONAL:
+            return _result(
+                deduction,
+                "does_not_apply",
+                f"La norma {source.boe_id} fue declarada inconstitucional con efectos "
+                f"anteriores al devengo ({devengo.isoformat()}).",
+                confidence=0.95,
+            )
+        if version.status == NormaStatus.SUSPENDIDA:
+            return _result(
+                deduction,
+                "pending_validation",
+                f"La norma {source.boe_id} estaba suspendida en el devengo "
+                f"({devengo.isoformat()}); requiere revisión humana.",
+                confidence=0.3,
+            )
+    return None
 
 
 def calculate_amount(deduction: Deduction, facts: dict[str, Any]) -> float:
@@ -139,7 +253,7 @@ def compare(value: Any, operator: str, expected: Any) -> bool:
 
 def _result(
     deduction: Deduction,
-    status: str,
+    status: RuleStatus,
     reason: str,
     estimated_amount: float = 0.0,
     missing_fields: tuple[str, ...] = (),
@@ -148,12 +262,12 @@ def _result(
 ) -> RuleEvaluation:
     return RuleEvaluation(
         deduction_id=deduction.id,
-        status=status,  # type: ignore[arg-type]
+        status=status,
         estimated_amount=estimated_amount,
         reason=reason,
         missing_fields=missing_fields,
         missing_documents=missing_documents,
         sources=deduction.sources,
-        risk_level=RISK_MAP[deduction.risk_level.value],  # type: ignore[arg-type]
+        risk_level=RISK_MAP[deduction.risk_level.value],
         confidence=confidence,
     )
