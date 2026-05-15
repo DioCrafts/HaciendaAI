@@ -13,7 +13,7 @@ from .deductions import DEFAULT_DEDUCTIONS_DIR, load_deductions
 from .models import Deduction, RuleEvaluation, TaxProfile, ValidationError
 from .rules import evaluate_deductions
 from .simulator import SimulationReport, simulate
-from .tax_calculation import TaxSummary, compute_tax_summary
+from .tax_calculation import TaxComparison, TaxSummary, compute_tax_comparison
 
 STATUS_ORDER: tuple[str, ...] = (
     "applies",
@@ -265,12 +265,13 @@ def _run_tax(
         return 2
     profile, deductions = loaded
     evaluations = evaluate_deductions(deductions, profile)
-    summary = compute_tax_summary(profile, deductions, evaluations)
+    comparison = compute_tax_comparison(profile, deductions, evaluations)
     if output_format == "json":
-        json.dump(asdict(summary), stdout, ensure_ascii=False, indent=2)
+        json.dump(asdict(comparison), stdout, ensure_ascii=False, indent=2)
         stdout.write("\n")
     else:
-        _print_tax_summary(summary, stdout)
+        _print_tax_summary(comparison.with_rules, stdout)
+        _print_tax_savings(comparison, stdout)
     return 0
 
 
@@ -325,6 +326,32 @@ def _print_tax_summary(summary: TaxSummary, stdout: Any) -> None:
         print(f"Deducciones aplicadas: {', '.join(summary.applied_cuota_deduction_ids)}", file=stdout)
     if summary.applied_bonification_ids:
         print(f"Bonificaciones aplicadas: {', '.join(summary.applied_bonification_ids)}", file=stdout)
+
+
+def _print_tax_savings(comparison: TaxComparison, stdout: Any) -> None:
+    def euros(amount: float) -> str:
+        return f"{amount:>12,.2f} €".replace(",", "·").replace(".", ",").replace("·", ".")
+
+    print("", file=stdout)
+    print("== Ahorro fiscal real (con reglas vs. sin reglas) ==", file=stdout)
+    print(
+        f"  Cuota diferencial sin reglas      {euros(comparison.without_rules.cuota_diferencial)}",
+        file=stdout,
+    )
+    print(
+        f"  Cuota diferencial con reglas      {euros(comparison.with_rules.cuota_diferencial)}",
+        file=stdout,
+    )
+    print(f"  Ahorro real                       {euros(comparison.ahorro_real)}", file=stdout)
+    contributing = [saving for saving in comparison.savings_per_rule if saving.ahorro_marginal > 0]
+    if contributing:
+        print("", file=stdout)
+        print("  Ahorro marginal por regla (no suma exactamente el agregado):", file=stdout)
+        for saving in sorted(contributing, key=lambda item: -item.ahorro_marginal):
+            print(
+                f"    {saving.deduction_id:<55s}{euros(saving.ahorro_marginal)}",
+                file=stdout,
+            )
 
 
 def _run_serve(*, host: str, port: int, reload: bool, api_key: str | None, stderr: Any) -> int:

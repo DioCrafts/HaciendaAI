@@ -35,7 +35,7 @@ Referencias normativas (texto consolidado LIRPF 2025)
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from .logging_setup import get_logger
@@ -302,6 +302,87 @@ def compute_tax_summary(
         },
     )
     return summary
+
+
+@dataclass(frozen=True)
+class RuleSaving:
+    """Ahorro marginal atribuible a una regla concreta: cuánto subiría la
+    cuota diferencial si esa regla NO se aplicara, dejando el resto igual.
+
+    Nota: la suma de los `ahorro_marginal` no equivale en general al
+    `ahorro_real` del agregado por la no-linealidad de la tarifa y los
+    topes interrelacionados (`taxable_base_limits`, incompatibilidades).
+    """
+
+    deduction_id: str
+    ahorro_marginal: float
+
+
+@dataclass(frozen=True)
+class TaxComparison:
+    """Compara cuota IRPF con todas las reglas aplicadas vs. una baseline
+    sin ninguna regla aplicada. El `ahorro_real` es la diferencia exacta
+    entre cuotas diferenciales — NO la suma de importes de las reglas,
+    que sobreestima por tratar reducción de base y deducción de cuota
+    como equivalentes."""
+
+    with_rules: TaxSummary
+    without_rules: TaxSummary
+    ahorro_real: float
+    savings_per_rule: tuple[RuleSaving, ...]
+
+
+def compute_tax_comparison(
+    profile: TaxProfile,
+    deductions: list[Deduction],
+    evaluations: list[RuleEvaluation],
+) -> TaxComparison:
+    """Compara la cuota con/sin reglas y devuelve el ahorro real más el
+    detalle marginal por regla."""
+    with_rules = compute_tax_summary(profile, deductions, evaluations)
+    baseline_evaluations = tuple(_disable(evaluation) for evaluation in evaluations)
+    without_rules = compute_tax_summary(profile, deductions, list(baseline_evaluations))
+    ahorro_real = without_rules.cuota_diferencial - with_rules.cuota_diferencial
+
+    savings_per_rule = _per_rule_savings(profile, deductions, evaluations, with_rules.cuota_diferencial)
+    _logger.info(
+        "tax_comparison_computed",
+        extra={
+            "tax_year": profile.tax_year,
+            "rules_compared": len(savings_per_rule),
+            "has_savings": ahorro_real > 0,
+        },
+    )
+    return TaxComparison(
+        with_rules=with_rules,
+        without_rules=without_rules,
+        ahorro_real=ahorro_real,
+        savings_per_rule=savings_per_rule,
+    )
+
+
+def _per_rule_savings(
+    profile: TaxProfile,
+    deductions: list[Deduction],
+    evaluations: list[RuleEvaluation],
+    cuota_diferencial_with_all: float,
+) -> tuple[RuleSaving, ...]:
+    """Para cada regla en estado `applies`, calcula cuánto subiría la
+    cuota diferencial si ESA regla se quitara (el resto se mantiene)."""
+    applying_ids = [evaluation.deduction_id for evaluation in evaluations if evaluation.status == "applies"]
+    savings: list[RuleSaving] = []
+    for rule_id in applying_ids:
+        modified = [
+            _disable(evaluation) if evaluation.deduction_id == rule_id else evaluation for evaluation in evaluations
+        ]
+        partial = compute_tax_summary(profile, deductions, modified)
+        marginal = partial.cuota_diferencial - cuota_diferencial_with_all
+        savings.append(RuleSaving(deduction_id=rule_id, ahorro_marginal=marginal))
+    return tuple(savings)
+
+
+def _disable(evaluation: RuleEvaluation) -> RuleEvaluation:
+    return replace(evaluation, status="does_not_apply", estimated_amount=0.0)
 
 
 # ---------- helpers internos ----------

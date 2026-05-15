@@ -18,6 +18,7 @@ from hacienda_ai.tax_calculation import (
     SAVINGS_TARIFF_2025,
     apply_scale,
     compute_personal_family_minimum,
+    compute_tax_comparison,
     compute_tax_summary,
 )
 
@@ -269,3 +270,102 @@ def test_tax_summary_ignores_gasto_deducible_to_avoid_double_counting() -> None:
     assert summary.deducciones_de_cuota == 0.0
     assert summary.applied_reduction_ids == ()
     assert summary.applied_cuota_deduction_ids == ()
+
+
+# ---------- compute_tax_comparison ----------
+
+
+def test_comparison_returns_zero_savings_when_no_rules_apply() -> None:
+    profile = _profile()
+    comparison = compute_tax_comparison(profile, deductions=[], evaluations=[])
+    assert comparison.ahorro_real == 0.0
+    assert comparison.savings_per_rule == ()
+    assert comparison.with_rules.cuota_diferencial == comparison.without_rules.cuota_diferencial
+
+
+def test_comparison_for_realistic_profile_matches_manual_calculation() -> None:
+    """Perfil con plan de pensiones + donativos. Verificamos el ahorro real
+    exacto (1.108 € - 438 € = 670 €) y el detalle marginal por regla."""
+    deductions = {d.id: d for d in load_deductions()}
+    rules = [
+        replace(
+            deductions["es_aportaciones_plan_pensiones_individual_2025"],
+            validation_status=ValidationStatus.VALIDADA,
+        ),
+        replace(
+            deductions["es_donativos_no_recurrente_2025"],
+            validation_status=ValidationStatus.VALIDADA,
+        ),
+    ]
+    profile = _profile(
+        personal={"age": 35},
+        family={"children_count": 1, "children_under_3_count": 1},
+        income={"work_income": 35000.0},
+        withholdings=[{"amount": 5800.0}],
+        taxable_base={
+            "general": 35000.0,
+            "savings": 1500.0,
+            "liquidable": 33000.0,
+            "net_work_and_economic_income": 32000.0,
+        },
+        expenses={
+            "pension_plan_contribution_amount": 2000.0,
+            "donations_amount": 300.0,
+        },
+        documents=[
+            "Certificado de aportación al plan de pensiones",
+            "Certificado de donativo expedido por la entidad beneficiaria",
+        ],
+    )
+    evaluations = evaluate_deductions(rules, profile)
+    comparison = compute_tax_comparison(profile, rules, evaluations)
+
+    assert abs(comparison.with_rules.cuota_diferencial - 438.0) < 0.01
+    assert abs(comparison.without_rules.cuota_diferencial - 1108.0) < 0.01
+    assert abs(comparison.ahorro_real - 670.0) < 0.01
+
+    savings_by_id = {item.deduction_id: item.ahorro_marginal for item in comparison.savings_per_rule}
+    assert "es_aportaciones_plan_pensiones_individual_2025" in savings_by_id
+    assert "es_donativos_no_recurrente_2025" in savings_by_id
+    # Plan de pensiones (reducción de 1500 al tipo marginal del 30%): 450 €
+    assert abs(savings_by_id["es_aportaciones_plan_pensiones_individual_2025"] - 450.0) < 0.01
+    # Donativo (deducción de cuota directa): 220 €
+    assert abs(savings_by_id["es_donativos_no_recurrente_2025"] - 220.0) < 0.01
+
+
+def test_comparison_gasto_deducible_has_zero_marginal_savings() -> None:
+    """Las cuotas sindicales (gasto_deducible) aplican en evaluate pero
+    NO afectan el cómputo de cuota: marginal 0 €."""
+    deductions = {d.id: d for d in load_deductions()}
+    rules = [deductions["es_cuotas_sindicales_2025"]]  # ya validada en corpus
+    profile = _profile(
+        income={"work_income": 30000.0},
+        expenses={"union_dues_amount": 220.0},
+        documents=["Justificante de pago de cuotas sindicales"],
+    )
+    evaluations = evaluate_deductions(rules, profile)
+    comparison = compute_tax_comparison(profile, rules, evaluations)
+    assert comparison.ahorro_real == 0.0
+    saving = next(s for s in comparison.savings_per_rule if s.deduction_id == "es_cuotas_sindicales_2025")
+    assert saving.ahorro_marginal == 0.0
+
+
+def test_comparison_with_bonification_attributes_full_savings() -> None:
+    """Una bonificación de cuota se traduce íntegra en ahorro real."""
+    deductions = {d.id: d for d in load_deductions()}
+    ceuta = replace(
+        deductions["es_bonificacion_ceuta_2025"],
+        validation_status=ValidationStatus.VALIDADA,
+    )
+    profile = _profile(
+        region="Ceuta",
+        cuota={"attributable_to_ceuta_melilla": 3000.0},
+        documents=["Certificado de residencia o documentación que acredite la obtención de rentas en Ceuta"],
+    )
+    evaluations = evaluate_deductions([ceuta], profile)
+    comparison = compute_tax_comparison(profile, [ceuta], evaluations)
+    # Bonificación = 3000 * 0.60 = 1800 (sale del cálculo de cuota).
+    # La cuota líquida no puede ir negativa: si la cuota integra < 1800,
+    # el ahorro real = cuota integra. Si > 1800, ahorro real = 1800.
+    assert comparison.ahorro_real > 0
+    assert comparison.ahorro_real <= 1800.01

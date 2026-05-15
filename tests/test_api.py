@@ -131,7 +131,7 @@ def test_simulate_returns_400_when_profile_is_invalid() -> None:
 # ---------- /v1/tax ----------
 
 
-def test_tax_endpoint_returns_full_breakdown() -> None:
+def test_tax_endpoint_returns_comparison_with_savings() -> None:
     response = client.post(
         "/v1/tax",
         json={
@@ -145,12 +145,13 @@ def test_tax_endpoint_returns_full_breakdown() -> None:
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["tax_year"] == 2025
-    assert body["base_imponible_general"] == 30000.0
+    assert {"with_rules", "without_rules", "ahorro_real", "savings_per_rule"} <= body.keys()
+    assert body["with_rules"]["tax_year"] == 2025
+    assert body["with_rules"]["base_imponible_general"] == 30000.0
     # Cuota integra general 30000 con mínimo 5550: 7165.5 - 1054.5 = 6111
-    assert abs(body["cuota_integra_general"] - 6111.0) < 0.01
-    # Diferencial = cuota liquida - 4000 retenciones
-    assert "cuota_diferencial" in body
+    assert abs(body["with_rules"]["cuota_integra_general"] - 6111.0) < 0.01
+    assert "cuota_diferencial" in body["with_rules"]
+    assert isinstance(body["savings_per_rule"], list)
 
 
 def test_tax_endpoint_returns_400_when_profile_is_invalid() -> None:

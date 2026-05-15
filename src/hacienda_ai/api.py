@@ -25,7 +25,7 @@ from .deductions import load_deductions
 from .models import Deduction, TaxProfile, ValidationError
 from .rules import evaluate_deductions
 from .simulator import simulate
-from .tax_calculation import compute_tax_summary
+from .tax_calculation import compute_tax_comparison
 
 app = FastAPI(
     title="HaciendaAI API",
@@ -105,15 +105,16 @@ def simulate_profile(profile: ProfilePayload) -> dict[str, Any]:
 
 @app.post("/v1/tax", tags=["motor"], dependencies=[Depends(verify_api_key)])
 def tax_summary(profile: ProfilePayload) -> dict[str, Any]:
-    """Calcula la cuota IRPF (íntegra, líquida y diferencial) aplicando
-    las reglas validadas del corpus según su categoría: reducciones a
-    base liquidable, deducciones a cuota líquida, bonificaciones a cuota.
-    Las reglas en `gasto_deducible` se asumen pre-descontadas en
-    `taxable_base.general`."""
+    """Devuelve la comparativa de cuota IRPF: con todas las reglas
+    aplicadas vs. una baseline sin ninguna. El campo `ahorro_real` es
+    la diferencia exacta entre cuotas diferenciales (no la suma de
+    importes de reglas, que sobreestima por tratar reducciones de base
+    y deducciones de cuota como equivalentes). Incluye el detalle
+    marginal por regla en `savings_per_rule`."""
     parsed = _parse_profile(profile)
     deductions = load_deductions()
     evaluations = evaluate_deductions(deductions, parsed)
-    return asdict(compute_tax_summary(parsed, deductions, evaluations))
+    return asdict(compute_tax_comparison(parsed, deductions, evaluations))
 
 
 def _parse_profile(payload: dict[str, Any]) -> TaxProfile:

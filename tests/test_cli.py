@@ -178,6 +178,7 @@ def test_cli_tax_json_output_contains_full_breakdown(tmp_path: Path, capsys: pyt
     captured = capsys.readouterr()
     assert exit_code == 0
     payload = json.loads(captured.out)
+    assert {"with_rules", "without_rules", "ahorro_real", "savings_per_rule"} <= payload.keys()
     for key in (
         "tax_year",
         "base_imponible_general",
@@ -186,7 +187,10 @@ def test_cli_tax_json_output_contains_full_breakdown(tmp_path: Path, capsys: pyt
         "cuota_liquida",
         "cuota_diferencial",
     ):
-        assert key in payload, f"falta {key!r} en el JSON"
+        assert key in payload["with_rules"], f"falta {key!r} en with_rules"
+    # Sin reglas aplicables (deducción de prueba no entra en compute_tax_summary
+    # porque su perfil mínimo no llega a aplicar), el ahorro es 0.
+    assert payload["ahorro_real"] == 0.0
 
 
 def test_cli_simulate_returns_2_on_invalid_profile(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
