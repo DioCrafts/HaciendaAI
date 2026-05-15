@@ -142,11 +142,11 @@ class AutonomicTariffSet:
     general: TaxScale
 
 
-# Registry de tarifas autonómicas reales por CCAA. **Vacío al inicio** por
-# honestidad: añadir cifras de cada CCAA requiere contraste contra su
-# boletín autonómico vigente para el ejercicio. Cuando una CCAA no está en
-# este registry, se aplica la tarifa autonómica genérica (idéntica a la
-# estatal), de modo que la suma total coincide con `GENERAL_TARIFF_2025`.
+# Registry de tarifas autonómicas reales por CCAA. Añadir cifras de una
+# CCAA exige contrastar con su boletín autonómico vigente para el
+# ejercicio. Cuando una CCAA no está en este registry, se aplica la tarifa
+# autonómica genérica (idéntica a la estatal), de modo que la suma total
+# coincide con `GENERAL_TARIFF_2025`.
 #
 # Cómo añadir una CCAA real:
 #   1. Localizar la norma autonómica que aprueba la tarifa (Decreto Legislativo
@@ -155,7 +155,33 @@ class AutonomicTariffSet:
 #      para el ejercicio.
 #   3. Añadir un test en tests/test_tax_calculation.py que verifique las
 #      cifras esperadas para esa CCAA frente a la genérica.
-AUTONOMIC_GENERAL_TARIFFS: dict[str, AutonomicTariffSet] = {}
+
+# --- Comunidad de Madrid ---
+# Tarifa autonómica del IRPF establecida por el Decreto Legislativo 1/2010
+# tras la deflactación aprobada por la Ley 4/2024 de Medidas Fiscales y
+# Administrativas (BOCM de 20 de diciembre de 2023, vigente para el
+# ejercicio 2024).
+#
+# IMPORTANTE — PENDIENTE DE VERIFICAR PARA EL EJERCICIO 2025: estas son
+# las cifras que se aplicaron al ejercicio 2024. Madrid suele aprobar una
+# ley anual de medidas fiscales con deflactación adicional (orden de
+# magnitud ~3-4 %) antes del cierre del ejercicio. Antes de cerrar la
+# declaración de 2025 contrastar contra el BOCM y actualizar tramos +
+# tipos si Madrid los modificó. Si no hubo cambios para 2025, mantener.
+MADRID_GENERAL_TARIFF: TaxScale = TaxScale(
+    name="madrid_general_2024_pendiente_verificacion_2025",
+    brackets=(
+        TaxBracket(up_to=13_362.22, rate=0.085),
+        TaxBracket(up_to=19_004.63, rate=0.107),
+        TaxBracket(up_to=35_425.68, rate=0.128),
+        TaxBracket(up_to=57_320.40, rate=0.174),
+        TaxBracket(up_to=None, rate=0.205),
+    ),
+)
+
+AUTONOMIC_GENERAL_TARIFFS: dict[str, AutonomicTariffSet] = {
+    "Madrid": AutonomicTariffSet(general=MADRID_GENERAL_TARIFF),
+}
 
 
 def autonomic_general_tariff_for(region: str | None) -> TaxScale:

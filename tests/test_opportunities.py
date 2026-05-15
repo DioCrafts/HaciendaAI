@@ -13,7 +13,13 @@ from hacienda_ai.rules import evaluate_deductions
 def _profile(**overrides: Any) -> TaxProfile:
     data: dict[str, Any] = {
         "tax_year": 2025,
-        "region": "Madrid",
+        # Asturias: no tiene tarifa autonómica registrada, usa la genérica
+        # (= estatal). Esto mantiene las cuotas marginales exactas que estos
+        # tests verifican (ej. 450 € para 1.500 € en plan de pensiones al
+        # tipo marginal 30 %). Cuando una CCAA con tarifa específica esté
+        # registrada (Madrid), el tipo marginal cambia y los importes son
+        # distintos.
+        "region": "Asturias",
         "personal": {"age": 35},
         "income": {"work_income": 35000.0},
         "withholdings": [{"amount": 5800.0}],

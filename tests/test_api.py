@@ -135,8 +135,12 @@ def test_tax_endpoint_returns_comparison_with_savings() -> None:
     response = client.post(
         "/v1/tax",
         json={
+            # Asturias: usa la tarifa autonómica genérica (= estatal), de modo
+            # que la cuota integra general coincide con el cálculo manual de
+            # 2x tarifa estatal. Cuando una CCAA tiene tarifa registrada
+            # (Madrid), el resultado cambia — cubierto en test_tax_calculation.
             "tax_year": 2025,
-            "region": "Madrid",
+            "region": "Asturias",
             "personal": {"age": 30},
             "income": {"work_income": 30000.0},
             "withholdings": [{"amount": 4000.0}],
@@ -148,7 +152,8 @@ def test_tax_endpoint_returns_comparison_with_savings() -> None:
     assert {"with_rules", "without_rules", "ahorro_real", "savings_per_rule"} <= body.keys()
     assert body["with_rules"]["tax_year"] == 2025
     assert body["with_rules"]["base_imponible_general"] == 30000.0
-    # Cuota integra general 30000 con mínimo 5550: 7165.5 - 1054.5 = 6111
+    # Cuota integra general 30000 con mínimo 5550 y tarifa genérica:
+    # 7165.5 - 1054.5 = 6111
     assert abs(body["with_rules"]["cuota_integra_general"] - 6111.0) < 0.01
     assert "cuota_diferencial" in body["with_rules"]
     assert isinstance(body["savings_per_rule"], list)

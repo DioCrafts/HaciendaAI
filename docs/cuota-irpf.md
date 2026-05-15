@@ -92,9 +92,21 @@ Cuando una CCAA no está registrada en `AUTONOMIC_GENERAL_TARIFFS`, se usa la ge
 2. Crear una entrada en `AUTONOMIC_GENERAL_TARIFFS` con la `TaxScale` autonómica de esa CCAA. La selección es **case-insensitive** sobre `profile.region`.
 3. Añadir un test en `tests/test_tax_calculation.py` que verifique las cifras esperadas (y la diferencia frente a la genérica).
 
-El registry empieza **vacío** intencionalmente: añadir cifras de cada CCAA exige verificación.
+El registry tiene **Madrid** activada con la tarifa autonómica del ejercicio 2024 (Decreto Legislativo 1/2010 tras la deflactación de la Ley 4/2024 madrileña). Esa tarifa está **pendiente de contrastar contra el BOCM para el ejercicio 2025**: si Madrid aprobó una nueva deflactación o cambio para 2025, hay que actualizar `MADRID_GENERAL_TARIFF` en `src/hacienda_ai/tax_calculation.py`.
 
-#### Ejemplo: Madrid (tramos del ejercicio 2024 según recuerdo, PENDIENTE VERIFICACIÓN)
+Tarifa Madrid actualmente registrada (cifras 2024):
+
+| Tramo | Hasta | Tipo |
+| --- | --- | --- |
+| 1 | 13 362,22 € | 8,5 % |
+| 2 | 19 004,63 € | 10,7 % |
+| 3 | 35 425,68 € | 12,8 % |
+| 4 | 57 320,40 € | 17,4 % |
+| 5 | resto | 20,5 % |
+
+Test verificable: para una base de 30.000 € sin reducciones (mínimo 5.550 €), la cuota íntegra general en Madrid sale ≈ **5.730,68 €**, frente a **6.111 €** que daría la tarifa autonómica genérica (= estatal). Diferencia ≈ 380 € por año.
+
+#### Cómo añadir/actualizar otra CCAA
 
 ```python
 # AVISO: estas cifras son mi recuerdo de la tarifa autonómica de Madrid

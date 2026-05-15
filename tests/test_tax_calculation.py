@@ -35,7 +35,11 @@ from hacienda_ai.tax_calculation import (
 def _profile(**overrides: Any) -> TaxProfile:
     data: dict[str, Any] = {
         "tax_year": 2025,
-        "region": "Madrid",
+        # Asturias: no está en el registry de tarifas autonómicas, así que
+        # se usa la genérica (= estatal) y las cuotas numéricas exactas
+        # de estos tests siguen siendo válidas. Cuando un test necesite
+        # verificar Madrid u otra CCAA registrada, pasa region como override.
+        "region": "Asturias",
         "personal": {"age": 30},
         "income": {"work_income": 30000.0},
         "withholdings": [{"amount": 4000.0}],
@@ -447,14 +451,32 @@ def test_state_and_autonomic_savings_tariffs_sum_to_total() -> None:
 
 def test_autonomic_general_tariff_for_unknown_region_returns_generic() -> None:
     assert autonomic_general_tariff_for(None) is GENERIC_AUTONOMIC_GENERAL_TARIFF_2025
-    assert autonomic_general_tariff_for("Madrid") is GENERIC_AUTONOMIC_GENERAL_TARIFF_2025
+    assert autonomic_general_tariff_for("Asturias") is GENERIC_AUTONOMIC_GENERAL_TARIFF_2025
     assert autonomic_general_tariff_for("Region inventada") is GENERIC_AUTONOMIC_GENERAL_TARIFF_2025
 
 
-def test_autonomic_registry_starts_empty_for_honesty() -> None:
-    """El registry está vacío al inicio: añadir cifras de cada CCAA requiere
-    contrastar con la norma autonómica vigente del ejercicio."""
-    assert AUTONOMIC_GENERAL_TARIFFS == {}
+def test_autonomic_registry_contains_madrid() -> None:
+    """El registry productivo incluye la tarifa autonómica de Madrid
+    (cifras del ejercicio 2024, pendientes de verificar para 2025)."""
+    assert "Madrid" in AUTONOMIC_GENERAL_TARIFFS
+    madrid = AUTONOMIC_GENERAL_TARIFFS["Madrid"].general
+    # El nombre lleva el marcador de pendiente de verificación.
+    assert "pendiente_verificacion" in madrid.name
+    # Sanity check: 5 tramos, tope final 20,5 %.
+    assert len(madrid.brackets) == 5
+    assert madrid.brackets[-1].rate == 0.205
+
+
+def test_madrid_tariff_is_lower_than_generic_for_typical_base() -> None:
+    """Madrid 2024 tiene tipos autonómicos menores que la genérica
+    (= estatal). Para una base de 30.000 € la cuota autonómica Madrid
+    debe ser inferior a la genérica."""
+    base = 30000.0
+    cuota_madrid = apply_scale(base, autonomic_general_tariff_for("Madrid"))
+    cuota_generica = apply_scale(base, GENERIC_AUTONOMIC_GENERAL_TARIFF_2025)
+    assert cuota_madrid < cuota_generica
+    # Diferencia esperada del orden de cientos de euros.
+    assert (cuota_generica - cuota_madrid) > 100.0
 
 
 def test_overriding_a_region_changes_the_tax_summary() -> None:
@@ -493,36 +515,33 @@ def test_autonomic_tariff_matches_case_insensitively() -> None:
         del AUTONOMIC_GENERAL_TARIFFS[fake_region]
 
 
-def test_override_with_madrid_2024_sample_lowers_cuota() -> None:
-    """Demuestra el flujo de registro de una CCAA real con un ejemplo.
+def test_madrid_profile_produces_lower_cuota_than_unregistered_region() -> None:
+    """Con Madrid en el registry productivo, un perfil de Madrid produce
+    cuota integra menor que un perfil de una CCAA sin tarifa específica
+    (Asturias, que usa la genérica = estatal)."""
+    madrid_summary = compute_tax_summary(_profile(region="Madrid"), deductions=[], evaluations=[])
+    generic_summary = compute_tax_summary(_profile(region="Asturias"), deductions=[], evaluations=[])
+    assert madrid_summary.cuota_integra_general < generic_summary.cuota_integra_general
+    assert madrid_summary.cuota_diferencial < generic_summary.cuota_diferencial
 
-    Los tramos y tipos son los que recuerdo para la Comunidad de Madrid en
-    el ejercicio 2024 (Ley 4/2024 madrileña y normativa previa). EL TEST
-    NO ASEGURA QUE ESOS NÚMEROS SEAN LOS DEL EJERCICIO 2025: la finalidad
-    es probar el MECANISMO de override, no fijar cifras fiscales.
 
-    Antes de mergear cifras de Madrid al registry de producción, contrastar
-    con el BOCM y la Ley de medidas fiscales vigente para el ejercicio.
+def test_madrid_cuota_integra_general_matches_manual_calculation_for_30k() -> None:
+    """Verificación numérica del cómputo Madrid para base 30.000 € y mínimo
+    5.550 € (perfil sin hijos ni discapacidad). Cálculo manual:
+
+      Estatal sobre 30.000:    12450*0.095 + 7750*0.12 + 9800*0.15 = 3.582,75
+      Estatal sobre 5.550:     5550 * 0.095 = 527,25
+      Cuota estatal neta:      3.055,50
+
+      Madrid sobre 30.000:     13362.22*0.085 + 5642.41*0.107 + 10995.37*0.128
+                               = 1.135,7887 + 603,7378 + 1.407,4074 = 3.146,9339
+      Madrid sobre 5.550:      5550 * 0.085 = 471,75
+      Cuota Madrid neta:       2.675,1839
+
+      Cuota integra general:   3.055,50 + 2.675,1839 = 5.730,6839
     """
-    madrid_2024_sample = TaxScale(
-        name="madrid_2024_sample_pendiente_verificacion",
-        brackets=(
-            TaxBracket(up_to=13_362.22, rate=0.085),
-            TaxBracket(up_to=19_004.63, rate=0.107),
-            TaxBracket(up_to=35_425.68, rate=0.128),
-            TaxBracket(up_to=57_320.40, rate=0.174),
-            TaxBracket(up_to=None, rate=0.205),
-        ),
+    summary = compute_tax_summary(_profile(region="Madrid"), deductions=[], evaluations=[])
+    expected = (12450 * 0.095 + 7750 * 0.12 + 9800 * 0.15 - 5550 * 0.095) + (
+        13362.22 * 0.085 + (19004.63 - 13362.22) * 0.107 + (30000 - 19004.63) * 0.128 - 5550 * 0.085
     )
-    AUTONOMIC_GENERAL_TARIFFS["Madrid"] = AutonomicTariffSet(general=madrid_2024_sample)
-    try:
-        profile = _profile(region="Madrid")
-        summary = compute_tax_summary(profile, deductions=[], evaluations=[])
-        baseline = compute_tax_summary(_profile(region="Otra"), deductions=[], evaluations=[])
-        # Madrid tiene tipos autonómicos más bajos que la genérica (que
-        # replica la estatal): la cuota integra debe ser inferior.
-        assert summary.cuota_integra_general < baseline.cuota_integra_general
-        # Y la cuota diferencial (a pagar) también.
-        assert summary.cuota_diferencial < baseline.cuota_diferencial
-    finally:
-        del AUTONOMIC_GENERAL_TARIFFS["Madrid"]
+    assert abs(summary.cuota_integra_general - expected) < 0.01
