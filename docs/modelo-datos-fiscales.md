@@ -27,7 +27,7 @@ Las deducciones del lote 1 (estatales 2025) consultan los siguientes campos del 
 | `personal.professional_association_required` | booleano | cuotas colegios profesionales |
 | `expenses.pension_plan_contribution_amount` | número | aportaciones plan de pensiones individual |
 | `expenses.spouse_pension_plan_contribution_amount` | número | aportaciones plan de pensiones cónyuge |
-| `family.spouse.work_income` | número | aportaciones plan de pensiones cónyuge |
+| `family.spouse.net_work_and_economic_income` | número | rendimientos netos del trabajo + actividades económicas del cónyuge. Umbral de 8.000 € en aportaciones al plan del cónyuge (art. 51.7 LIRPF) |
 | `expenses.donations_amount` | número | donativos Ley 49/2002 (lote 2) |
 | `personal.donations_recurrent_qualifying` | booleano | donativos recurrentes (lote 2) |
 | `taxable_base.liquidable` | número | tope del 10 % en donativos (lote 2) |

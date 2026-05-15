@@ -262,17 +262,21 @@ export function ProfileForm({ profile, onChange, onLoadExample }: Props): React.
             onChange={onChange}
           />
           <label>
-            <span>Renta del cónyuge (€)</span>
+            <span>Rendimientos netos cónyuge (trabajo + actividades, €)</span>
             <input
               type="number"
-              value={typeof spouse["work_income"] === "number" ? (spouse["work_income"] as number) : ""}
+              value={
+                typeof spouse["net_work_and_economic_income"] === "number"
+                  ? (spouse["net_work_and_economic_income"] as number)
+                  : ""
+              }
               onChange={(e) => {
                 const raw = e.target.value;
                 const nextSpouse = { ...spouse };
                 if (raw === "") {
-                  delete nextSpouse["work_income"];
+                  delete nextSpouse["net_work_and_economic_income"];
                 } else {
-                  nextSpouse["work_income"] = Number(raw);
+                  nextSpouse["net_work_and_economic_income"] = Number(raw);
                 }
                 const nextFamily = { ...family, spouse: nextSpouse };
                 onChange({ ...profile, family: nextFamily });

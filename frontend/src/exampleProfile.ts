@@ -15,7 +15,7 @@ export const exampleProfile: TaxProfile = {
     work_income: 32000,
   },
   family: {
-    spouse: { work_income: 5000 },
+    spouse: { net_work_and_economic_income: 5000 },
     maternity_qualifying_child_months: 12,
     large_family_qualifying_months: 12,
     disabled_descendants_qualifying_months: 0,

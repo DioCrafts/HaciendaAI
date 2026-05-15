@@ -3,7 +3,7 @@
     {
       "id": "es_cuotas_sindicales_2025",
       "name": "Cuotas satisfechas a sindicatos",
-      "description": "Gasto deducible de los rendimientos íntegros del trabajo por cuotas pagadas a sindicatos (art. 19.2.a Ley 35/2006 IRPF).",
+      "description": "Gasto deducible de los rendimientos íntegros del trabajo por las cuotas pagadas a sindicatos (art. 19.2.a LIRPF). El gasto se imputa frente al rendimiento del trabajo del propio contribuyente; no tiene tope cuantitativo expreso en la propia ley, aunque el conjunto de gastos del art. 19.2 no puede exceder el rendimiento íntegro del trabajo del ejercicio (regla general del título III LIRPF, no aplicada por el motor en esta regla).",
       "tax_year": 2025,
       "scope": "estatal",
       "region": null,
@@ -21,21 +21,21 @@
       "sources": [
         {
           "type": "ley",
-          "title": "Ley 35/2006 del IRPF, art. 19.2.a",
-          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764",
-          "checked_at": null
+          "title": "Ley 35/2006 IRPF, art. 19.2.a (texto consolidado)",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a19",
+          "checked_at": "2026-05-14"
         }
       ],
       "effective_from": "2025-01-01",
       "effective_to": "2025-12-31",
-      "last_reviewed_at": null,
+      "last_reviewed_at": "2026-05-14",
       "risk_level": "bajo",
-      "validation_status": "pendiente_tests"
+      "validation_status": "validada"
     },
     {
       "id": "es_cuotas_colegios_profesionales_2025",
-      "name": "Cuotas a colegios profesionales (obligatorias)",
-      "description": "Gasto deducible de los rendimientos íntegros del trabajo por cuotas pagadas a colegios profesionales cuando la colegiación sea obligatoria para el ejercicio de la actividad. Límite 500 € anuales (art. 19.2.d Ley 35/2006 IRPF).",
+      "name": "Cuotas satisfechas a colegios profesionales (colegiación obligatoria)",
+      "description": "Gasto deducible de los rendimientos íntegros del trabajo por las cuotas satisfechas a colegios profesionales **cuando la colegiación sea obligatoria** para el desempeño del trabajo (art. 19.2.d LIRPF). Tope expreso de 500 € anuales. Para quienes ejercen por cuenta propia, las cuotas colegiales se computan como gasto deducible de actividades económicas y NO encajan en esta regla.",
       "tax_year": 2025,
       "scope": "estatal",
       "region": null,
@@ -54,16 +54,16 @@
       "sources": [
         {
           "type": "ley",
-          "title": "Ley 35/2006 del IRPF, art. 19.2.d",
-          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764",
-          "checked_at": null
+          "title": "Ley 35/2006 IRPF, art. 19.2.d (texto consolidado)",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a19",
+          "checked_at": "2026-05-14"
         }
       ],
       "effective_from": "2025-01-01",
       "effective_to": "2025-12-31",
-      "last_reviewed_at": null,
+      "last_reviewed_at": "2026-05-14",
       "risk_level": "bajo",
-      "validation_status": "pendiente_tests"
+      "validation_status": "validada"
     },
     {
       "id": "es_aportaciones_plan_pensiones_individual_2025",
@@ -104,15 +104,15 @@
     },
     {
       "id": "es_aportaciones_plan_pensiones_conyuge_2025",
-      "name": "Aportaciones a planes de pensiones del cónyuge",
-      "description": "Reducción adicional por aportaciones realizadas a planes de pensiones a favor del cónyuge cuando los rendimientos del trabajo o actividades económicas del cónyuge sean inferiores a 8.000 € anuales. Límite 1.000 € anuales (art. 51.7 Ley 35/2006 IRPF).",
+      "name": "Aportaciones a planes de pensiones a favor del cónyuge (art. 51.7 LIRPF)",
+      "description": "Reducción adicional de la base imponible general por aportaciones realizadas a planes de pensiones (y resto de sistemas de previsión social del art. 51 LIRPF) a favor del cónyuge **cuando éste no obtenga rendimientos netos del trabajo ni de actividades económicas, o los obtenga en cuantía inferior a 8.000 € anuales** (art. 51.7 LIRPF). Límite 1.000 € anuales. El umbral se mide sobre rendimientos NETOS del cónyuge (no íntegros): se consulta `family.spouse.net_work_and_economic_income`. Esta reducción se suma al límite individual del art. 52.1 del propio contribuyente.",
       "tax_year": 2025,
       "scope": "estatal",
       "region": null,
       "category": "reduccion",
       "requirements": [
         {"field": "expenses.spouse_pension_plan_contribution_amount", "operator": ">", "value": 0},
-        {"field": "family.spouse.work_income", "operator": "<", "value": 8000}
+        {"field": "family.spouse.net_work_and_economic_income", "operator": "<", "value": 8000}
       ],
       "calculation": {"type": "amount_field", "base_field": "expenses.spouse_pension_plan_contribution_amount"},
       "limit": 1000.0,
@@ -123,16 +123,16 @@
       "sources": [
         {
           "type": "ley",
-          "title": "Ley 35/2006 del IRPF, art. 51.7",
-          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764",
-          "checked_at": null
+          "title": "Ley 35/2006 IRPF, art. 51.7 (texto consolidado)",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a51",
+          "checked_at": "2026-05-14"
         }
       ],
       "effective_from": "2025-01-01",
       "effective_to": "2025-12-31",
-      "last_reviewed_at": null,
+      "last_reviewed_at": "2026-05-14",
       "risk_level": "bajo",
-      "validation_status": "pendiente_tests"
+      "validation_status": "validada"
     }
   ]
 }

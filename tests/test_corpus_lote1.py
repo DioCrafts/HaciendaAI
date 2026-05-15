@@ -176,10 +176,10 @@ def test_pension_plan_individual_is_validada_in_corpus() -> None:
 # ---------- es_aportaciones_plan_pensiones_conyuge_2025 ----------
 
 
-def test_pension_plan_spouse_applies_when_spouse_income_below_8000() -> None:
+def test_pension_plan_spouse_applies_when_spouse_net_income_below_8000() -> None:
     deduction = _load_validated("es_aportaciones_plan_pensiones_conyuge_2025")
     profile = _profile(
-        family={"spouse": {"work_income": 5000.0}},
+        family={"spouse": {"net_work_and_economic_income": 5000.0}},
         expenses={"spouse_pension_plan_contribution_amount": 800.0},
         documents=["Certificado de aportación al plan de pensiones del cónyuge"],
     )
@@ -188,10 +188,10 @@ def test_pension_plan_spouse_applies_when_spouse_income_below_8000() -> None:
     assert result.estimated_amount == 800.0
 
 
-def test_pension_plan_spouse_does_not_apply_when_spouse_income_above_threshold() -> None:
+def test_pension_plan_spouse_does_not_apply_when_spouse_net_income_above_threshold() -> None:
     deduction = _load_validated("es_aportaciones_plan_pensiones_conyuge_2025")
     profile = _profile(
-        family={"spouse": {"work_income": 12000.0}},
+        family={"spouse": {"net_work_and_economic_income": 12000.0}},
         expenses={"spouse_pension_plan_contribution_amount": 800.0},
         documents=["Certificado de aportación al plan de pensiones del cónyuge"],
     )
@@ -202,13 +202,25 @@ def test_pension_plan_spouse_does_not_apply_when_spouse_income_above_threshold()
 def test_pension_plan_spouse_caps_amount_at_1000() -> None:
     deduction = _load_validated("es_aportaciones_plan_pensiones_conyuge_2025")
     profile = _profile(
-        family={"spouse": {"work_income": 4000.0}},
+        family={"spouse": {"net_work_and_economic_income": 4000.0}},
         expenses={"spouse_pension_plan_contribution_amount": 2500.0},
         documents=["Certificado de aportación al plan de pensiones del cónyuge"],
     )
     result = evaluate_deduction(deduction, profile)
     assert result.status == "applies"
     assert result.estimated_amount == 1000.0
+
+
+def test_pension_plan_spouse_returns_missing_data_without_spouse_net_income() -> None:
+    deduction = _load_validated("es_aportaciones_plan_pensiones_conyuge_2025")
+    profile = _profile(
+        family={},
+        expenses={"spouse_pension_plan_contribution_amount": 500.0},
+        documents=["Certificado de aportación al plan de pensiones del cónyuge"],
+    )
+    result = evaluate_deduction(deduction, profile)
+    assert result.status == "missing_data"
+    assert "family.spouse.net_work_and_economic_income" in result.missing_fields
 
 
 # ---------- propiedad transversal ----------
@@ -230,3 +242,26 @@ def test_all_lote1_rules_have_proper_sources_and_effective_range() -> None:
         )
         assert deduction.effective_from == "2025-01-01"
         assert deduction.effective_to == "2025-12-31"
+
+
+def test_all_lote1_rules_are_validada_in_corpus() -> None:
+    """Las cuatro reglas del lote 1 están todas en validada tras la sesión
+    de promoción de mayo de 2026. Cada una con last_reviewed_at y todos los
+    sources con checked_at no nulo. Si alguna pasa a obsoleta o necesita
+    re-revisión, este test debe relajarse explícitamente."""
+    deductions = {d.id: d for d in load_deductions()}
+    lote1_ids = (
+        "es_cuotas_sindicales_2025",
+        "es_cuotas_colegios_profesionales_2025",
+        "es_aportaciones_plan_pensiones_individual_2025",
+        "es_aportaciones_plan_pensiones_conyuge_2025",
+    )
+    for deduction_id in lote1_ids:
+        deduction = deductions[deduction_id]
+        assert deduction.validation_status == ValidationStatus.VALIDADA, (
+            f"{deduction_id}: esperado validada, encontrado {deduction.validation_status.value}"
+        )
+        assert deduction.last_reviewed_at is not None, f"{deduction_id} debe tener last_reviewed_at"
+        assert all(source.checked_at is not None for source in deduction.sources), (
+            f"{deduction_id}: todas las fuentes deben tener checked_at"
+        )

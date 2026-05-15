@@ -75,12 +75,15 @@ def test_rejects_unsupported_operator():
 
 
 def test_pending_validation_deduction_is_not_recommended_directly():
+    """Usamos una regla que sigue pendiente_tests (donativos) para verificar
+    el corto-circuito del motor. Las reglas estatales validadas se cubren
+    en tests/test_corpus_lote1.py y test_corpus_lote2.py."""
     deductions_by_id = {d.id: d for d in load_deductions()}
-    deduction = deductions_by_id["es_cuotas_sindicales_2025"]
+    deduction = deductions_by_id["es_donativos_no_recurrente_2025"]
     assert deduction.validation_status.value != "validada"
     result = evaluate_deduction(
         deduction,
-        profile(income={"work_income": 25000.0}, expenses={"union_dues_amount": 50.0}),
+        profile(expenses={"donations_amount": 100.0}),
     )
     assert result.status == "pending_validation"
     assert result.estimated_amount == 0.0
