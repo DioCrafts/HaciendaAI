@@ -117,17 +117,23 @@ def compare(value: Any, operator: str, expected: Any) -> bool:
     if operator == "not_exists":
         return value is None
     if operator == "==":
-        return value == expected
+        return bool(value == expected)
     if operator == "!=":
-        return value != expected
+        return bool(value != expected)
     if operator == "in":
-        return value in expected if isinstance(expected, list | tuple | set) else False
+        return bool(value in expected) if isinstance(expected, list | tuple | set) else False
     if operator in {">", ">=", "<", "<="}:
         if not isinstance(value, (int, float)) or isinstance(value, bool):
             return False
         if not isinstance(expected, (int, float)) or isinstance(expected, bool):
             return False
-        return {">": value > expected, ">=": value >= expected, "<": value < expected, "<=": value <= expected}[operator]
+        comparisons = {
+            ">": value > expected,
+            ">=": value >= expected,
+            "<": value < expected,
+            "<=": value <= expected,
+        }
+        return comparisons[operator]
     return False
 
 

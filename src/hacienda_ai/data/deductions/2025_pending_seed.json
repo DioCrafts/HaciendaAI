@@ -18,7 +18,7 @@
       "required_documents": ["Justificante de cuotas sindicales"],
       "rent_web_boxes": [],
       "sources": [
-        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con Manual práctico de Renta AEAT 2025", "url": null, "checked_at": null}
+        {"kind": "pendiente_validacion", "title": "Pendiente de contrastar con Manual práctico de Renta AEAT 2025", "url": null, "checked_at": null}
       ],
       "effective_from": null,
       "effective_to": null,
@@ -44,7 +44,7 @@
       "required_documents": ["Certificado de donativo"],
       "rent_web_boxes": [],
       "sources": [
-        {"type": "pendiente_validacion", "title": "Pendiente de contrastar con Manual práctico de Renta AEAT 2025", "url": null, "checked_at": null}
+        {"kind": "pendiente_validacion", "title": "Pendiente de contrastar con Manual práctico de Renta AEAT 2025", "url": null, "checked_at": null}
       ],
       "effective_from": null,
       "effective_to": null,

@@ -24,7 +24,18 @@ def validated_deduction(**overrides):
         "incompatibilities": [],
         "required_documents": ["Justificante de prueba"],
         "rent_web_boxes": [],
-        "sources": [{"type": "test", "title": "Fuente sintética de test", "url": None, "checked_at": "2026-05-11"}],
+        "sources": [
+            {
+                "kind": "ley",
+                "title": "LIRPF (test sintético)",
+                "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764",
+                "article": "art. 1 (test)",
+                "paragraph": None,
+                "boe_id": "BOE-A-2006-20764",
+                "content_hash": "a" * 64,
+                "checked_at": "2026-05-11",
+            }
+        ],
         "effective_from": "2025-01-01",
         "effective_to": "2025-12-31",
         "last_reviewed_at": "2026-05-11",
