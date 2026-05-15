@@ -141,6 +141,54 @@ def test_cli_simulate_json_output_includes_recommendation(tmp_path: Path, capsys
     }
 
 
+def test_cli_tax_text_output_shows_cuota_diferencial(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    profile = _write_json(
+        tmp_path / "profile.json",
+        {
+            "tax_year": 2025,
+            "region": "Madrid",
+            "personal": {"age": 30},
+            "income": {"work_income": 30000.0},
+            "withholdings": [{"amount": 4000.0}],
+            "taxable_base": {"general": 30000.0, "savings": 0.0},
+        },
+    )
+    deductions = _write_json(tmp_path / "ded.json", [_validated_deduction_payload()])
+    exit_code = main(["tax", "--profile", str(profile), "--deductions", str(deductions)])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Cuota líquida" in captured.out
+    assert "Cuota diferencial" in captured.out
+    assert "Base liquidable" in captured.out
+
+
+def test_cli_tax_json_output_contains_full_breakdown(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    profile = _write_json(
+        tmp_path / "profile.json",
+        {
+            "tax_year": 2025,
+            "region": "Madrid",
+            "personal": {"age": 30},
+            "income": {"work_income": 30000.0},
+            "taxable_base": {"general": 30000.0, "savings": 0.0},
+        },
+    )
+    deductions = _write_json(tmp_path / "ded.json", [_validated_deduction_payload()])
+    exit_code = main(["tax", "--profile", str(profile), "--deductions", str(deductions), "--format", "json"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    for key in (
+        "tax_year",
+        "base_imponible_general",
+        "minimum_personal_y_familiar",
+        "cuota_integra_total",
+        "cuota_liquida",
+        "cuota_diferencial",
+    ):
+        assert key in payload, f"falta {key!r} en el JSON"
+
+
 def test_cli_simulate_returns_2_on_invalid_profile(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     profile = _write_json(tmp_path / "profile.json", {"tax_year": 2025})  # falta region
     deductions = _write_json(tmp_path / "ded.json", [_validated_deduction_payload()])

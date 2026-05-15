@@ -118,6 +118,15 @@ npm run dev          # http://localhost:5173 con hot reload
 
 Single-page con tres bloques: barra de configuración del API (URL base + `X-API-Key` opcional), formulario del perfil fiscal y panel de resultados con dos pestañas (Evaluación / Simulación). Detalles en `frontend/README.md`.
 
+### Cálculo de cuota IRPF
+
+```bash
+hacienda-ai tax --profile profile.json
+hacienda-ai tax --profile profile.json --format json
+```
+
+Devuelve la **cuota líquida diferencial real** (a pagar o a devolver) aplicando las reglas según su categoría: `REDUCCION` reduce la base liquidable, `DEDUCCION` y `cuota_bonification` reducen la cuota líquida. La doble escala del mínimo personal y familiar (art. 56.2 LIRPF) se aplica correctamente, incluyendo el remanente sobre la base del ahorro. Tarifas IRPF 2025 (estatal + autonómica genérica). Limitaciones, fórmulas y mapeo de categorías en `docs/cuota-irpf.md`. También disponible como `POST /v1/tax`.
+
 ### Simulador
 
 ```bash

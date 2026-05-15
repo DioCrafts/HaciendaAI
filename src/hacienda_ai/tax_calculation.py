@@ -1,0 +1,329 @@
+"""Cálculo de la cuota IRPF a partir del perfil + reglas evaluadas.
+
+Implementa el flujo de la declaración del IRPF al nivel necesario para que
+el output del motor pase de "suma de importes deducibles" a "cuota líquida
+diferencial real" en euros, que es lo que un asesor o un contribuyente
+quiere ver.
+
+Limitaciones intencionales del MVP
+----------------------------------
+- **Tarifa autonómica = tarifa estatal por defecto**: el tramo autonómico
+  de la tarifa progresiva varía por CCAA. Para la mayoría de las CCAA del
+  régimen común la suma estatal + autonómica se aproxima a los porcentajes
+  agregados que usamos aquí (19/24/30/37/45/47). El módulo deja sitio
+  para overrides cuando se modelen las CCAA reales.
+- **Base imponible general y del ahorro son inputs**: el contribuyente o
+  el wizard las calculan a partir de los rendimientos íntegros y los
+  gastos deducibles. El motor NO recalcula las bases — sólo aplica las
+  reducciones que correspondan tras las reglas del corpus.
+- **Categorías `gasto_deducible` se asumen pre-descontadas**: las cuotas
+  sindicales o colegiales del corpus reducen `income.work_income` antes
+  de llegar a `taxable_base.general`. Si el wizard pasa el íntegro, el
+  motor no las restará dos veces.
+- Tarifa, mínimos y porcentajes son los del ejercicio 2025 (LIRPF tras
+  Ley 22/2021 PGE 2022 y ajustes posteriores). Para cambiar de año habrá
+  que parametrizar por `tax_year`.
+
+Referencias normativas (texto consolidado LIRPF 2025)
+-----------------------------------------------------
+- Art. 56.2 LIRPF: doble escala del mínimo personal y familiar.
+- Art. 57-61 LIRPF: cuantías de mínimos personales y familiares.
+- Art. 63 LIRPF: tarifa general estatal.
+- Art. 66 LIRPF: tarifa del ahorro.
+- Art. 68 LIRPF: deducciones de la cuota.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+from .logging_setup import get_logger
+from .models import Deduction, DeductionCategory, RuleEvaluation, TaxProfile
+
+_logger = get_logger("tax")
+
+
+# ---------- Tarifas IRPF 2025 (totales: estatal + autonómica genérica) ----------
+
+
+@dataclass(frozen=True)
+class TaxBracket:
+    """Tramo de una tarifa progresiva. `up_to` None ⇒ tramo final sin tope."""
+
+    up_to: float | None
+    rate: float
+
+
+@dataclass(frozen=True)
+class TaxScale:
+    name: str
+    brackets: tuple[TaxBracket, ...]
+
+
+# Tarifa general 2025 (suma estatal + autonómica genérica del régimen común).
+# Estatal: 9,5 / 12 / 15 / 18,5 / 22,5 / 24,5 — la CCAA genérica replica.
+GENERAL_TARIFF_2025: TaxScale = TaxScale(
+    name="irpf_general_2025_estatal_autonomica_genericas",
+    brackets=(
+        TaxBracket(up_to=12_450.0, rate=0.19),
+        TaxBracket(up_to=20_200.0, rate=0.24),
+        TaxBracket(up_to=35_200.0, rate=0.30),
+        TaxBracket(up_to=60_000.0, rate=0.37),
+        TaxBracket(up_to=300_000.0, rate=0.45),
+        TaxBracket(up_to=None, rate=0.47),
+    ),
+)
+
+# Tarifa del ahorro 2025 (suma estatal + autonómica, simétrica por ley).
+SAVINGS_TARIFF_2025: TaxScale = TaxScale(
+    name="irpf_ahorro_2025",
+    brackets=(
+        TaxBracket(up_to=6_000.0, rate=0.19),
+        TaxBracket(up_to=50_000.0, rate=0.21),
+        TaxBracket(up_to=200_000.0, rate=0.23),
+        TaxBracket(up_to=300_000.0, rate=0.27),
+        TaxBracket(up_to=None, rate=0.30),
+    ),
+)
+
+
+# ---------- Mínimos personales y familiares 2025 (art. 57-61 LIRPF) ----------
+
+
+PERSONAL_MINIMUM_BASE = 5_550.0
+PERSONAL_MINIMUM_AGE_65_BONUS = 1_150.0
+PERSONAL_MINIMUM_AGE_75_BONUS = 1_400.0
+
+CHILD_MINIMUMS: tuple[float, ...] = (2_400.0, 2_700.0, 4_000.0, 4_500.0)
+CHILD_UNDER_3_BONUS = 2_800.0
+
+ASCENDANT_BASE = 1_150.0
+ASCENDANT_75_BONUS = 1_400.0
+
+DISABILITY_33_MINIMUM = 3_000.0
+DISABILITY_65_MINIMUM = 9_000.0
+DISABILITY_ASSISTANCE_BONUS = 3_000.0
+
+
+# ---------- Funciones públicas ----------
+
+
+def apply_scale(amount: float, scale: TaxScale) -> float:
+    """Aplica la tarifa progresiva al `amount` y devuelve la cuota."""
+    if amount <= 0:
+        return 0.0
+    tax = 0.0
+    floor = 0.0
+    for bracket in scale.brackets:
+        chunk = (amount - floor) if bracket.up_to is None else min(amount, bracket.up_to) - floor
+        if chunk <= 0:
+            break
+        tax += chunk * bracket.rate
+        if bracket.up_to is None or amount <= bracket.up_to:
+            break
+        floor = bracket.up_to
+    return tax
+
+
+def compute_personal_family_minimum(profile: TaxProfile) -> float:
+    """Calcula el mínimo personal y familiar (art. 57-61 LIRPF) a partir
+    de la composición del perfil. Suma:
+
+    - 5.550 € base + bonificaciones por edad del contribuyente.
+    - Mínimo por descendientes (escalado por orden + bonus < 3 años).
+    - Mínimo por ascendientes cualificantes (> 65 o discapacitados).
+    - Mínimo por discapacidad del contribuyente.
+
+    Discapacidad de descendientes/ascendientes se modela aparte (pendiente
+    de PR específico). El wizard puede sobrescribir el resultado con
+    `family.personal_family_minimum_override`.
+    """
+    override = profile.family.get("personal_family_minimum_override")
+    if isinstance(override, (int, float)) and not isinstance(override, bool):
+        return float(override)
+
+    minimum = PERSONAL_MINIMUM_BASE
+    personal = profile.personal
+    family = profile.family
+
+    age = _as_int(personal.get("age"))
+    if age is not None:
+        if age >= 65:
+            minimum += PERSONAL_MINIMUM_AGE_65_BONUS
+        if age >= 75:
+            minimum += PERSONAL_MINIMUM_AGE_75_BONUS
+
+    disability = _as_int(personal.get("disability_percentage"))
+    if disability is not None:
+        if disability >= 65:
+            minimum += DISABILITY_65_MINIMUM
+        elif disability >= 33:
+            minimum += DISABILITY_33_MINIMUM
+        if personal.get("needs_third_person_help") is True:
+            minimum += DISABILITY_ASSISTANCE_BONUS
+
+    children = _as_int(family.get("children_count")) or 0
+    for index in range(1, children + 1):
+        bracket = min(index, len(CHILD_MINIMUMS)) - 1
+        minimum += CHILD_MINIMUMS[bracket]
+    children_under_3 = _as_int(family.get("children_under_3_count")) or 0
+    minimum += children_under_3 * CHILD_UNDER_3_BONUS
+
+    ascendants = _as_int(family.get("ascendants_qualifying_count")) or 0
+    minimum += ascendants * ASCENDANT_BASE
+    ascendants_over_75 = _as_int(family.get("ascendants_over_75_count")) or 0
+    minimum += ascendants_over_75 * ASCENDANT_75_BONUS
+
+    return minimum
+
+
+@dataclass(frozen=True)
+class TaxSummary:
+    """Desglose completo del cálculo IRPF aplicable al perfil."""
+
+    tax_year: int
+    region: str
+    base_imponible_general: float
+    base_imponible_ahorro: float
+    reducciones_aplicadas: float
+    base_liquidable_general: float
+    base_liquidable_ahorro: float
+    minimum_personal_y_familiar: float
+    cuota_integra_general: float
+    cuota_integra_ahorro: float
+    cuota_correspondiente_al_minimo: float
+    cuota_integra_total: float
+    deducciones_de_cuota: float
+    bonificaciones_cuota: float
+    cuota_liquida: float
+    retenciones: float
+    cuota_diferencial: float
+    applied_reduction_ids: tuple[str, ...]
+    applied_cuota_deduction_ids: tuple[str, ...]
+    applied_bonification_ids: tuple[str, ...]
+
+
+def compute_tax_summary(
+    profile: TaxProfile,
+    deductions: list[Deduction],
+    evaluations: list[RuleEvaluation],
+) -> TaxSummary:
+    """Calcula la cuota líquida del IRPF aplicando las evaluaciones que han
+    quedado en estado `applies`. Las que están en `missing_evidence` quedan
+    fuera (su importe no se aplica hasta que se aporten los justificantes).
+    """
+    deductions_by_id = {deduction.id: deduction for deduction in deductions}
+
+    base_general = _profile_number(profile.taxable_base.get("general"))
+    base_savings = _profile_number(profile.taxable_base.get("savings"))
+    minimum = compute_personal_family_minimum(profile)
+
+    reducciones_total = 0.0
+    applied_reduction_ids: list[str] = []
+    deducciones_cuota_total = 0.0
+    applied_cuota_deduction_ids: list[str] = []
+    bonificaciones_total = 0.0
+    applied_bonification_ids: list[str] = []
+
+    for evaluation in evaluations:
+        if evaluation.status != "applies":
+            continue
+        deduction = deductions_by_id.get(evaluation.deduction_id)
+        if deduction is None:
+            continue
+        if deduction.category == DeductionCategory.REDUCCION:
+            reducciones_total += evaluation.estimated_amount
+            applied_reduction_ids.append(deduction.id)
+        elif deduction.category == DeductionCategory.DEDUCCION:
+            if deduction.calculation.type == "cuota_bonification":
+                bonificaciones_total += evaluation.estimated_amount
+                applied_bonification_ids.append(deduction.id)
+            else:
+                deducciones_cuota_total += evaluation.estimated_amount
+                applied_cuota_deduction_ids.append(deduction.id)
+        # gasto_deducible, exencion, compensacion, ajuste, minimo_personal_familiar:
+        # se ignoran en este cálculo (asumimos pre-descontados o fuera de scope).
+
+    base_liquidable_general = max(0.0, base_general - reducciones_total)
+    base_liquidable_ahorro = max(0.0, base_savings)
+
+    # Doble escala del mínimo personal y familiar (art. 56.2 LIRPF).
+    absorbed_by_general = min(minimum, base_liquidable_general)
+    minimum_remainder = max(0.0, minimum - absorbed_by_general)
+    absorbed_by_savings = min(minimum_remainder, base_liquidable_ahorro)
+
+    cuota_general_full = apply_scale(base_liquidable_general, GENERAL_TARIFF_2025)
+    cuota_general_minimum = apply_scale(absorbed_by_general, GENERAL_TARIFF_2025)
+    cuota_integra_general = max(0.0, cuota_general_full - cuota_general_minimum)
+
+    cuota_savings_full = apply_scale(base_liquidable_ahorro, SAVINGS_TARIFF_2025)
+    cuota_savings_minimum = apply_scale(absorbed_by_savings, SAVINGS_TARIFF_2025)
+    cuota_integra_ahorro = max(0.0, cuota_savings_full - cuota_savings_minimum)
+
+    cuota_integra_total = cuota_integra_general + cuota_integra_ahorro
+    cuota_correspondiente_al_minimo = cuota_general_minimum + cuota_savings_minimum
+
+    cuota_liquida = max(0.0, cuota_integra_total - deducciones_cuota_total - bonificaciones_total)
+
+    retenciones = _withholdings_total(profile)
+    cuota_diferencial = cuota_liquida - retenciones
+
+    summary = TaxSummary(
+        tax_year=profile.tax_year,
+        region=profile.region,
+        base_imponible_general=base_general,
+        base_imponible_ahorro=base_savings,
+        reducciones_aplicadas=reducciones_total,
+        base_liquidable_general=base_liquidable_general,
+        base_liquidable_ahorro=base_liquidable_ahorro,
+        minimum_personal_y_familiar=minimum,
+        cuota_integra_general=cuota_integra_general,
+        cuota_integra_ahorro=cuota_integra_ahorro,
+        cuota_correspondiente_al_minimo=cuota_correspondiente_al_minimo,
+        cuota_integra_total=cuota_integra_total,
+        deducciones_de_cuota=deducciones_cuota_total,
+        bonificaciones_cuota=bonificaciones_total,
+        cuota_liquida=cuota_liquida,
+        retenciones=retenciones,
+        cuota_diferencial=cuota_diferencial,
+        applied_reduction_ids=tuple(applied_reduction_ids),
+        applied_cuota_deduction_ids=tuple(applied_cuota_deduction_ids),
+        applied_bonification_ids=tuple(applied_bonification_ids),
+    )
+    _logger.info(
+        "tax_summary_computed",
+        extra={
+            "tax_year": profile.tax_year,
+            "reductions_count": len(applied_reduction_ids),
+            "cuota_deductions_count": len(applied_cuota_deduction_ids),
+            "bonifications_count": len(applied_bonification_ids),
+            # Sin importes en logs (ver docs/rgpd-logging.md).
+        },
+    )
+    return summary
+
+
+# ---------- helpers internos ----------
+
+
+def _as_int(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return int(value)
+
+
+def _profile_number(value: Any) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return 0.0
+    return float(value)
+
+
+def _withholdings_total(profile: TaxProfile) -> float:
+    total = 0.0
+    for entry in profile.withholdings:
+        if isinstance(entry, dict):
+            amount = entry.get("amount")
+            if isinstance(amount, (int, float)) and not isinstance(amount, bool):
+                total += float(amount)
+    return total

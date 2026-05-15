@@ -128,6 +128,36 @@ def test_simulate_returns_400_when_profile_is_invalid() -> None:
     assert response.status_code == 400
 
 
+# ---------- /v1/tax ----------
+
+
+def test_tax_endpoint_returns_full_breakdown() -> None:
+    response = client.post(
+        "/v1/tax",
+        json={
+            "tax_year": 2025,
+            "region": "Madrid",
+            "personal": {"age": 30},
+            "income": {"work_income": 30000.0},
+            "withholdings": [{"amount": 4000.0}],
+            "taxable_base": {"general": 30000.0, "savings": 0.0},
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tax_year"] == 2025
+    assert body["base_imponible_general"] == 30000.0
+    # Cuota integra general 30000 con mínimo 5550: 7165.5 - 1054.5 = 6111
+    assert abs(body["cuota_integra_general"] - 6111.0) < 0.01
+    # Diferencial = cuota liquida - 4000 retenciones
+    assert "cuota_diferencial" in body
+
+
+def test_tax_endpoint_returns_400_when_profile_is_invalid() -> None:
+    response = client.post("/v1/tax", json={"tax_year": 2025})
+    assert response.status_code == 400
+
+
 # ---------- CORS / OpenAPI ----------
 
 

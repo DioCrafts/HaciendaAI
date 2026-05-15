@@ -13,6 +13,7 @@ from .deductions import DEFAULT_DEDUCTIONS_DIR, load_deductions
 from .models import Deduction, RuleEvaluation, TaxProfile, ValidationError
 from .rules import evaluate_deductions
 from .simulator import SimulationReport, simulate
+from .tax_calculation import TaxSummary, compute_tax_summary
 
 STATUS_ORDER: tuple[str, ...] = (
     "applies",
@@ -62,6 +63,14 @@ def main(argv: list[str] | None = None) -> int:
         return _run_schema_validate(paths=args.paths, stdout=sys.stdout, stderr=sys.stderr)
     if args.command == "rag":
         return _run_rag(args, stdout=sys.stdout, stderr=sys.stderr)
+    if args.command == "tax":
+        return _run_tax(
+            profile_path=args.profile,
+            deductions_path=args.deductions,
+            output_format=args.format,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
     parser.error(f"Comando no soportado: {args.command}")
     return 2  # unreachable: parser.error sale con SystemExit
 
@@ -156,6 +165,14 @@ def _build_parser() -> argparse.ArgumentParser:
     rag_search.add_argument("query", help="Términos a buscar (separados por espacios).")
     rag_search.add_argument("--cache-dir", type=Path, default=None)
     rag_search.add_argument("--top", type=int, default=5)
+
+    tax_cmd = subparsers.add_parser(
+        "tax",
+        help="Calcula la cuota IRPF líquida y diferencial aplicando las reglas validadas del corpus.",
+    )
+    tax_cmd.add_argument("--profile", required=True, type=Path)
+    tax_cmd.add_argument("--deductions", type=Path, default=DEFAULT_DEDUCTIONS_DIR)
+    tax_cmd.add_argument("--format", choices=("text", "json"), default="text")
     return parser
 
 
@@ -233,6 +250,81 @@ def _load_profile_and_deductions(
 
 def _evaluation_to_dict(evaluation: RuleEvaluation) -> dict[str, Any]:
     return asdict(evaluation)
+
+
+def _run_tax(
+    *,
+    profile_path: Path,
+    deductions_path: Path,
+    output_format: str,
+    stdout: Any,
+    stderr: Any,
+) -> int:
+    loaded = _load_profile_and_deductions(profile_path, deductions_path, stderr)
+    if loaded is None:
+        return 2
+    profile, deductions = loaded
+    evaluations = evaluate_deductions(deductions, profile)
+    summary = compute_tax_summary(profile, deductions, evaluations)
+    if output_format == "json":
+        json.dump(asdict(summary), stdout, ensure_ascii=False, indent=2)
+        stdout.write("\n")
+    else:
+        _print_tax_summary(summary, stdout)
+    return 0
+
+
+def _print_tax_summary(summary: TaxSummary, stdout: Any) -> None:
+    def euros(amount: float) -> str:
+        return f"{amount:>12,.2f} €".replace(",", "·").replace(".", ",").replace("·", ".")
+
+    print(
+        f"Cálculo IRPF — Ejercicio {summary.tax_year}, {summary.region}",
+        file=stdout,
+    )
+    print("", file=stdout)
+    print("== Bases ==", file=stdout)
+    print(f"  Base imponible general            {euros(summary.base_imponible_general)}", file=stdout)
+    print(f"  Base imponible del ahorro         {euros(summary.base_imponible_ahorro)}", file=stdout)
+    print(f"  - Reducciones aplicadas           {euros(summary.reducciones_aplicadas)}", file=stdout)
+    print(f"  Base liquidable general           {euros(summary.base_liquidable_general)}", file=stdout)
+    print(f"  Base liquidable del ahorro        {euros(summary.base_liquidable_ahorro)}", file=stdout)
+    print("", file=stdout)
+    print("== Mínimo personal y familiar (doble escala) ==", file=stdout)
+    print(f"  Mínimo aplicado                   {euros(summary.minimum_personal_y_familiar)}", file=stdout)
+    print(
+        f"  Cuota correspondiente al mínimo   {euros(summary.cuota_correspondiente_al_minimo)}",
+        file=stdout,
+    )
+    print("", file=stdout)
+    print("== Cuota íntegra ==", file=stdout)
+    print(f"  Tarifa general                    {euros(summary.cuota_integra_general)}", file=stdout)
+    print(f"  Tarifa del ahorro                 {euros(summary.cuota_integra_ahorro)}", file=stdout)
+    print(f"  Total cuota íntegra               {euros(summary.cuota_integra_total)}", file=stdout)
+    print("", file=stdout)
+    print("== Deducciones de cuota ==", file=stdout)
+    print(f"  Deducciones (art. 68 LIRPF)       {euros(summary.deducciones_de_cuota)}", file=stdout)
+    print(
+        f"  Bonificaciones (Ceuta/Melilla...) {euros(summary.bonificaciones_cuota)}",
+        file=stdout,
+    )
+    print(f"  Cuota líquida                     {euros(summary.cuota_liquida)}", file=stdout)
+    print("", file=stdout)
+    print("== Resultado ==", file=stdout)
+    print(f"  - Retenciones e ingresos a cuenta {euros(summary.retenciones)}", file=stdout)
+    diferencial_label = (
+        "  Cuota diferencial (a pagar)      "
+        if summary.cuota_diferencial >= 0
+        else "  Cuota diferencial (a devolver)   "
+    )
+    print(f"{diferencial_label}{euros(summary.cuota_diferencial)}", file=stdout)
+    if summary.applied_reduction_ids:
+        print("", file=stdout)
+        print(f"Reducciones aplicadas: {', '.join(summary.applied_reduction_ids)}", file=stdout)
+    if summary.applied_cuota_deduction_ids:
+        print(f"Deducciones aplicadas: {', '.join(summary.applied_cuota_deduction_ids)}", file=stdout)
+    if summary.applied_bonification_ids:
+        print(f"Bonificaciones aplicadas: {', '.join(summary.applied_bonification_ids)}", file=stdout)
 
 
 def _run_serve(*, host: str, port: int, reload: bool, api_key: str | None, stderr: Any) -> int:
