@@ -41,6 +41,12 @@ Las deducciones del lote 1 (estatales 2025) consultan los siguientes campos del 
 | `family.large_family_qualifying_months` | entero 0-12 | familia numerosa: meses con título en vigor (lote 3) |
 | `family.disabled_descendants_qualifying_months` | entero ≥ 0 | descendiente con discapacidad: suma de meses (lote 3) |
 | `family.disabled_ascendants_qualifying_months` | entero ≥ 0 | ascendiente con discapacidad: suma de meses (lote 3) |
+| `family.disabled_descendants_33_64_count` | entero ≥ 0 | descendientes con discapacidad ≥ 33 % y < 65 %: mínimo de 3.000 € cada uno (art. 60.1 LIRPF) |
+| `family.disabled_descendants_65_plus_count` | entero ≥ 0 | descendientes con discapacidad ≥ 65 %: mínimo de 9.000 € cada uno |
+| `family.disabled_descendants_assistance_count` | entero ≥ 0 | descendientes con discapacidad que necesitan ayuda de 3ª persona o movilidad reducida: +3.000 € por persona (ortogonal a los anteriores) |
+| `family.disabled_ascendants_33_64_count` | entero ≥ 0 | análogo para ascendientes con discapacidad ≥ 33 % y < 65 % (art. 60.2 LIRPF) |
+| `family.disabled_ascendants_65_plus_count` | entero ≥ 0 | análogo para ascendientes con discapacidad ≥ 65 % |
+| `family.disabled_ascendants_assistance_count` | entero ≥ 0 | análogo para ascendientes con ayuda de 3ª persona |
 
 ## Límites por base imponible
 

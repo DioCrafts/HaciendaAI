@@ -189,6 +189,16 @@ DISABILITY_65_MINIMUM = 9_000.0
 DISABILITY_ASSISTANCE_BONUS = 3_000.0
 
 
+def _disability_minimum_for_relative(count_33_to_64: int, count_65_plus: int, assistance_count: int) -> float:
+    """Suma el mínimo por discapacidad para descendientes o ascendientes
+    (art. 60 LIRPF). Las cuantías son las mismas para ambas categorías."""
+    return (
+        count_33_to_64 * DISABILITY_33_MINIMUM
+        + count_65_plus * DISABILITY_65_MINIMUM
+        + assistance_count * DISABILITY_ASSISTANCE_BONUS
+    )
+
+
 # ---------- Funciones públicas ----------
 
 
@@ -257,6 +267,22 @@ def compute_personal_family_minimum(profile: TaxProfile) -> float:
     minimum += ascendants * ASCENDANT_BASE
     ascendants_over_75 = _as_int(family.get("ascendants_over_75_count")) or 0
     minimum += ascendants_over_75 * ASCENDANT_75_BONUS
+
+    # Mínimo por discapacidad de descendientes (art. 60.1 LIRPF). Los campos
+    # son ortogonales: un descendiente con ≥ 65 % cuenta en
+    # `disabled_descendants_65_plus_count`; el bonus por ayuda de tercera
+    # persona o movilidad reducida se contabiliza aparte y se suma a
+    # cualquier nivel de discapacidad.
+    minimum += _disability_minimum_for_relative(
+        count_33_to_64=_as_int(family.get("disabled_descendants_33_64_count")) or 0,
+        count_65_plus=_as_int(family.get("disabled_descendants_65_plus_count")) or 0,
+        assistance_count=_as_int(family.get("disabled_descendants_assistance_count")) or 0,
+    )
+    minimum += _disability_minimum_for_relative(
+        count_33_to_64=_as_int(family.get("disabled_ascendants_33_64_count")) or 0,
+        count_65_plus=_as_int(family.get("disabled_ascendants_65_plus_count")) or 0,
+        assistance_count=_as_int(family.get("disabled_ascendants_assistance_count")) or 0,
+    )
 
     return minimum
 

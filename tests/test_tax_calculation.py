@@ -144,6 +144,49 @@ def test_minimum_override_takes_precedence() -> None:
     assert compute_personal_family_minimum(profile) == 12345.0
 
 
+def test_minimum_disabled_descendant_33_64() -> None:
+    profile = _profile(family={"disabled_descendants_33_64_count": 1})
+    assert compute_personal_family_minimum(profile) == 5550.0 + 3000.0
+
+
+def test_minimum_disabled_descendant_65_plus_uses_higher_bracket() -> None:
+    profile = _profile(family={"disabled_descendants_65_plus_count": 1})
+    assert compute_personal_family_minimum(profile) == 5550.0 + 9000.0
+
+
+def test_minimum_disabled_descendant_with_assistance_adds_bonus() -> None:
+    profile = _profile(
+        family={
+            "disabled_descendants_33_64_count": 1,
+            "disabled_descendants_assistance_count": 1,
+        }
+    )
+    # 3000 (33-64) + 3000 (asistencia) = 6000 extra
+    assert compute_personal_family_minimum(profile) == 5550.0 + 3000.0 + 3000.0
+
+
+def test_minimum_disabled_ascendants_same_amounts() -> None:
+    profile = _profile(
+        family={
+            "disabled_ascendants_65_plus_count": 1,
+            "disabled_ascendants_assistance_count": 1,
+        }
+    )
+    # 9000 (≥65) + 3000 (asistencia) = 12000 extra
+    assert compute_personal_family_minimum(profile) == 5550.0 + 9000.0 + 3000.0
+
+
+def test_minimum_combines_descendants_and_ascendants_disabilities() -> None:
+    profile = _profile(
+        family={
+            "disabled_descendants_33_64_count": 2,
+            "disabled_ascendants_65_plus_count": 1,
+        }
+    )
+    # 2*3000 (descendientes) + 1*9000 (ascendiente) = 15000 extra
+    assert compute_personal_family_minimum(profile) == 5550.0 + 6000.0 + 9000.0
+
+
 # ---------- compute_tax_summary: doble escala y categorías ----------
 
 
@@ -448,3 +491,38 @@ def test_autonomic_tariff_matches_case_insensitively() -> None:
         assert autonomic_general_tariff_for("REGION_INSENSITIVE_CASE") is higher_tariff
     finally:
         del AUTONOMIC_GENERAL_TARIFFS[fake_region]
+
+
+def test_override_with_madrid_2024_sample_lowers_cuota() -> None:
+    """Demuestra el flujo de registro de una CCAA real con un ejemplo.
+
+    Los tramos y tipos son los que recuerdo para la Comunidad de Madrid en
+    el ejercicio 2024 (Ley 4/2024 madrileña y normativa previa). EL TEST
+    NO ASEGURA QUE ESOS NÚMEROS SEAN LOS DEL EJERCICIO 2025: la finalidad
+    es probar el MECANISMO de override, no fijar cifras fiscales.
+
+    Antes de mergear cifras de Madrid al registry de producción, contrastar
+    con el BOCM y la Ley de medidas fiscales vigente para el ejercicio.
+    """
+    madrid_2024_sample = TaxScale(
+        name="madrid_2024_sample_pendiente_verificacion",
+        brackets=(
+            TaxBracket(up_to=13_362.22, rate=0.085),
+            TaxBracket(up_to=19_004.63, rate=0.107),
+            TaxBracket(up_to=35_425.68, rate=0.128),
+            TaxBracket(up_to=57_320.40, rate=0.174),
+            TaxBracket(up_to=None, rate=0.205),
+        ),
+    )
+    AUTONOMIC_GENERAL_TARIFFS["Madrid"] = AutonomicTariffSet(general=madrid_2024_sample)
+    try:
+        profile = _profile(region="Madrid")
+        summary = compute_tax_summary(profile, deductions=[], evaluations=[])
+        baseline = compute_tax_summary(_profile(region="Otra"), deductions=[], evaluations=[])
+        # Madrid tiene tipos autonómicos más bajos que la genérica (que
+        # replica la estatal): la cuota integra debe ser inferior.
+        assert summary.cuota_integra_general < baseline.cuota_integra_general
+        # Y la cuota diferencial (a pagar) también.
+        assert summary.cuota_diferencial < baseline.cuota_diferencial
+    finally:
+        del AUTONOMIC_GENERAL_TARIFFS["Madrid"]

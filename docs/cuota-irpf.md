@@ -94,6 +94,34 @@ Cuando una CCAA no está registrada en `AUTONOMIC_GENERAL_TARIFFS`, se usa la ge
 
 El registry empieza **vacío** intencionalmente: añadir cifras de cada CCAA exige verificación.
 
+#### Ejemplo: Madrid (tramos del ejercicio 2024 según recuerdo, PENDIENTE VERIFICACIÓN)
+
+```python
+# AVISO: estas cifras son mi recuerdo de la tarifa autonómica de Madrid
+# para el ejercicio 2024 (Ley 4/2024 madrileña). Verificar contra BOCM
+# antes de mergear al registry de producción y antes de aplicar al
+# ejercicio 2025 — Madrid suele deflactar tramos cada año.
+from hacienda_ai.tax_calculation import (
+    AUTONOMIC_GENERAL_TARIFFS, AutonomicTariffSet, TaxBracket, TaxScale,
+)
+
+MADRID_2024_PENDING_VERIFICATION = TaxScale(
+    name="madrid_general_2024",
+    brackets=(
+        TaxBracket(up_to=13_362.22, rate=0.085),
+        TaxBracket(up_to=19_004.63, rate=0.107),
+        TaxBracket(up_to=35_425.68, rate=0.128),
+        TaxBracket(up_to=57_320.40, rate=0.174),
+        TaxBracket(up_to=None,      rate=0.205),
+    ),
+)
+AUTONOMIC_GENERAL_TARIFFS["Madrid"] = AutonomicTariffSet(
+    general=MADRID_2024_PENDING_VERIFICATION,
+)
+```
+
+El test `test_override_with_madrid_2024_sample_lowers_cuota` en `tests/test_tax_calculation.py` demuestra el mecanismo con este ejemplo (en un test aislado, sin contaminar el registry global).
+
 ## Limitaciones documentadas del MVP
 
 - **Tarifa autonómica genérica**: 2 × estatal mientras el registry esté vacío para esa CCAA. La realidad fiscal es que las CCAA del régimen común tienen tarifas autonómicas ligeramente distintas; la "tarifa subsidiaria" del art. 65 LIRPF da aproximadamente 47 % en el tope (no 49 %). Hasta que cada CCAA tenga su entrada en `AUTONOMIC_GENERAL_TARIFFS`, el cálculo es una aproximación.
