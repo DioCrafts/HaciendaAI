@@ -209,3 +209,24 @@ def test_disabled_ascendant_missing_evidence() -> None:
     assert result.status == "missing_evidence"
     assert result.estimated_amount == 1200.0
     assert result.missing_documents == ("Certificado de discapacidad del ascendiente",)
+
+
+def test_all_lote3_rules_are_validada_in_corpus() -> None:
+    """Las cinco reglas del lote 3 quedan en validada tras la sesión de
+    promoción de mayo de 2026. Los complementos no modelados están
+    documentados explícitamente en la descripción de cada regla."""
+    deductions = {d.id: d for d in load_deductions()}
+    lote3_ids = (
+        "es_maternidad_2025",
+        "es_familia_numerosa_general_2025",
+        "es_familia_numerosa_especial_2025",
+        "es_descendiente_discapacidad_2025",
+        "es_ascendiente_discapacidad_2025",
+    )
+    for deduction_id in lote3_ids:
+        deduction = deductions[deduction_id]
+        assert deduction.validation_status == ValidationStatus.VALIDADA, (
+            f"{deduction_id}: esperado validada, encontrado {deduction.validation_status.value}"
+        )
+        assert deduction.last_reviewed_at is not None
+        assert all(source.checked_at is not None for source in deduction.sources)

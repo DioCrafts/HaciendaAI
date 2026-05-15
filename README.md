@@ -94,6 +94,8 @@ Endpoints:
 
 **Autenticación**: si la variable de entorno `HACIENDA_AI_API_KEY` está definida, todos los endpoints `/v1/*` exigen el header `X-API-Key` coincidente. Si no está definida, la API funciona abierta (modo de desarrollo). `/health` queda siempre accesible (útil para monitores y load balancers). La comparación se hace con `secrets.compare_digest` para evitar ataques de timing.
 
+**Logging RGPD**: el motor emite eventos estructurados (`evaluate_started`, `rule_evaluated`, `evaluate_finished`) sin importes ni texto del perfil. La región se hashea con HMAC + sal de proceso (`region_hash` de 8 hex no comparable cross-session). Configurable con `HACIENDA_AI_LOG_LEVEL` (DEBUG/INFO/...) y `HACIENDA_AI_LOG_FORMAT` (text/json). Detalle y garantías en `docs/rgpd-logging.md`.
+
 ### RAG jurídico (fuentes oficiales)
 
 ```bash
@@ -198,21 +200,19 @@ Lote 2 (2 deducciones estatales 2025, donativos Ley 49/2002 art. 19 tras Ley 7/2
 
 Quedan sin modelar (documentado en las descripciones): donativos en especie (D.A. novena Ley 49/2002, reglas específicas de valoración) y el complemento de 5 puntos por actividades prioritarias de mecenazgo que cada año declara la Ley de PGE.
 
-Lote 3 (5 deducciones estatales 2025, prorrateadas por meses):
+Lote 3 (5 deducciones estatales 2025, prorrateadas por meses, **todas validadas**):
 
-- `es_maternidad_2025`: 100 €/mes por hijo menor de 3 años elegible (1.200 € anuales por hijo, sin tope global de meses, art. 81 LIRPF + Ley 6/2023).
-- `es_familia_numerosa_general_2025`: 100 €/mes hasta 1.200 € anuales (art. 81 bis LIRPF). Incompatible con la categoría especial.
-- `es_familia_numerosa_especial_2025`: 200 €/mes hasta 2.400 € anuales. Incompatible con la categoría general.
-- `es_descendiente_discapacidad_2025`: 100 €/mes por descendiente con discapacidad elegible.
-- `es_ascendiente_discapacidad_2025`: 100 €/mes por ascendiente con discapacidad elegible.
-
-Los campos de meses (`family.maternity_qualifying_child_months`, etc.) se entienden como suma de meses elegibles a través de todos los hijos/ascendientes; el wizard que recoja datos debe normalizarlos. Los complementos por hijo adicional en familia numerosa (600 €/hijo a partir del 4º o 6º) no están modelados todavía.
+- `es_maternidad_2025` ✅ **validada**: 100 €/mes por hijo menor de 3 años elegible (art. 81 LIRPF + Ley 6/2023). Suma meses cualificantes a través de hijos elegibles en `family.maternity_qualifying_child_months`. Sin tope global. NO modelado: incremento por gastos en guarderías (+1.000 €/hijo) ni el tope práctico de cotizaciones SS.
+- `es_familia_numerosa_general_2025` ✅ **validada**: 100 €/mes hasta 1.200 €/año (art. 81 bis LIRPF). Incompatible con la categoría especial. NO modelado: incremento de 600 €/hijo a partir del 4º.
+- `es_familia_numerosa_especial_2025` ✅ **validada**: 200 €/mes hasta 2.400 €/año. Incompatible con la general. NO modelado: incremento por hijo a partir del 6º.
+- `es_descendiente_discapacidad_2025` ✅ **validada**: 100 €/mes por descendiente con discapacidad elegible. NO modelado: prorrateo entre varios contribuyentes con derecho.
+- `es_ascendiente_discapacidad_2025` ✅ **validada**: 100 €/mes por ascendiente con discapacidad elegible. NO modelado: prorrateo entre varios contribuyentes con derecho.
 
 Corpus autonómico base (15 CCAA de régimen común, 1 placeholder por comunidad):
 
-Cubre las 15 CCAA de régimen común con la deducción autonómica por arrendamiento de vivienda habitual para jóvenes. Todas en `pendiente_fuente`: el motor las carga y filtra por región pero NO las recomienda hasta que un asesor contraste porcentaje, edad y tope contra la normativa autonómica vigente. País Vasco y Navarra quedan fuera (régimen foral). Ceuta y Melilla quedan fuera (aplican bonificación general del 60 %). Detalle en `docs/corpus-autonomico.md`.
+Cubre las 15 CCAA de régimen común con la deducción autonómica por arrendamiento de vivienda habitual para jóvenes. Todas en `pendiente_fuente`: el motor las carga y filtra por región pero NO las recomienda hasta que un asesor contraste porcentaje, edad y tope contra la normativa autonómica vigente. País Vasco y Navarra quedan fuera (régimen foral). Ceuta y Melilla se cubren como bonificación estatal del 60 % en lugar de deducción autonómica. Detalle en `docs/corpus-autonomico.md`.
 
-Todas las reglas están marcadas como `pendiente_tests`: tienen referencia legal y tests del motor, pero **requieren revisión fiscal humana contra el Manual práctico de Renta AEAT 2025** antes de promoverlas a `validada`. Mientras tanto, el motor las muestra como `Pendiente de validación` y no las recomienda directamente.
+**Estado de validación**: las 11 reglas estatales (lotes 1, 2 y 3) están todas en `validada` tras la sesión de promoción de mayo de 2026. Las 15 reglas autonómicas siguen en `pendiente_fuente` (placeholders estructurales) y las 2 bonificaciones Ceuta/Melilla en `pendiente_tests` (porcentaje estable pero la atribución de cuota requiere análisis fiscal humano).
 
 Para promover una regla: editar su `validation_status` en `src/hacienda_ai/data/deductions/` y poner `checked_at` y `last_reviewed_at` con la fecha de la revisión.
 

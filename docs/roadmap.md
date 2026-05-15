@@ -43,4 +43,6 @@
 
 ## Fase 7: Endurecimiento
 
-- RGPD, seguridad, observabilidad sin PII y revisión fiscal.
+- **Logging estructurado sin PII** (`src/hacienda_ai/logging_setup.py`): tres eventos del motor (`evaluate_started`, `rule_evaluated`, `evaluate_finished`) sin importes, sin nombres y con la región hasheada (HMAC con sal de proceso). Configurable por `HACIENDA_AI_LOG_LEVEL` y `HACIENDA_AI_LOG_FORMAT` (text/json). Tests bloquean la fuga de literales sensibles. Detalle en `docs/rgpd-logging.md`.
+- **Auth API** entregada en sesión previa: header `X-API-Key` activado por `HACIENDA_AI_API_KEY`.
+- Pendiente: persistencia local cifrada de perfiles (SQLite + cryptography), pen-testing del API, ofuscación de logs de FastAPI/Uvicorn al desplegar, revisión fiscal externa del corpus.

@@ -6,11 +6,15 @@ solo fórmulas declaradas y devuelve estados auditables.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import replace
 from datetime import date
 from typing import Any
 
+from .logging_setup import get_logger, hash_region
 from .models import Deduction, RuleEvaluation, TaxProfile, Tier, ValidationStatus
+
+_logger = get_logger("rules")
 
 RISK_MAP = {"bajo": "low", "medio": "medium", "alto": "high"}
 
@@ -24,6 +28,21 @@ TAXABLE_BASE_LIMIT_FIELDS: dict[str, str] = {
 
 def evaluate_deduction(deduction: Deduction, profile: TaxProfile) -> RuleEvaluation:
     """Evalúa una deducción contra un perfil fiscal estructurado."""
+    result = _evaluate_deduction_uncached(deduction, profile)
+    _logger.debug(
+        "rule_evaluated",
+        extra={
+            "deduction_id": deduction.id,
+            "status": result.status,
+            "missing_fields_count": len(result.missing_fields),
+            "missing_documents_count": len(result.missing_documents),
+            "has_amount": result.estimated_amount > 0,
+        },
+    )
+    return result
+
+
+def _evaluate_deduction_uncached(deduction: Deduction, profile: TaxProfile) -> RuleEvaluation:
     if deduction.tax_year != profile.tax_year:
         return _result(deduction, "does_not_apply", "La deducción pertenece a otro ejercicio fiscal.", confidence=0.9)
     if deduction.region and deduction.region.lower() != profile.region.lower():
@@ -101,8 +120,32 @@ def evaluate_deduction(deduction: Deduction, profile: TaxProfile) -> RuleEvaluat
 
 
 def evaluate_deductions(deductions: list[Deduction], profile: TaxProfile) -> list[RuleEvaluation]:
+    _logger.info(
+        "evaluate_started",
+        extra={
+            "tax_year": profile.tax_year,
+            "region_hash": hash_region(profile.region),
+            "filing_mode": profile.filing_mode,
+            "deductions_count": len(deductions),
+        },
+    )
     evaluations = [evaluate_deduction(deduction, profile) for deduction in deductions]
-    return _resolve_incompatibilities(deductions, evaluations)
+    resolved = _resolve_incompatibilities(deductions, evaluations)
+    counts = Counter(evaluation.status for evaluation in resolved)
+    _logger.info(
+        "evaluate_finished",
+        extra={
+            "tax_year": profile.tax_year,
+            "region_hash": hash_region(profile.region),
+            "total": len(resolved),
+            "applies": counts.get("applies", 0),
+            "missing_data": counts.get("missing_data", 0),
+            "missing_evidence": counts.get("missing_evidence", 0),
+            "pending_validation": counts.get("pending_validation", 0),
+            "does_not_apply": counts.get("does_not_apply", 0),
+        },
+    )
+    return resolved
 
 
 def _within_effective_range(deduction: Deduction, tax_year: int) -> bool:

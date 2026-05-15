@@ -75,18 +75,18 @@ def test_rejects_unsupported_operator():
 
 
 def test_pending_validation_deduction_is_not_recommended_directly():
-    """Usamos una regla del lote 3 que sigue pendiente_tests (maternidad)
-    para verificar el corto-circuito del motor. Cuando todo el corpus pase
-    a validada, este test apuntará a una regla de prueba en lugar de a
-    una real."""
+    """Usamos la regla autonómica placeholder de Madrid (pendiente_fuente)
+    para verificar el corto-circuito del motor. Las reglas estatales del
+    corpus ya están todas en validada tras la sesión de promociones."""
     deductions_by_id = {d.id: d for d in load_deductions()}
-    deduction = deductions_by_id["es_maternidad_2025"]
+    deduction = deductions_by_id["auto_madrid_alquiler_jovenes_2025"]
     assert deduction.validation_status.value != "validada"
     result = evaluate_deduction(
         deduction,
         profile(
-            personal={"is_eligible_maternity_deduction": True},
-            family={"maternity_qualifying_child_months": 12},
+            region="Madrid",
+            personal={"age": 28},
+            expenses={"rent_amount": 8000.0},
         ),
     )
     assert result.status == "pending_validation"

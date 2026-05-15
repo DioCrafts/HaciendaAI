@@ -2,8 +2,8 @@
   "deductions": [
     {
       "id": "es_maternidad_2025",
-      "name": "Deducción por maternidad",
-      "description": "Deducción de la cuota diferencial de 1.200 € anuales por cada hijo menor de 3 años para mujeres trabajadoras (alta en SS o mutua, autónomas o, tras la Ley 6/2023, mujeres con prestación por desempleo). Se prorratea por meses en que se cumplen los requisitos. El campo del perfil family.maternity_qualifying_child_months es la suma de meses cualificantes a través de todos los hijos elegibles (12 meses por hijo × hijos elegibles). No tiene tope anual de meses al haber varios hijos posibles (art. 81 LIRPF).",
+      "name": "Deducción por maternidad (art. 81 LIRPF)",
+      "description": "Deducción de la cuota diferencial de 1.200 € anuales por cada hijo menor de 3 años para mujeres trabajadoras (alta en la SS o mutua, autónomas o, tras la Ley 6/2023, mujeres con prestación por desempleo y otras situaciones equiparadas). Se prorratea por meses: `family.maternity_qualifying_child_months` es la suma de meses cualificantes a través de todos los hijos elegibles (12 meses × hijos elegibles como máximo lógico). No tiene tope anual de meses al haber varios hijos posibles. NO MODELADOS en esta regla y a sumar aparte por el wizard si procede: (a) el incremento por gastos en guarderías o centros de educación infantil autorizados, hasta 1.000 € adicionales por hijo (art. 81.2 LIRPF), que requiere demostrar el pago efectivo; (b) el tope práctico por las cotizaciones a la Seguridad Social del periodo (la deducción no puede exceder lo cotizado).",
       "tax_year": 2025,
       "scope": "estatal",
       "region": null,
@@ -23,19 +23,29 @@
       "required_documents": ["Libro de familia o certificación equivalente", "Vida laboral o documento que acredite la situación laboral"],
       "rent_web_boxes": [],
       "sources": [
-        {"type": "ley", "title": "Ley 35/2006 del IRPF, art. 81 (deducción por maternidad)", "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764", "checked_at": null},
-        {"type": "ley", "title": "Ley 6/2023 ampliación del ámbito subjetivo de la deducción por maternidad", "url": "https://www.boe.es/buscar/doc.php?id=BOE-A-2023-7771", "checked_at": null}
+        {
+          "type": "ley",
+          "title": "Ley 35/2006 IRPF, art. 81 (deducción por maternidad, texto consolidado)",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a81",
+          "checked_at": "2026-05-14"
+        },
+        {
+          "type": "ley",
+          "title": "Ley 6/2023 — ampliación del ámbito subjetivo de la deducción por maternidad",
+          "url": "https://www.boe.es/buscar/doc.php?id=BOE-A-2023-7771",
+          "checked_at": "2026-05-14"
+        }
       ],
       "effective_from": "2025-01-01",
       "effective_to": "2025-12-31",
-      "last_reviewed_at": null,
+      "last_reviewed_at": "2026-05-14",
       "risk_level": "bajo",
-      "validation_status": "pendiente_tests"
+      "validation_status": "validada"
     },
     {
       "id": "es_familia_numerosa_general_2025",
-      "name": "Deducción por familia numerosa de categoría general",
-      "description": "Deducción de la cuota diferencial de 1.200 € anuales para titulares de familia numerosa de categoría general. Se prorratea por meses en que se mantiene la condición. El motor no calcula el incremento de 600 € por cada hijo a partir del 4º; ese complemento debe sumarse aparte o tratarse en un PR específico. Incompatible con la categoría especial (art. 81 bis LIRPF).",
+      "name": "Deducción por familia numerosa de categoría general (art. 81 bis LIRPF)",
+      "description": "Deducción de la cuota diferencial de 1.200 € anuales (100 €/mes) para titulares de familia numerosa de **categoría general** con título en vigor. Se prorratea por meses con `family.large_family_qualifying_months` (0-12). NO MODELADO: el incremento de 600 €/año por cada hijo a partir del cuarto que forme parte de la familia numerosa (art. 81 bis.1.c LIRPF segundo párrafo); se debe sumar aparte por el wizard. Incompatible con la categoría especial.",
       "tax_year": 2025,
       "scope": "estatal",
       "region": null,
@@ -56,18 +66,23 @@
       "required_documents": ["Título de familia numerosa en vigor"],
       "rent_web_boxes": [],
       "sources": [
-        {"type": "ley", "title": "Ley 35/2006 del IRPF, art. 81 bis (familia numerosa categoría general)", "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764", "checked_at": null}
+        {
+          "type": "ley",
+          "title": "Ley 35/2006 IRPF, art. 81 bis (familia numerosa — categoría general)",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a81bis",
+          "checked_at": "2026-05-14"
+        }
       ],
       "effective_from": "2025-01-01",
       "effective_to": "2025-12-31",
-      "last_reviewed_at": null,
+      "last_reviewed_at": "2026-05-14",
       "risk_level": "bajo",
-      "validation_status": "pendiente_tests"
+      "validation_status": "validada"
     },
     {
       "id": "es_familia_numerosa_especial_2025",
-      "name": "Deducción por familia numerosa de categoría especial",
-      "description": "Deducción de la cuota diferencial de 2.400 € anuales para titulares de familia numerosa de categoría especial. Se prorratea por meses. Incompatible con la categoría general. El motor no calcula el incremento de 600 € por hijo a partir del 6º (art. 81 bis LIRPF).",
+      "name": "Deducción por familia numerosa de categoría especial (art. 81 bis LIRPF)",
+      "description": "Deducción de la cuota diferencial de 2.400 € anuales (200 €/mes) para titulares de familia numerosa de **categoría especial** con título en vigor. Se prorratea por meses con `family.large_family_qualifying_months` (0-12). NO MODELADO: el incremento de 600 €/año por cada hijo a partir del sexto (art. 81 bis.1.c LIRPF segundo párrafo); se debe sumar aparte por el wizard. Incompatible con la categoría general.",
       "tax_year": 2025,
       "scope": "estatal",
       "region": null,
@@ -88,18 +103,23 @@
       "required_documents": ["Título de familia numerosa en vigor"],
       "rent_web_boxes": [],
       "sources": [
-        {"type": "ley", "title": "Ley 35/2006 del IRPF, art. 81 bis (familia numerosa categoría especial)", "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764", "checked_at": null}
+        {
+          "type": "ley",
+          "title": "Ley 35/2006 IRPF, art. 81 bis (familia numerosa — categoría especial)",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a81bis",
+          "checked_at": "2026-05-14"
+        }
       ],
       "effective_from": "2025-01-01",
       "effective_to": "2025-12-31",
-      "last_reviewed_at": null,
+      "last_reviewed_at": "2026-05-14",
       "risk_level": "bajo",
-      "validation_status": "pendiente_tests"
+      "validation_status": "validada"
     },
     {
       "id": "es_descendiente_discapacidad_2025",
-      "name": "Deducción por descendiente con discapacidad",
-      "description": "Deducción de la cuota diferencial de 1.200 € anuales por cada descendiente con discapacidad que dé derecho al mínimo por descendientes con discapacidad. Se prorratea por meses en que se cumplen los requisitos; el campo family.disabled_descendants_qualifying_months es la suma de meses a través de todos los descendientes elegibles (art. 81 bis LIRPF).",
+      "name": "Deducción por descendiente con discapacidad (art. 81 bis LIRPF)",
+      "description": "Deducción de la cuota diferencial de 1.200 € anuales (100 €/mes) por cada descendiente con discapacidad que dé derecho al mínimo por descendientes con discapacidad. Se prorratea por meses; `family.disabled_descendants_qualifying_months` es la suma de meses a través de todos los descendientes elegibles (12 meses × descendientes elegibles como máximo lógico). NO MODELADO: las reglas de prorrateo entre varios contribuyentes con derecho a la misma deducción (art. 81 bis.2 LIRPF) — el wizard debe entregar ya el importe atribuible al perfil concreto cuando no sea el único.",
       "tax_year": 2025,
       "scope": "estatal",
       "region": null,
@@ -118,18 +138,23 @@
       "required_documents": ["Certificado de discapacidad del descendiente"],
       "rent_web_boxes": [],
       "sources": [
-        {"type": "ley", "title": "Ley 35/2006 del IRPF, art. 81 bis (descendientes con discapacidad)", "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764", "checked_at": null}
+        {
+          "type": "ley",
+          "title": "Ley 35/2006 IRPF, art. 81 bis (descendientes con discapacidad)",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a81bis",
+          "checked_at": "2026-05-14"
+        }
       ],
       "effective_from": "2025-01-01",
       "effective_to": "2025-12-31",
-      "last_reviewed_at": null,
+      "last_reviewed_at": "2026-05-14",
       "risk_level": "bajo",
-      "validation_status": "pendiente_tests"
+      "validation_status": "validada"
     },
     {
       "id": "es_ascendiente_discapacidad_2025",
-      "name": "Deducción por ascendiente con discapacidad",
-      "description": "Deducción de la cuota diferencial de 1.200 € anuales por cada ascendiente con discapacidad que dé derecho al mínimo por ascendientes con discapacidad. Se prorratea por meses; el campo family.disabled_ascendants_qualifying_months es la suma de meses a través de todos los ascendientes elegibles (art. 81 bis LIRPF).",
+      "name": "Deducción por ascendiente con discapacidad (art. 81 bis LIRPF)",
+      "description": "Deducción de la cuota diferencial de 1.200 € anuales (100 €/mes) por cada ascendiente con discapacidad que dé derecho al mínimo por ascendientes con discapacidad. Se prorratea por meses; `family.disabled_ascendants_qualifying_months` es la suma de meses a través de todos los ascendientes elegibles. NO MODELADO: el prorrateo entre varios contribuyentes con derecho — el wizard entrega el importe atribuible al perfil concreto.",
       "tax_year": 2025,
       "scope": "estatal",
       "region": null,
@@ -148,13 +173,18 @@
       "required_documents": ["Certificado de discapacidad del ascendiente"],
       "rent_web_boxes": [],
       "sources": [
-        {"type": "ley", "title": "Ley 35/2006 del IRPF, art. 81 bis (ascendientes con discapacidad)", "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764", "checked_at": null}
+        {
+          "type": "ley",
+          "title": "Ley 35/2006 IRPF, art. 81 bis (ascendientes con discapacidad)",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a81bis",
+          "checked_at": "2026-05-14"
+        }
       ],
       "effective_from": "2025-01-01",
       "effective_to": "2025-12-31",
-      "last_reviewed_at": null,
+      "last_reviewed_at": "2026-05-14",
       "risk_level": "bajo",
-      "validation_status": "pendiente_tests"
+      "validation_status": "validada"
     }
   ]
 }
