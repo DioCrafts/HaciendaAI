@@ -181,9 +181,18 @@ class Deduction:
             calculation=Calculation.from_dict(data["calculation"]),
             limit=as_optional_number(data.get("limit"), "limit"),
             taxable_base_limits=dict(data.get("taxable_base_limits") or {}),
-            incompatibilities=tuple(as_non_empty_str(item, "incompatibility") for item in data.get("incompatibilities", [])),
-            required_documents=tuple(as_non_empty_str(item, "required_document") for item in data.get("required_documents", [])),
-            rent_web_boxes=tuple(as_non_empty_str(item, "rent_web_box") for item in data.get("rent_web_boxes", [])),
+            incompatibilities=tuple(
+                as_non_empty_str(item, "incompatibility")
+                for item in data.get("incompatibilities", [])
+            ),
+            required_documents=tuple(
+                as_non_empty_str(item, "required_document")
+                for item in data.get("required_documents", [])
+            ),
+            rent_web_boxes=tuple(
+                as_non_empty_str(item, "rent_web_box")
+                for item in data.get("rent_web_boxes", [])
+            ),
             sources=sources,
             effective_from=as_optional_str(data.get("effective_from"), "effective_from"),
             effective_to=as_optional_str(data.get("effective_to"), "effective_to"),
