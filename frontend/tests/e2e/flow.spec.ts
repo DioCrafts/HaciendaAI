@@ -64,4 +64,50 @@ test.describe("Flujo perfil → evaluate → simulate", () => {
     await expect(page.getByText(/Error:/)).toBeVisible();
     await expect(page.getByText(/region/i)).toBeVisible();
   });
+
+  test("wizard guiado: navegación entre pasos y persistencia en localStorage", async ({ page }) => {
+    // Reseteamos localStorage para no arrastrar estado de otros tests.
+    await page.evaluate(() => window.localStorage.removeItem("hacienda-ai:profile"));
+    await page.reload();
+
+    // Cambiamos al modo wizard.
+    await page.getByRole("tab", { name: "Wizard guiado" }).click();
+    await expect(page.getByRole("heading", { name: "Wizard guiado" })).toBeVisible();
+    await expect(page.getByText(/Paso 1 de 6/)).toBeVisible();
+
+    // Rellenamos la CCAA en el paso 1 y avanzamos al paso 2.
+    await page.getByLabel("Comunidad autónoma").selectOption("Madrid");
+    await page.getByRole("button", { name: /Siguiente/ }).click();
+    await expect(page.getByText(/Paso 2 de 6/)).toBeVisible();
+
+    // Persistencia: recargamos la página y el estado se conserva.
+    await page.reload();
+    // Tras recargar, el modo vuelve a 'Formulario completo' (no es persistente)
+    // pero la región debe seguir cargada en el formulario.
+    await expect(page.getByLabel("Comunidad autónoma")).toHaveValue("Madrid");
+  });
+
+  test("wizard 'Empezar de nuevo' limpia el perfil persistido", async ({ page }) => {
+    // Pre-cargamos un perfil en localStorage.
+    await page.evaluate(() =>
+      window.localStorage.setItem(
+        "hacienda-ai:profile",
+        JSON.stringify({ tax_year: 2025, region: "Cataluña", filing_mode: "unknown", documents: [] }),
+      ),
+    );
+    await page.reload();
+
+    // Cambiamos al wizard y pulsamos "Empezar de nuevo".
+    await page.getByRole("tab", { name: "Wizard guiado" }).click();
+    await page.getByRole("button", { name: "Empezar de nuevo" }).click();
+
+    // localStorage debe estar limpio y la región volver a vacía.
+    const stored = await page.evaluate(() => window.localStorage.getItem("hacienda-ai:profile"));
+    // El hook reescribe el EMPTY_PROFILE tras el reset, así que la clave puede
+    // existir pero con region vacía. Comprobamos eso último.
+    if (stored !== null) {
+      const parsed = JSON.parse(stored) as { region?: string };
+      expect(parsed.region ?? "").toBe("");
+    }
+  });
 });

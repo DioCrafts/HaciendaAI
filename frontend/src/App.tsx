@@ -2,13 +2,16 @@ import { useState } from "react";
 import { ApiConfigBar } from "./components/ApiConfigBar";
 import { EvaluationResults } from "./components/EvaluationResults";
 import { ProfileForm } from "./components/ProfileForm";
+import { ProfileWizard } from "./components/ProfileWizard";
 import { SimulationView } from "./components/SimulationView";
 import { evaluateProfile, simulateProfile } from "./api";
 import type { ApiConfig } from "./api";
+import { clearStoredProfile, useProfilePersistence } from "./hooks/useProfilePersistence";
 import type { RuleEvaluation, SimulationReport, TaxProfile } from "./types";
 import { exampleProfile } from "./exampleProfile";
 
 type Tab = "evaluate" | "simulate";
+type ProfileMode = "form" | "wizard";
 
 const EMPTY_PROFILE: TaxProfile = {
   tax_year: 2025,
@@ -19,8 +22,14 @@ const EMPTY_PROFILE: TaxProfile = {
 
 export function App(): React.JSX.Element {
   const [config, setConfig] = useState<ApiConfig>({ baseUrl: "http://localhost:8000", apiKey: "" });
-  const [profile, setProfile] = useState<TaxProfile>(EMPTY_PROFILE);
+  const [profile, setProfile] = useProfilePersistence(EMPTY_PROFILE);
+  const [profileMode, setProfileMode] = useState<ProfileMode>("form");
   const [tab, setTab] = useState<Tab>("evaluate");
+
+  function resetProfile(): void {
+    clearStoredProfile();
+    setProfile(EMPTY_PROFILE);
+  }
 
   const [evaluations, setEvaluations] = useState<RuleEvaluation[] | null>(null);
   const [evaluating, setEvaluating] = useState<boolean>(false);
@@ -65,11 +74,35 @@ export function App(): React.JSX.Element {
       <ApiConfigBar config={config} onChange={setConfig} />
       <main className="app__main">
         <div className="app__profile">
-          <ProfileForm
-            profile={profile}
-            onChange={setProfile}
-            onLoadExample={() => setProfile(exampleProfile)}
-          />
+          <div className="profile-mode-toggle" role="tablist" aria-label="Modo de perfil">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={profileMode === "form"}
+              className={profileMode === "form" ? "active" : ""}
+              onClick={() => setProfileMode("form")}
+            >
+              Formulario completo
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={profileMode === "wizard"}
+              className={profileMode === "wizard" ? "active" : ""}
+              onClick={() => setProfileMode("wizard")}
+            >
+              Wizard guiado
+            </button>
+          </div>
+          {profileMode === "form" ? (
+            <ProfileForm
+              profile={profile}
+              onChange={setProfile}
+              onLoadExample={() => setProfile(exampleProfile)}
+            />
+          ) : (
+            <ProfileWizard profile={profile} onChange={setProfile} onClear={resetProfile} />
+          )}
         </div>
         <div className="app__results">
           <nav className="tabs">

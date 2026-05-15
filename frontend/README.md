@@ -66,9 +66,17 @@ src/
 - **E2E** (Playwright + Chromium, headless): `tests/e2e/flow.spec.ts` cubre carga de la página, ping a `/health`, evaluación con perfil de ejemplo, simulación con badge de modo recomendado y manejo de error con perfil inválido. Playwright arranca automáticamente el backend (`python -m hacienda_ai serve`) y el preview de Vite mediante `webServer` en `playwright.config.ts`.
 - **Tests unitarios** del frontend: aún no hay (la lógica de UI es delgada; los cálculos viven en el motor Python con 147 tests).
 
+## Modos de perfil
+
+La UI ofrece dos modos de entrada del perfil fiscal, alternables mediante el toggle de la columna izquierda:
+
+- **Formulario completo** (`ProfileForm.tsx`): los cuatro fieldsets en una sola vista. Útil para usuarios técnicos o copia rápida.
+- **Wizard guiado** (`ProfileWizard.tsx`): 6 pasos secuenciales (identificación, datos personales, composición familiar, ingresos/bases, gastos, resumen). Botón "Empezar de nuevo" limpia el estado persistido. Útil para guiar a un usuario novato.
+
+Ambos editan el mismo objeto `TaxProfile` y comparten persistencia: el hook `useProfilePersistence` escribe el perfil en `localStorage` con la clave `hacienda-ai:profile` en cada cambio y lo recupera al recargar. `clearStoredProfile()` lo limpia explícitamente.
+
 ## Limitaciones conocidas
 
 - El formulario cubre los campos consumidos por las 11 reglas estatales y la deducción autonómica de alquiler joven (los del corpus actual). Para campos no contemplados, el usuario puede editar el JSON exportado y enviarlo manualmente al API.
-- No hay almacenamiento local del perfil — al refrescar se pierde.
 - Sin internacionalización: textos en español.
 - La lista de "documentos" se rellena como texto libre (uno por línea); las reglas comparan literalmente. El ejemplo precarga los strings exactos del corpus.
