@@ -172,3 +172,19 @@ def test_donations_missing_base_liquidable_returns_missing_data() -> None:
     assert result.status == "missing_data"
     assert result.missing_fields == ("taxable_base.liquidable",)
     assert "límite legal" in result.reason
+
+
+def test_lote2_rules_are_validada_in_corpus() -> None:
+    """Las dos reglas de donativos quedan en validada tras la sesión de
+    promoción de mayo de 2026: porcentajes 80/40/45 % y cap del 10 %
+    están modelados; las sutilezas no modeladas (donativos en especie,
+    +5 puntos por actividades prioritarias de mecenazgo) quedan
+    documentadas en la descripción."""
+    deductions = {d.id: d for d in load_deductions()}
+    for rule_id in ("es_donativos_no_recurrente_2025", "es_donativos_recurrente_2025"):
+        deduction = deductions[rule_id]
+        assert deduction.validation_status == ValidationStatus.VALIDADA, (
+            f"{rule_id}: esperado validada, encontrado {deduction.validation_status.value}"
+        )
+        assert deduction.last_reviewed_at is not None
+        assert all(source.checked_at is not None for source in deduction.sources)

@@ -191,12 +191,12 @@ Bonificaciones Ceuta/Melilla (art. 68.4 LIRPF):
 - `es_bonificacion_ceuta_2025`: 60 % de la cuota íntegra atribuible a rentas obtenidas en Ceuta. Nuevo tipo de cálculo `cuota_bonification`. Estado `pendiente_tests` — el porcentaje es estable pero la atribución de cuota requiere análisis fiscal humano.
 - `es_bonificacion_melilla_2025`: análogo para Melilla; incompatible con la de Ceuta.
 
-Lote 2 (2 deducciones estatales 2025, donativos Ley 49/2002 art. 19, tras Ley 7/2024):
+Lote 2 (2 deducciones estatales 2025, donativos Ley 49/2002 art. 19 tras Ley 7/2024, **ambas validadas**):
 
-- `es_donativos_no_recurrente_2025`: 80% sobre los primeros 250 € + 40% sobre el exceso.
-- `es_donativos_recurrente_2025`: 80% sobre los primeros 250 € + 45% sobre el exceso si el contribuyente ha donado a la misma entidad importes iguales o superiores en los dos ejercicios anteriores. Incompatible con el régimen no recurrente; cuando ambas reglas serían aplicables, el motor selecciona la recurrente por mayor importe.
+- `es_donativos_no_recurrente_2025` ✅ **validada**: 80 % sobre los primeros 250 € + 40 % sobre el exceso. Tope del 10 % sobre `taxable_base.liquidable`.
+- `es_donativos_recurrente_2025` ✅ **validada**: 80 % / 250 € + 45 % sobre el exceso si el contribuyente ha donado a la misma entidad importes iguales o superiores en los dos ejercicios anteriores (flag `personal.donations_recurrent_qualifying`). Incompatible con el régimen no recurrente; el motor selecciona la recurrente por mayor importe cuando ambas serían aplicables.
 
-El límite global del 10 % sobre la base liquidable se aplica por el motor a partir de `taxable_base.liquidable` en el perfil. Si el perfil no incluye `taxable_base.liquidable`, el motor devuelve `missing_data` indicando el campo concreto.
+Quedan sin modelar (documentado en las descripciones): donativos en especie (D.A. novena Ley 49/2002, reglas específicas de valoración) y el complemento de 5 puntos por actividades prioritarias de mecenazgo que cada año declara la Ley de PGE.
 
 Lote 3 (5 deducciones estatales 2025, prorrateadas por meses):
 

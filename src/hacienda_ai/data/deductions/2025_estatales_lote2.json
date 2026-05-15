@@ -2,8 +2,8 @@
   "deductions": [
     {
       "id": "es_donativos_no_recurrente_2025",
-      "name": "Donativos a entidades del art. 16 Ley 49/2002 (no recurrentes)",
-      "description": "Deducción por donativos, donaciones y aportaciones a entidades sin fines lucrativos acogidas a la Ley 49/2002 (fundaciones, asociaciones de utilidad pública, ONGD, entidades religiosas con acuerdo, etc.). Régimen general no recurrente: 80% sobre los primeros 250 € y 40% sobre el exceso (art. 19.1 Ley 49/2002 tras la modificación de la Ley 7/2024). El importe total deducible está limitado al 10% de la base liquidable; ese límite no se aplica todavía por el motor y debe verificarse manualmente.",
+      "name": "Donativos a entidades del art. 16 Ley 49/2002 (régimen no recurrente)",
+      "description": "Deducción de la cuota por donativos, donaciones y aportaciones a entidades sin fines lucrativos acogidas a la Ley 49/2002 (fundaciones, asociaciones de utilidad pública, ONGD, entidades religiosas con acuerdo de cooperación, etc.). Tramos del art. 19.1 Ley 49/2002 tras la reforma de la Ley 7/2024: 80 % sobre los primeros 250 € y 40 % sobre el exceso. El importe total deducible se limita al 10 % de la base liquidable del contribuyente (motor: `max_percentage_of_base_liquidable: 0.10` sobre `taxable_base.liquidable`). Esta regla asume donativos en dinero a entidades del art. 16 Ley 49/2002; los donativos en especie tienen reglas específicas de valoración (Disposición adicional novena) no modeladas todavía. El complemento de 5 puntos por actividades prioritarias de mecenazgo de la Ley de PGE tampoco está modelado. Incompatible con el régimen recurrente.",
       "tax_year": 2025,
       "scope": "estatal",
       "region": null,
@@ -27,27 +27,27 @@
       "sources": [
         {
           "type": "ley",
-          "title": "Ley 49/2002 régimen fiscal entidades sin fines lucrativos, art. 19",
-          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2002-25039",
-          "checked_at": null
+          "title": "Ley 49/2002 — régimen fiscal de entidades sin fines lucrativos, art. 19 (texto consolidado)",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2002-25039#a19",
+          "checked_at": "2026-05-14"
         },
         {
           "type": "ley",
-          "title": "Ley 7/2024 modificación art. 19 Ley 49/2002 (porcentajes 80%/40%/45% y umbral 250 €)",
-          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2024-26521",
-          "checked_at": null
+          "title": "Ley 7/2024 — reforma del art. 19 Ley 49/2002 (80 % / 250 € / 40 % / 45 %)",
+          "url": "https://www.boe.es/buscar/doc.php?id=BOE-A-2024-26521",
+          "checked_at": "2026-05-14"
         }
       ],
       "effective_from": "2025-01-01",
       "effective_to": "2025-12-31",
-      "last_reviewed_at": null,
+      "last_reviewed_at": "2026-05-14",
       "risk_level": "bajo",
-      "validation_status": "pendiente_tests"
+      "validation_status": "validada"
     },
     {
       "id": "es_donativos_recurrente_2025",
-      "name": "Donativos a entidades del art. 16 Ley 49/2002 (recurrentes)",
-      "description": "Régimen incrementado por donativo recurrente: el contribuyente ha donado a la misma entidad cantidades iguales o superiores en los dos ejercicios inmediatos anteriores. Tipo del 80% sobre los primeros 250 € y 45% sobre el exceso (art. 19.1 párrafo segundo Ley 49/2002 tras la modificación de la Ley 7/2024). Excluyente del régimen no recurrente.",
+      "name": "Donativos a entidades del art. 16 Ley 49/2002 (régimen recurrente)",
+      "description": "Régimen incrementado por donativo recurrente: el contribuyente ha donado a la **misma entidad** cantidades iguales o superiores en los dos ejercicios inmediatos anteriores. Tramos del art. 19.1 párrafo segundo Ley 49/2002 tras la Ley 7/2024: 80 % sobre los primeros 250 € y **45 %** sobre el exceso (frente al 40 % del régimen general). La condición de recurrencia se recoge en `personal.donations_recurrent_qualifying`; la verificación documental se exige en `required_documents`. Tope del 10 % de la base liquidable, igual que el régimen general. Excluyente con el régimen no recurrente.",
       "tax_year": 2025,
       "scope": "estatal",
       "region": null,
@@ -75,22 +75,22 @@
       "sources": [
         {
           "type": "ley",
-          "title": "Ley 49/2002 régimen fiscal entidades sin fines lucrativos, art. 19",
-          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2002-25039",
-          "checked_at": null
+          "title": "Ley 49/2002 — régimen fiscal de entidades sin fines lucrativos, art. 19 (texto consolidado)",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2002-25039#a19",
+          "checked_at": "2026-05-14"
         },
         {
           "type": "ley",
-          "title": "Ley 7/2024 modificación art. 19 Ley 49/2002 (porcentajes 80%/40%/45% y umbral 250 €)",
-          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2024-26521",
-          "checked_at": null
+          "title": "Ley 7/2024 — reforma del art. 19 Ley 49/2002 (80 % / 250 € / 40 % / 45 %)",
+          "url": "https://www.boe.es/buscar/doc.php?id=BOE-A-2024-26521",
+          "checked_at": "2026-05-14"
         }
       ],
       "effective_from": "2025-01-01",
       "effective_to": "2025-12-31",
-      "last_reviewed_at": null,
+      "last_reviewed_at": "2026-05-14",
       "risk_level": "bajo",
-      "validation_status": "pendiente_tests"
+      "validation_status": "validada"
     }
   ]
 }
