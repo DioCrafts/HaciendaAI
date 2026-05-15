@@ -48,6 +48,17 @@ def test_catalog_includes_known_state_laws() -> None:
         assert required in ids
 
 
+def test_catalog_includes_dgt_thematic_entries() -> None:
+    """El catálogo debe incluir al menos un puñado de entradas DGT temáticas
+    para que el CLI 'rag list --type=consulta_dgt' aporte valor."""
+    dgt_entries = [s for s in CATALOG if s.document_type == "consulta_dgt"]
+    assert len(dgt_entries) >= 8
+    # Todas las consultas DGT son estatales (criterio doctrinal nacional).
+    assert all(s.jurisdiction == "estatal" for s in dgt_entries)
+    # Las URLs deben apuntar al portal Petete de la DGT.
+    assert all("petete.tributos.hacienda.gob.es" in s.url for s in dgt_entries)
+
+
 # ---------- fetcher (httpx mock) ----------
 
 
@@ -206,6 +217,30 @@ def test_cli_rag_list_filters_by_jurisdiction(capsys: pytest.CaptureFixture[str]
     assert exit_code == 0
     assert "es_lirpf" in captured.out
     # Una autonómica no debe estar
+    assert "auto_madrid_dlt" not in captured.out
+
+
+def test_cli_rag_list_filters_by_doc_type_dgt(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = main(["rag", "list", "--type", "consulta_dgt"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    # Sólo aparecen entradas con document_type=consulta_dgt
+    assert "dgt_busqueda_planes_pensiones" in captured.out
+    # Las leyes NO deben aparecer
+    assert "es_lirpf" not in captured.out
+    assert "auto_madrid_dlt" not in captured.out
+
+
+def test_cli_rag_list_combines_jurisdiction_and_type_filters(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = main(["rag", "list", "--jurisdiction", "estatal", "--type", "ley"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "es_lirpf" in captured.out
+    # consulta_dgt no entra aunque sea estatal
+    assert "dgt_busqueda_planes_pensiones" not in captured.out
+    # No autonómicas
     assert "auto_madrid_dlt" not in captured.out
 
 

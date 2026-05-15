@@ -23,6 +23,23 @@ El módulo `src/hacienda_ai/rag/` proporciona herramientas de **investigación l
 
 El catálogo actual es un punto de partida, NO una cobertura exhaustiva. Cubre la LIRPF y reglamento, mecenazgo (Ley 49/2002 + Ley 7/2024), Manual práctico AEAT y los textos refundidos de varias CCAA. Para añadir más fuentes, abrir un PR sobre `catalog.py`.
 
+### Consultas vinculantes de la DGT (entradas temáticas)
+
+El catálogo incluye **entradas temáticas** apuntando al portal Petete de la DGT (`https://petete.tributos.hacienda.gob.es/consultas/`) con queries pre-rellenadas por bloque normativo: planes de pensiones, donativos/mecenazgo, maternidad, familia numerosa, cuotas sindicales y colegios, alquiler de vivienda habitual, bonificación Ceuta/Melilla, teletrabajo, rendimientos del capital inmobiliario y exención por reinversión.
+
+Estas entradas tienen `document_type="consulta_dgt"`. Filtrables desde el CLI:
+
+```bash
+hacienda-ai rag list --type consulta_dgt
+hacienda-ai rag list --jurisdiction estatal --type ley
+```
+
+**Por qué entradas temáticas y no consultas concretas**: fabricar V-numbers específicos sin verificación entrega referencias inválidas. Para añadir una consulta concreta:
+
+1. Localizar la consulta en el portal Petete (DGT) y anotar su número (formato `V-XXXX-YY`), fecha y URL directa.
+2. Añadir un `OfficialSource(id="dgt_v<N>_<YY>_<slug>", reference exacta, fecha, URL al PDF/HTML)` a `catalog.py`.
+3. Reemplazar (opcionalmente) la entrada genérica del mismo bloque.
+
 ## CLI
 
 ```bash

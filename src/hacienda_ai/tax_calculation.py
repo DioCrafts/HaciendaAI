@@ -61,23 +61,69 @@ class TaxScale:
     brackets: tuple[TaxBracket, ...]
 
 
-# Tarifa general 2025 (suma estatal + autonómica genérica del régimen común).
-# Estatal: 9,5 / 12 / 15 / 18,5 / 22,5 / 24,5 — la CCAA genérica replica.
+# Tarifas IRPF 2025: la cuota total es la suma de la parte estatal y la parte
+# autonómica, ambas progresivas. Cuando la CCAA no tiene una tarifa específica
+# en este módulo, se aplica una "autonómica genérica" idéntica a la estatal,
+# que produce la suma agregada usada por la mayoría de CCAAs del régimen común.
+
+# Parte estatal de la tarifa general (art. 63 LIRPF, redacción consolidada
+# tras Ley 22/2021).
+STATE_GENERAL_TARIFF_2025: TaxScale = TaxScale(
+    name="irpf_general_estatal_2025",
+    brackets=(
+        TaxBracket(up_to=12_450.0, rate=0.095),
+        TaxBracket(up_to=20_200.0, rate=0.12),
+        TaxBracket(up_to=35_200.0, rate=0.15),
+        TaxBracket(up_to=60_000.0, rate=0.185),
+        TaxBracket(up_to=300_000.0, rate=0.225),
+        TaxBracket(up_to=None, rate=0.245),
+    ),
+)
+
+# Autonómica genérica: réplica de la estatal. Usar este valor cuando la CCAA
+# no tiene una tarifa específica registrada en AUTONOMIC_GENERAL_TARIFFS.
+GENERIC_AUTONOMIC_GENERAL_TARIFF_2025: TaxScale = TaxScale(
+    name="irpf_general_autonomica_generica_2025",
+    brackets=STATE_GENERAL_TARIFF_2025.brackets,
+)
+
+# Tarifa total = 2x estatal (estatal + autonómica genérica idéntica).
+# Esto es estrictamente coherente con la simplificación "autonómica = estatal":
+# el tipo marginal máximo bajo este modelo es 49 % (2x 24,5 %), no 47 %. En
+# la realidad, las CCAAs del régimen común tienen tarifas autonómicas
+# ligeramente distintas (la "tarifa subsidiaria" del art. 65 LIRPF da
+# aproximadamente 47 % en el tope), pero registrar esas cifras requiere
+# verificación CCAA por CCAA. Hasta entonces, este agregado es la referencia.
 GENERAL_TARIFF_2025: TaxScale = TaxScale(
-    name="irpf_general_2025_estatal_autonomica_genericas",
+    name="irpf_general_total_generic_2025",
     brackets=(
         TaxBracket(up_to=12_450.0, rate=0.19),
         TaxBracket(up_to=20_200.0, rate=0.24),
         TaxBracket(up_to=35_200.0, rate=0.30),
         TaxBracket(up_to=60_000.0, rate=0.37),
         TaxBracket(up_to=300_000.0, rate=0.45),
-        TaxBracket(up_to=None, rate=0.47),
+        TaxBracket(up_to=None, rate=0.49),
     ),
 )
 
-# Tarifa del ahorro 2025 (suma estatal + autonómica, simétrica por ley).
+# Tarifa del ahorro (art. 66 LIRPF). La parte estatal y la autonómica son
+# simétricas por ley, así que su suma es la tarifa total del ahorro.
+STATE_SAVINGS_TARIFF_2025: TaxScale = TaxScale(
+    name="irpf_ahorro_estatal_2025",
+    brackets=(
+        TaxBracket(up_to=6_000.0, rate=0.095),
+        TaxBracket(up_to=50_000.0, rate=0.105),
+        TaxBracket(up_to=200_000.0, rate=0.115),
+        TaxBracket(up_to=300_000.0, rate=0.135),
+        TaxBracket(up_to=None, rate=0.15),
+    ),
+)
+AUTONOMIC_SAVINGS_TARIFF_2025: TaxScale = TaxScale(
+    name="irpf_ahorro_autonomica_2025",
+    brackets=STATE_SAVINGS_TARIFF_2025.brackets,
+)
 SAVINGS_TARIFF_2025: TaxScale = TaxScale(
-    name="irpf_ahorro_2025",
+    name="irpf_ahorro_total_2025",
     brackets=(
         TaxBracket(up_to=6_000.0, rate=0.19),
         TaxBracket(up_to=50_000.0, rate=0.21),
@@ -86,6 +132,43 @@ SAVINGS_TARIFF_2025: TaxScale = TaxScale(
         TaxBracket(up_to=None, rate=0.30),
     ),
 )
+
+
+@dataclass(frozen=True)
+class AutonomicTariffSet:
+    """Tarifas autonómicas de una CCAA concreta. La del ahorro es simétrica
+    con la estatal por ley, así que sólo la general puede divergir."""
+
+    general: TaxScale
+
+
+# Registry de tarifas autonómicas reales por CCAA. **Vacío al inicio** por
+# honestidad: añadir cifras de cada CCAA requiere contraste contra su
+# boletín autonómico vigente para el ejercicio. Cuando una CCAA no está en
+# este registry, se aplica la tarifa autonómica genérica (idéntica a la
+# estatal), de modo que la suma total coincide con `GENERAL_TARIFF_2025`.
+#
+# Cómo añadir una CCAA real:
+#   1. Localizar la norma autonómica que aprueba la tarifa (Decreto Legislativo
+#      o Ley autonómica de medidas fiscales) en el boletín oficial.
+#   2. Crear una entrada en este dict con la TaxScale autonómica de esa CCAA
+#      para el ejercicio.
+#   3. Añadir un test en tests/test_tax_calculation.py que verifique las
+#      cifras esperadas para esa CCAA frente a la genérica.
+AUTONOMIC_GENERAL_TARIFFS: dict[str, AutonomicTariffSet] = {}
+
+
+def autonomic_general_tariff_for(region: str | None) -> TaxScale:
+    """Devuelve la tarifa autonómica general aplicable a la región del
+    perfil. Cuando no hay tarifa específica registrada, se devuelve la
+    genérica (idéntica a la estatal)."""
+    if region is None:
+        return GENERIC_AUTONOMIC_GENERAL_TARIFF_2025
+    key = region.strip().lower()
+    for known_key, tariff_set in AUTONOMIC_GENERAL_TARIFFS.items():
+        if known_key.lower() == key:
+            return tariff_set.general
+    return GENERIC_AUTONOMIC_GENERAL_TARIFF_2025
 
 
 # ---------- Mínimos personales y familiares 2025 (art. 57-61 LIRPF) ----------
@@ -253,16 +336,31 @@ def compute_tax_summary(
     minimum_remainder = max(0.0, minimum - absorbed_by_general)
     absorbed_by_savings = min(minimum_remainder, base_liquidable_ahorro)
 
-    cuota_general_full = apply_scale(base_liquidable_general, GENERAL_TARIFF_2025)
-    cuota_general_minimum = apply_scale(absorbed_by_general, GENERAL_TARIFF_2025)
-    cuota_integra_general = max(0.0, cuota_general_full - cuota_general_minimum)
+    # Tarifas: estatal + autonómica (la autonómica depende de la CCAA).
+    autonomic_general = autonomic_general_tariff_for(profile.region)
 
-    cuota_savings_full = apply_scale(base_liquidable_ahorro, SAVINGS_TARIFF_2025)
-    cuota_savings_minimum = apply_scale(absorbed_by_savings, SAVINGS_TARIFF_2025)
-    cuota_integra_ahorro = max(0.0, cuota_savings_full - cuota_savings_minimum)
+    state_general_full = apply_scale(base_liquidable_general, STATE_GENERAL_TARIFF_2025)
+    state_general_minimum = apply_scale(absorbed_by_general, STATE_GENERAL_TARIFF_2025)
+    state_general_net = max(0.0, state_general_full - state_general_minimum)
 
+    autonomic_general_full = apply_scale(base_liquidable_general, autonomic_general)
+    autonomic_general_minimum = apply_scale(absorbed_by_general, autonomic_general)
+    autonomic_general_net = max(0.0, autonomic_general_full - autonomic_general_minimum)
+
+    state_savings_full = apply_scale(base_liquidable_ahorro, STATE_SAVINGS_TARIFF_2025)
+    state_savings_minimum = apply_scale(absorbed_by_savings, STATE_SAVINGS_TARIFF_2025)
+    state_savings_net = max(0.0, state_savings_full - state_savings_minimum)
+
+    autonomic_savings_full = apply_scale(base_liquidable_ahorro, AUTONOMIC_SAVINGS_TARIFF_2025)
+    autonomic_savings_minimum = apply_scale(absorbed_by_savings, AUTONOMIC_SAVINGS_TARIFF_2025)
+    autonomic_savings_net = max(0.0, autonomic_savings_full - autonomic_savings_minimum)
+
+    cuota_integra_general = state_general_net + autonomic_general_net
+    cuota_integra_ahorro = state_savings_net + autonomic_savings_net
     cuota_integra_total = cuota_integra_general + cuota_integra_ahorro
-    cuota_correspondiente_al_minimo = cuota_general_minimum + cuota_savings_minimum
+    cuota_correspondiente_al_minimo = (
+        state_general_minimum + autonomic_general_minimum + state_savings_minimum + autonomic_savings_minimum
+    )
 
     cuota_liquida = max(0.0, cuota_integra_total - deducciones_cuota_total - bonificaciones_total)
 

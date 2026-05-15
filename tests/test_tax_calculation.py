@@ -14,9 +14,18 @@ from hacienda_ai.deductions import load_deductions
 from hacienda_ai.models import TaxProfile, ValidationStatus
 from hacienda_ai.rules import evaluate_deductions
 from hacienda_ai.tax_calculation import (
+    AUTONOMIC_GENERAL_TARIFFS,
+    AUTONOMIC_SAVINGS_TARIFF_2025,
     GENERAL_TARIFF_2025,
+    GENERIC_AUTONOMIC_GENERAL_TARIFF_2025,
     SAVINGS_TARIFF_2025,
+    STATE_GENERAL_TARIFF_2025,
+    STATE_SAVINGS_TARIFF_2025,
+    AutonomicTariffSet,
+    TaxBracket,
+    TaxScale,
     apply_scale,
+    autonomic_general_tariff_for,
     compute_personal_family_minimum,
     compute_tax_comparison,
     compute_tax_summary,
@@ -64,9 +73,10 @@ def test_apply_scale_spans_three_brackets() -> None:
 
 
 def test_apply_scale_above_top_bracket() -> None:
-    # 350.000 €: hasta 300.000 acumulan 92.376; 50.000 * 0,47 = 23.500; total 115.876
-    # Suma exacta: 12450*0.19 + 7750*0.24 + 15000*0.30 + 24800*0.37 + 240000*0.45 + 50000*0.47
-    expected = 12450 * 0.19 + 7750 * 0.24 + 15000 * 0.30 + 24800 * 0.37 + 240000 * 0.45 + 50000 * 0.47
+    # 350.000 €: hasta 300.000 acumulan; 50.000 * 0,49 = 24.500 en el tope.
+    # Tarifa total = 2x estatal: el tramo final genérico es 49 % bajo la
+    # asumción "autonómica = estatal".
+    expected = 12450 * 0.19 + 7750 * 0.24 + 15000 * 0.30 + 24800 * 0.37 + 240000 * 0.45 + 50000 * 0.49
     assert apply_scale(350000.0, GENERAL_TARIFF_2025) == expected
 
 
@@ -369,3 +379,72 @@ def test_comparison_with_bonification_attributes_full_savings() -> None:
     # el ahorro real = cuota integra. Si > 1800, ahorro real = 1800.
     assert comparison.ahorro_real > 0
     assert comparison.ahorro_real <= 1800.01
+
+
+# ---------- Split estatal/autonómica de la tarifa ----------
+
+
+def test_state_and_generic_autonomic_tariffs_sum_to_total_tariff() -> None:
+    """Para cualquier base, la suma de la cuota estatal + la genérica autonómica
+    debe coincidir con la tarifa total (equivalencia matemática del refactor)."""
+    for base in (5_000.0, 12_450.0, 30_000.0, 80_000.0, 500_000.0):
+        state = apply_scale(base, STATE_GENERAL_TARIFF_2025)
+        autonomic = apply_scale(base, GENERIC_AUTONOMIC_GENERAL_TARIFF_2025)
+        total = apply_scale(base, GENERAL_TARIFF_2025)
+        assert abs(state + autonomic - total) < 0.01, f"base={base}"
+
+
+def test_state_and_autonomic_savings_tariffs_sum_to_total() -> None:
+    for base in (1_000.0, 6_000.0, 30_000.0, 300_000.0):
+        state = apply_scale(base, STATE_SAVINGS_TARIFF_2025)
+        autonomic = apply_scale(base, AUTONOMIC_SAVINGS_TARIFF_2025)
+        total = apply_scale(base, SAVINGS_TARIFF_2025)
+        assert abs(state + autonomic - total) < 0.01, f"base={base}"
+
+
+def test_autonomic_general_tariff_for_unknown_region_returns_generic() -> None:
+    assert autonomic_general_tariff_for(None) is GENERIC_AUTONOMIC_GENERAL_TARIFF_2025
+    assert autonomic_general_tariff_for("Madrid") is GENERIC_AUTONOMIC_GENERAL_TARIFF_2025
+    assert autonomic_general_tariff_for("Region inventada") is GENERIC_AUTONOMIC_GENERAL_TARIFF_2025
+
+
+def test_autonomic_registry_starts_empty_for_honesty() -> None:
+    """El registry está vacío al inicio: añadir cifras de cada CCAA requiere
+    contrastar con la norma autonómica vigente del ejercicio."""
+    assert AUTONOMIC_GENERAL_TARIFFS == {}
+
+
+def test_overriding_a_region_changes_the_tax_summary() -> None:
+    """Smoke test: si registramos una tarifa autonómica distinta para una
+    región concreta, la cuota integra cambia para perfiles de esa región."""
+    fake_region = "Region_de_prueba"
+    higher_tariff = TaxScale(
+        name="test_autonomica_alta",
+        brackets=(
+            TaxBracket(up_to=12_450.0, rate=0.20),  # vs 0.095 genérica
+            TaxBracket(up_to=None, rate=0.30),  # vs 0.245 final genérica
+        ),
+    )
+    AUTONOMIC_GENERAL_TARIFFS[fake_region] = AutonomicTariffSet(general=higher_tariff)
+    try:
+        profile = _profile(region=fake_region)
+        summary = compute_tax_summary(profile, deductions=[], evaluations=[])
+        baseline = compute_tax_summary(_profile(region="Madrid"), deductions=[], evaluations=[])
+        # La tarifa de prueba es más alta → cuota integra mayor que la genérica.
+        assert summary.cuota_integra_general > baseline.cuota_integra_general
+    finally:
+        del AUTONOMIC_GENERAL_TARIFFS[fake_region]
+
+
+def test_autonomic_tariff_matches_case_insensitively() -> None:
+    fake_region = "Region_Insensitive_Case"
+    higher_tariff = TaxScale(
+        name="test_case_insensitive",
+        brackets=(TaxBracket(up_to=None, rate=0.50),),
+    )
+    AUTONOMIC_GENERAL_TARIFFS[fake_region] = AutonomicTariffSet(general=higher_tariff)
+    try:
+        assert autonomic_general_tariff_for("region_insensitive_case") is higher_tariff
+        assert autonomic_general_tariff_for("REGION_INSENSITIVE_CASE") is higher_tariff
+    finally:
+        del AUTONOMIC_GENERAL_TARIFFS[fake_region]

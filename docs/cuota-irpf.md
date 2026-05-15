@@ -73,12 +73,33 @@ Sólo se aplican las evaluaciones con `status == "applies"`. Las `missing_eviden
 
 El wizard puede pasar un override directo en `family.personal_family_minimum_override` cuando el cálculo manual sea preferible.
 
+## Tarifa estatal vs. autonómica
+
+El motor calcula la cuota íntegra **separando explícitamente** la parte estatal de la autonómica. La cuota total es la suma de ambas escalas progresivas aplicadas en paralelo a la misma base liquidable.
+
+| Componente | Constante | Tramos |
+| --- | --- | --- |
+| Estatal general | `STATE_GENERAL_TARIFF_2025` | 9,5 / 12 / 15 / 18,5 / 22,5 / 24,5 % |
+| Autonómica genérica (= estatal) | `GENERIC_AUTONOMIC_GENERAL_TARIFF_2025` | idéntica a la estatal |
+| Estatal ahorro | `STATE_SAVINGS_TARIFF_2025` | 9,5 / 10,5 / 11,5 / 13,5 / 15 % |
+| Autonómica ahorro (simétrica por ley) | `AUTONOMIC_SAVINGS_TARIFF_2025` | idéntica a la estatal |
+
+Cuando una CCAA no está registrada en `AUTONOMIC_GENERAL_TARIFFS`, se usa la genérica → la cuota total es **2 × estatal**.
+
+### Cómo añadir la tarifa autonómica real de una CCAA
+
+1. Localizar la norma autonómica que aprueba la tarifa (Decreto Legislativo o Ley autonómica de medidas fiscales) en el boletín oficial correspondiente para el ejercicio.
+2. Crear una entrada en `AUTONOMIC_GENERAL_TARIFFS` con la `TaxScale` autonómica de esa CCAA. La selección es **case-insensitive** sobre `profile.region`.
+3. Añadir un test en `tests/test_tax_calculation.py` que verifique las cifras esperadas (y la diferencia frente a la genérica).
+
+El registry empieza **vacío** intencionalmente: añadir cifras de cada CCAA exige verificación.
+
 ## Limitaciones documentadas del MVP
 
-- **Tarifa autonómica = estatal genérica**: la suma agregada (19/24/30/37/45/47 % en la general y 19/21/23/27/30 % en la del ahorro) refleja la mayoría de CCAA del régimen común para 2025. CCAAs con tarifas más altas (algunas tramos de Cataluña, Comunitat Valenciana) o más bajas (Madrid en algunos tramos) producirán desviaciones del orden del 1-3 % de cuota. Roadmap: parametrizar por CCAA.
+- **Tarifa autonómica genérica**: 2 × estatal mientras el registry esté vacío para esa CCAA. La realidad fiscal es que las CCAA del régimen común tienen tarifas autonómicas ligeramente distintas; la "tarifa subsidiaria" del art. 65 LIRPF da aproximadamente 47 % en el tope (no 49 %). Hasta que cada CCAA tenga su entrada en `AUTONOMIC_GENERAL_TARIFFS`, el cálculo es una aproximación.
 - **Discapacidad de descendientes/ascendientes**: el motor no la suma todavía al mínimo personal y familiar; usar `personal_family_minimum_override` mientras tanto.
 - **Anualidades por alimentos, rentas en especie, imputación de rentas**: fuera del MVP.
-- **Tarifa autonómica con anchos de tramos distintos**: algunas CCAA modifican los anchos. Misma observación.
+- **Tarifa autonómica con anchos de tramos distintos**: algunas CCAA modifican los anchos. Soportado vía registry sin cambios de código.
 
 ## Uso
 

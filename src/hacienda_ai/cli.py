@@ -151,6 +151,11 @@ def _build_parser() -> argparse.ArgumentParser:
     rag_sub = rag_cmd.add_subparsers(dest="rag_action", required=True)
     rag_list = rag_sub.add_parser("list", help="Lista el catálogo curado de fuentes oficiales.")
     rag_list.add_argument("--jurisdiction", help="Filtra por jurisdicción ('estatal' o nombre de CCAA).")
+    rag_list.add_argument(
+        "--type",
+        dest="doc_type",
+        help="Filtra por document_type (ley, real_decreto, consulta_dgt, manual, ...).",
+    )
     rag_status = rag_sub.add_parser("status", help="Estado de la caché local por fuente.")
     rag_status.add_argument("--cache-dir", type=Path, default=None)
     rag_fetch = rag_sub.add_parser("fetch", help="Descarga las fuentes a la caché local.")
@@ -394,8 +399,11 @@ def _run_rag(args: argparse.Namespace, *, stdout: Any, stderr: Any) -> int:
 
     if args.rag_action == "list":
         jurisdiction = (args.jurisdiction or "").strip().lower()
+        doc_type = (getattr(args, "doc_type", None) or "").strip().lower()
         for source in CATALOG:
             if jurisdiction and source.jurisdiction.lower() != jurisdiction:
+                continue
+            if doc_type and source.document_type.lower() != doc_type:
                 continue
             print(f"{source.id}\t{source.jurisdiction}\t{source.document_type}\t{source.url}", file=stdout)
         return 0

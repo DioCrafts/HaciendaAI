@@ -175,4 +175,92 @@ CATALOG: tuple[OfficialSource, ...] = (
         url="https://www.bizkaia.eus/lehendakaritza/Bao_bob/2013/12/20131213a236.pdf",
         notes="Régimen foral. Existen normas equivalentes para Álava y Gipuzkoa; añadir cuando se cubran.",
     ),
+    # ---------- Consultas vinculantes de la DGT (entradas temáticas) ----------
+    # IMPORTANTE: cada entrada apunta a una BÚSQUEDA temática en el portal de
+    # consultas vinculantes de la DGT (no a una consulta concreta). El motivo es
+    # honestidad: fabricar V-numbers específicos sin verificación entrega
+    # referencias inválidas. Para añadir una consulta concreta, abrir un PR con
+    # OfficialSource(id="dgt_v<N>_<YY>_<slug>", reference exacta, fecha y URL
+    # directa al PDF/HTML de esa consulta) y reemplazar la entrada genérica.
+    # Portal DGT (Petete): https://petete.tributos.hacienda.gob.es/consultas/
+    OfficialSource(
+        id="dgt_busqueda_planes_pensiones",
+        title="DGT — búsqueda de consultas sobre planes de pensiones (art. 51-52 LIRPF)",
+        jurisdiction="estatal",
+        document_type="consulta_dgt",
+        url="https://petete.tributos.hacienda.gob.es/consultas/?num_consulta=&fecha_consulta_desde=&fecha_consulta_hasta=&general=plan+de+pensiones",
+        notes="Búsqueda en el portal Petete de DGT. Útil para localizar criterios sobre límites individuales, aportaciones del cónyuge, planes de empleo y rescates.",
+    ),
+    OfficialSource(
+        id="dgt_busqueda_donativos_mecenazgo",
+        title="DGT — búsqueda sobre donativos y mecenazgo (Ley 49/2002 art. 19)",
+        jurisdiction="estatal",
+        document_type="consulta_dgt",
+        url="https://petete.tributos.hacienda.gob.es/consultas/?num_consulta=&general=Ley+49%2F2002+donativo",
+        notes="Localiza consultas sobre certificación de donativos, donaciones en especie, donativo recurrente y entidades beneficiarias del art. 16.",
+    ),
+    OfficialSource(
+        id="dgt_busqueda_maternidad",
+        title="DGT — búsqueda sobre deducción por maternidad (art. 81 LIRPF)",
+        jurisdiction="estatal",
+        document_type="consulta_dgt",
+        url="https://petete.tributos.hacienda.gob.es/consultas/?num_consulta=&general=deducci%C3%B3n+por+maternidad+art%C3%ADculo+81",
+        notes="Especial atención a la ampliación de Ley 6/2023 (mujeres con prestación por desempleo y otras situaciones equiparadas).",
+    ),
+    OfficialSource(
+        id="dgt_busqueda_familia_numerosa",
+        title="DGT — búsqueda sobre deducciones de familia numerosa y discapacidad (art. 81 bis LIRPF)",
+        jurisdiction="estatal",
+        document_type="consulta_dgt",
+        url="https://petete.tributos.hacienda.gob.es/consultas/?num_consulta=&general=art%C3%ADculo+81+bis+familia+numerosa",
+        notes="Cubre el prorrateo entre varios contribuyentes, el incremento por hijo adicional y la cesión del derecho a otro contribuyente.",
+    ),
+    OfficialSource(
+        id="dgt_busqueda_cuotas_sindicales",
+        title="DGT — búsqueda sobre cuotas sindicales y colegios profesionales (art. 19.2 LIRPF)",
+        jurisdiction="estatal",
+        document_type="consulta_dgt",
+        url="https://petete.tributos.hacienda.gob.es/consultas/?num_consulta=&general=cuotas+sindicales+colegios+profesionales",
+        notes="Criterios sobre el carácter obligatorio de la colegiación para deducir las cuotas (art. 19.2.d).",
+    ),
+    OfficialSource(
+        id="dgt_busqueda_alquiler_vivienda",
+        title="DGT — búsqueda sobre alquiler de vivienda habitual (art. 68.7 LIRPF y autonómicas)",
+        jurisdiction="estatal",
+        document_type="consulta_dgt",
+        url="https://petete.tributos.hacienda.gob.es/consultas/?num_consulta=&general=alquiler+vivienda+habitual+deducci%C3%B3n",
+        notes="Régimen transitorio del art. 68.7 LIRPF (contratos anteriores a 2015) y deducciones autonómicas para jóvenes.",
+    ),
+    OfficialSource(
+        id="dgt_busqueda_ceuta_melilla",
+        title="DGT — búsqueda sobre bonificación de Ceuta y Melilla (art. 68.4 LIRPF)",
+        jurisdiction="estatal",
+        document_type="consulta_dgt",
+        url="https://petete.tributos.hacienda.gob.es/consultas/?num_consulta=&general=bonificaci%C3%B3n+Ceuta+Melilla+art%C3%ADculo+68",
+        notes="Criterio para determinar la cuota correspondiente a rentas obtenidas en Ceuta/Melilla y la antigüedad de residencia (≥ 3 años).",
+    ),
+    OfficialSource(
+        id="dgt_busqueda_teletrabajo_gastos_trabajo",
+        title="DGT — búsqueda sobre teletrabajo, gastos de difícil justificación y rendimientos del trabajo",
+        jurisdiction="estatal",
+        document_type="consulta_dgt",
+        url="https://petete.tributos.hacienda.gob.es/consultas/?num_consulta=&general=teletrabajo+gastos+rendimientos+trabajo",
+        notes="Especial atención a los gastos del art. 19.2.f LIRPF (otros gastos genérico 2.000 €) y al criterio sobre teletrabajo desde 2020.",
+    ),
+    OfficialSource(
+        id="dgt_busqueda_rendimientos_capital_inmobiliario",
+        title="DGT — búsqueda sobre rendimientos del capital inmobiliario (art. 22-24 LIRPF)",
+        jurisdiction="estatal",
+        document_type="consulta_dgt",
+        url="https://petete.tributos.hacienda.gob.es/consultas/?num_consulta=&general=rendimientos+capital+inmobiliario+art%C3%ADculo+23",
+        notes="Gastos deducibles del arrendamiento, reducción del 60 % por vivienda habitual del arrendatario (art. 23.2) y prorrateo de gastos.",
+    ),
+    OfficialSource(
+        id="dgt_busqueda_ganancias_reinversion_vivienda",
+        title="DGT — búsqueda sobre exención por reinversión en vivienda habitual (art. 38 LIRPF)",
+        jurisdiction="estatal",
+        document_type="consulta_dgt",
+        url="https://petete.tributos.hacienda.gob.es/consultas/?num_consulta=&general=reinversi%C3%B3n+vivienda+habitual+art%C3%ADculo+38",
+        notes="Plazos, requisitos de habitabilidad efectiva, exención por mayores de 65 años (art. 33.4.b).",
+    ),
 )
