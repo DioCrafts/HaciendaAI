@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import __version__
 from .deductions import load_deductions
 from .models import Deduction, TaxProfile, ValidationError
+from .opportunities import detect_opportunities
 from .rules import evaluate_deductions
 from .simulator import simulate
 from .tax_calculation import compute_tax_comparison
@@ -101,6 +102,18 @@ def simulate_profile(profile: ProfilePayload) -> dict[str, Any]:
     parsed = _parse_profile(profile)
     deductions = load_deductions()
     return asdict(simulate(deductions, parsed))
+
+
+@app.post("/v1/opportunities", tags=["motor"], dependencies=[Depends(verify_api_key)])
+def opportunities(profile: ProfilePayload) -> list[dict[str, Any]]:
+    """Detecta proactivamente qué datos del perfil rellenar para activar
+    reglas validadas que actualmente están en `missing_data`. Devuelve una
+    lista ordenada por ahorro fiscal estimado descendente. Los importes son
+    orientativos: el ahorro real depende del resto del perfil."""
+    parsed = _parse_profile(profile)
+    deductions = load_deductions()
+    evaluations = evaluate_deductions(deductions, parsed)
+    return [asdict(opportunity) for opportunity in detect_opportunities(parsed, deductions, evaluations)]
 
 
 @app.post("/v1/tax", tags=["motor"], dependencies=[Depends(verify_api_key)])

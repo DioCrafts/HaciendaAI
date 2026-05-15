@@ -193,6 +193,51 @@ def test_cli_tax_json_output_contains_full_breakdown(tmp_path: Path, capsys: pyt
     assert payload["ahorro_real"] == 0.0
 
 
+def test_cli_opportunities_lists_actionable_items(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    profile = _write_json(
+        tmp_path / "profile.json",
+        {
+            "tax_year": 2025,
+            "region": "Madrid",
+            "personal": {"age": 35},
+            "income": {"work_income": 35000.0},
+            "withholdings": [{"amount": 5800.0}],
+            "taxable_base": {
+                "general": 35000.0,
+                "savings": 0.0,
+                "liquidable": 35000.0,
+                "net_work_and_economic_income": 32000.0,
+            },
+        },
+    )
+    exit_code = main(["opportunities", "--profile", str(profile)])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Oportunidades detectadas" in captured.out
+    assert "es_aportaciones_plan_pensiones_individual_2025" in captured.out
+
+
+def test_cli_opportunities_json_output_is_a_list_of_objects(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    profile = _write_json(
+        tmp_path / "profile.json",
+        {
+            "tax_year": 2025,
+            "region": "Madrid",
+            "personal": {"age": 35},
+            "income": {"work_income": 35000.0},
+            "taxable_base": {"general": 35000.0, "savings": 0.0},
+        },
+    )
+    exit_code = main(["opportunities", "--profile", str(profile), "--format", "json"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert isinstance(payload, list)
+    assert payload, "esperado al menos una oportunidad"
+    for item in payload:
+        assert {"deduction_id", "missing_fields", "potential_savings_estimate"} <= item.keys()
+
+
 def test_cli_simulate_returns_2_on_invalid_profile(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     profile = _write_json(tmp_path / "profile.json", {"tax_year": 2025})  # falta region
     deductions = _write_json(tmp_path / "ded.json", [_validated_deduction_payload()])

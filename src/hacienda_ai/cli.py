@@ -11,6 +11,7 @@ from typing import Any
 
 from .deductions import DEFAULT_DEDUCTIONS_DIR, load_deductions
 from .models import Deduction, RuleEvaluation, TaxProfile, ValidationError
+from .opportunities import Opportunity, detect_opportunities
 from .rules import evaluate_deductions
 from .simulator import SimulationReport, simulate
 from .tax_calculation import TaxComparison, TaxSummary, compute_tax_comparison
@@ -65,6 +66,14 @@ def main(argv: list[str] | None = None) -> int:
         return _run_rag(args, stdout=sys.stdout, stderr=sys.stderr)
     if args.command == "tax":
         return _run_tax(
+            profile_path=args.profile,
+            deductions_path=args.deductions,
+            output_format=args.format,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+    if args.command == "opportunities":
+        return _run_opportunities(
             profile_path=args.profile,
             deductions_path=args.deductions,
             output_format=args.format,
@@ -178,6 +187,14 @@ def _build_parser() -> argparse.ArgumentParser:
     tax_cmd.add_argument("--profile", required=True, type=Path)
     tax_cmd.add_argument("--deductions", type=Path, default=DEFAULT_DEDUCTIONS_DIR)
     tax_cmd.add_argument("--format", choices=("text", "json"), default="text")
+
+    opportunities_cmd = subparsers.add_parser(
+        "opportunities",
+        help="Sugiere qué datos rellenar para activar reglas validadas, ordenado por ahorro estimado.",
+    )
+    opportunities_cmd.add_argument("--profile", required=True, type=Path)
+    opportunities_cmd.add_argument("--deductions", type=Path, default=DEFAULT_DEDUCTIONS_DIR)
+    opportunities_cmd.add_argument("--format", choices=("text", "json"), default="text")
     return parser
 
 
@@ -357,6 +374,49 @@ def _print_tax_savings(comparison: TaxComparison, stdout: Any) -> None:
                 f"    {saving.deduction_id:<55s}{euros(saving.ahorro_marginal)}",
                 file=stdout,
             )
+
+
+def _run_opportunities(
+    *,
+    profile_path: Path,
+    deductions_path: Path,
+    output_format: str,
+    stdout: Any,
+    stderr: Any,
+) -> int:
+    loaded = _load_profile_and_deductions(profile_path, deductions_path, stderr)
+    if loaded is None:
+        return 2
+    profile, deductions = loaded
+    evaluations = evaluate_deductions(deductions, profile)
+    opportunities = detect_opportunities(profile, deductions, evaluations)
+    if output_format == "json":
+        json.dump([asdict(opportunity) for opportunity in opportunities], stdout, ensure_ascii=False, indent=2)
+        stdout.write("\n")
+    else:
+        _print_opportunities(opportunities, stdout)
+    return 0
+
+
+def _print_opportunities(opportunities: list[Opportunity], stdout: Any) -> None:
+    if not opportunities:
+        print("Sin oportunidades pendientes detectadas para este perfil.", file=stdout)
+        return
+    print(f"Oportunidades detectadas: {len(opportunities)}", file=stdout)
+    print("(Importes orientativos. El ahorro real depende del resto del perfil.)", file=stdout)
+    print("", file=stdout)
+    for opportunity in opportunities:
+        print(
+            f"- {opportunity.deduction_id} — ahorro estimado ≈ {opportunity.potential_savings_estimate:,.2f} €",
+            file=stdout,
+        )
+        print(f"    Categoría:        {opportunity.category}", file=stdout)
+        print(
+            f"    Campos a rellenar: {', '.join(opportunity.missing_fields)}",
+            file=stdout,
+        )
+        print(f"    {opportunity.rationale}", file=stdout)
+        print("", file=stdout)
 
 
 def _run_serve(*, host: str, port: int, reload: bool, api_key: str | None, stderr: Any) -> int:

@@ -159,6 +159,37 @@ def test_tax_endpoint_returns_400_when_profile_is_invalid() -> None:
     assert response.status_code == 400
 
 
+# ---------- /v1/opportunities ----------
+
+
+def test_opportunities_endpoint_returns_sorted_list() -> None:
+    response = client.post(
+        "/v1/opportunities",
+        json={
+            "tax_year": 2025,
+            "region": "Madrid",
+            "personal": {"age": 35},
+            "income": {"work_income": 35000.0},
+            "taxable_base": {
+                "general": 35000.0,
+                "savings": 0.0,
+                "net_work_and_economic_income": 32000.0,
+            },
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert isinstance(body, list)
+    assert len(body) > 0
+    savings = [item["potential_savings_estimate"] for item in body]
+    assert savings == sorted(savings, reverse=True)
+
+
+def test_opportunities_endpoint_returns_400_on_invalid_profile() -> None:
+    response = client.post("/v1/opportunities", json={"tax_year": 2025})
+    assert response.status_code == 400
+
+
 # ---------- CORS / OpenAPI ----------
 
 
