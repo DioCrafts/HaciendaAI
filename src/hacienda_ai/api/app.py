@@ -1,0 +1,196 @@
+"""API HTTP mínima para demostración del motor IRPF.
+
+Endpoints:
+
+- `GET  /`             — sirve la página estática de demo (HTML).
+- `GET  /health`       — sonda de vida.
+- `GET  /deductions`   — catálogo del corpus con pinpoint a BOE.
+- `POST /profiles`     — valida y guarda un `TaxProfile` en memoria.
+- `GET  /profiles/{id}`— recupera un perfil guardado.
+- `POST /evaluations`  — evalúa todas las deducciones contra un perfil
+                         guardado y devuelve estados + citas pinpoint.
+
+Sin persistencia: los perfiles viven en un dict por proceso. Reiniciar
+el servidor los pierde. Es deliberado para demo. Cuando aparezca
+Postgres, este módulo deberá inyectar un repositorio de perfiles.
+"""
+
+from __future__ import annotations
+
+import re
+import time
+import uuid
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+from hacienda_ai import __version__
+from hacienda_ai.deductions import load_deductions
+from hacienda_ai.models import Deduction, Source, TaxProfile, ValidationError
+from hacienda_ai.rules import evaluate_deductions
+
+DISCLAIMER = (
+    "Esta herramienta ofrece ayuda informativa. No sustituye a un asesor "
+    "fiscal colegiado. Verifica las citas en BOE antes de cualquier "
+    "presentación o recurso."
+)
+BOE_PINPOINT_URL = "https://www.boe.es/buscar/act.php?id={boe_id}#{anchor}"
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+_ARTICLE_NUMERIC_RE = re.compile(r"art[íi]?\.?\s*(\d+)\s*(bis|ter|quater|quinquies)?")
+
+
+def _anchor_from_article(article: str | None) -> str | None:
+    if not article:
+        return None
+    if article.startswith("boe:"):
+        return article.removeprefix("boe:")
+    m = _ARTICLE_NUMERIC_RE.match(article.lower())
+    if m:
+        return f"a{m.group(1)}{m.group(2) or ''}"
+    return None
+
+
+def _source_payload(source: Source) -> dict[str, Any]:
+    base: dict[str, Any] = {
+        "kind": source.kind.value,
+        "title": source.title,
+        "url": source.url,
+        "article": source.article,
+        "paragraph": source.paragraph,
+        "boe_id": source.boe_id,
+        "content_hash": source.content_hash,
+        "checked_at": source.checked_at.isoformat() if source.checked_at else None,
+    }
+    anchor = _anchor_from_article(source.article)
+    if source.boe_id and anchor:
+        base["pinpoint_url"] = BOE_PINPOINT_URL.format(boe_id=source.boe_id, anchor=anchor)
+    return base
+
+
+def _deduction_payload(deduction: Deduction) -> dict[str, Any]:
+    return {
+        "id": deduction.id,
+        "name": deduction.name,
+        "description": deduction.description,
+        "tax_year": deduction.tax_year,
+        "scope": deduction.scope.value,
+        "region": deduction.region,
+        "category": deduction.category.value,
+        "risk_level": deduction.risk_level.value,
+        "validation_status": deduction.validation_status.value,
+        "effective_from": deduction.effective_from.isoformat() if deduction.effective_from else None,
+        "effective_to": deduction.effective_to.isoformat() if deduction.effective_to else None,
+        "last_reviewed_at": (
+            deduction.last_reviewed_at.isoformat() if deduction.last_reviewed_at else None
+        ),
+        "sources": [_source_payload(s) for s in deduction.sources],
+    }
+
+
+def create_app() -> FastAPI:
+    """Construye una instancia nueva del app, útil para tests aislados."""
+    app = FastAPI(
+        title="HaciendaAI — Demo API",
+        version=__version__,
+        description="API de demostración. No es producción ni asesoramiento profesional.",
+    )
+
+    profiles: dict[str, TaxProfile] = {}
+    deductions = load_deductions()
+    last_reviewed = max(
+        (d.last_reviewed_at for d in deductions if d.last_reviewed_at),
+        default=None,
+    )
+    corpus_meta: dict[str, Any] = {
+        "count": len(deductions),
+        "last_reviewed_at": last_reviewed.isoformat() if last_reviewed else None,
+        "engine_version": __version__,
+    }
+
+    @app.get("/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/deductions")
+    def list_deductions() -> dict[str, Any]:
+        return {
+            "corpus": corpus_meta,
+            "disclaimer": DISCLAIMER,
+            "deductions": [_deduction_payload(d) for d in deductions],
+        }
+
+    @app.post("/profiles", status_code=201)
+    def create_profile(body: dict[str, Any]) -> dict[str, Any]:
+        try:
+            profile = TaxProfile.from_dict(body)
+        except ValidationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        pid = uuid.uuid4().hex
+        profiles[pid] = profile
+        return {"profile_id": pid, "profile": profile.to_dict()}
+
+    @app.get("/profiles/{profile_id}")
+    def get_profile(profile_id: str) -> dict[str, Any]:
+        profile = profiles.get(profile_id)
+        if profile is None:
+            raise HTTPException(status_code=404, detail="profile_id no encontrado")
+        return {"profile_id": profile_id, "profile": profile.to_dict()}
+
+    @app.post("/evaluations")
+    def create_evaluation(body: dict[str, Any]) -> dict[str, Any]:
+        pid = body.get("profile_id")
+        if not isinstance(pid, str) or not pid:
+            raise HTTPException(status_code=422, detail="profile_id (string) requerido")
+        profile = profiles.get(pid)
+        if profile is None:
+            raise HTTPException(status_code=404, detail="profile_id no encontrado")
+        t0 = time.perf_counter()
+        evaluations = evaluate_deductions(deductions, profile)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+
+        ded_by_id = {d.id: d for d in deductions}
+        items: list[dict[str, Any]] = []
+        for ev in evaluations:
+            ded = ded_by_id.get(ev.deduction_id)
+            items.append(
+                {
+                    "deduction_id": ev.deduction_id,
+                    "deduction_name": ded.name if ded else ev.deduction_id,
+                    "category": ded.category.value if ded else None,
+                    "status": ev.status,
+                    "estimated_amount": ev.estimated_amount,
+                    "reason": ev.reason,
+                    "missing_fields": list(ev.missing_fields),
+                    "missing_documents": list(ev.missing_documents),
+                    "risk_level": ev.risk_level,
+                    "confidence": ev.confidence,
+                    "sources": [_source_payload(s) for s in ev.sources],
+                }
+            )
+
+        return {
+            "profile_id": pid,
+            "devengo_date": profile.effective_devengo_date().isoformat(),
+            "evaluated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "elapsed_ms": round(elapsed_ms, 2),
+            "corpus": corpus_meta,
+            "disclaimer": DISCLAIMER,
+            "evaluations": items,
+        }
+
+    @app.get("/")
+    def root() -> FileResponse:
+        return FileResponse(STATIC_DIR / "demo.html")
+
+    if STATIC_DIR.exists():
+        app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    return app
+
+
+app = create_app()

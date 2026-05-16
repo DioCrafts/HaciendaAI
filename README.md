@@ -58,6 +58,7 @@ python -m pytest
 
 ```text
 src/hacienda_ai/
+  api/                    # FastAPI app + página estática de demo
   data/deductions/        # Corpus normalizado de deducciones (JSON)
   rag/                    # Estructura preparada para RAG jurídico
   models/                 # Esquema fiscal, Norma/VersionNorma, NormaRegistry
@@ -76,11 +77,41 @@ docs/
   roadmap.md
   como-ejecutar.md
 tests/
+  test_api.py
   test_deductions.py
   test_models.py
   test_norma.py
   test_verify_seed.py
 ```
+
+## Demo HTTP
+
+Arranca la API y la página estática de demo:
+
+```bash
+python -m pip install -e ".[api]"
+python -m hacienda_ai.api --port 8000
+```
+
+Abre `http://127.0.0.1:8000/` en el navegador. La página rellena un perfil
+sintético, lo envía a `POST /profiles` y luego a `POST /evaluations`, y
+renderiza una tabla con estado, importe estimado, riesgo, motivo y enlaces
+pinpoint clicables al BOE para cada deducción del corpus.
+
+Endpoints disponibles:
+
+- `GET  /`             — página de demo (HTML estático sin frameworks).
+- `GET  /health`       — sonda de vida.
+- `GET  /deductions`   — catálogo del corpus con citas pinpoint a BOE.
+- `POST /profiles`     — valida y guarda un perfil fiscal en memoria.
+- `GET  /profiles/{id}`— recupera un perfil guardado.
+- `POST /evaluations`  — evalúa todas las deducciones contra un perfil
+  guardado y devuelve estados + citas pinpoint + versión del corpus +
+  disclaimer.
+
+Sin persistencia: los perfiles viven en memoria por proceso. Reiniciar el
+servidor los pierde. Es deliberado: la persistencia entra en una iteración
+posterior.
 
 ## Verificación del corpus contra BOE
 
