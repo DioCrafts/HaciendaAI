@@ -30,20 +30,66 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run verifier
+      - name: Install package (for impact module)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run verifier with structured report
         id: verify
         # Códigos de salida (ver scripts/verify_seed.py):
-        #   0 — sin drift y sin errores.
-        #   1 — drift detectado o hashes faltantes.
+        #   0 — sin drift, sin hashes faltantes, sin enlaces autonómicos rotos.
+        #   1 — drift detectado, hashes faltantes o boletines autonómicos con 4xx/5xx.
         #   2 — error de red, parsing o entrada inválida.
         # Capturamos el código sin abortar el job para poder ramificar
         # según gravedad: drift abre issue, error de red solo deja warning.
+        #
+        # `--report` emite un JSON con la lista de DriftItem detectados,
+        # las URLs autonómicas rotas, y el cruce con el corpus (qué
+        # deducciones/escalas citan cada fuente afectada). El siguiente
+        # paso usa ese JSON para construir el body del issue con la
+        # sección de impacto.
         run: |
           set +e
-          python scripts/verify_seed.py
+          python scripts/verify_seed.py \
+            --report drift-report.json \
+            --include-regional
           code=$?
           echo "exit_code=${code}" >> "${GITHUB_OUTPUT}"
           exit 0
+
+      - name: Render impact section as markdown
+        if: steps.verify.outputs.exit_code == '1'
+        id: impact
+        run: |
+          # El módulo `rag.impact` produce el mismo markdown que se usaría
+          # en el body del issue. Lo renderizamos aquí desde el JSON
+          # generado para mantener la lógica en Python (testeable) en vez
+          # de duplicarla en shell.
+          python - <<'PY' > impact.md
+          import json, pathlib
+          from hacienda_ai.rag.impact import (
+              BrokenRegionalURL, DriftItem, ImpactReport, render_markdown,
+          )
+          payload = json.loads(pathlib.Path("drift-report.json").read_text())
+          report = ImpactReport(
+              drift_items=tuple(DriftItem(**d) for d in payload["drift_items"]),
+              broken_urls=tuple(BrokenRegionalURL(**u) for u in payload["broken_urls"]),
+              affected_deductions=payload["affected_deductions"],
+              affected_scales=payload["affected_scales"],
+          )
+          print(render_markdown(report))
+          PY
+
+      - name: Upload report artifact
+        if: steps.verify.outputs.exit_code == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-report
+          path: |
+            drift-report.json
+            impact.md
+          retention-days: 30
 
       - name: Ensure 'verify-seed' label exists
         if: steps.verify.outputs.exit_code == '1'
@@ -55,7 +101,7 @@ jobs:
             --description "Drift normativo detectado por scripts/verify_seed.py" \
             2>/dev/null || true
 
-      - name: Open or update drift issue
+      - name: Open or update drift issue with impact section
         if: steps.verify.outputs.exit_code == '1'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -64,33 +110,49 @@ jobs:
           set -e
           now_utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
           title="verify_seed: drift detectado contra texto consolidado BOE"
+
+          impact_section="$(cat impact.md)"
           body=$(cat <<EOF
-          El cron diario \`verify-seed\` ha detectado divergencia entre el
-          corpus local y el texto consolidado del BOE.
+          El cron diario \`verify-seed\` ha detectado divergencias entre el
+          corpus local y las fuentes oficiales (texto consolidado BOE
+          y/o enlaces a boletines autonómicos).
 
           - Ejecución: ${RUN_URL}
           - Fecha (UTC): ${now_utc}
           - Commit auditado: \`${{ github.sha }}\`
 
+          ${impact_section}
+
           ## Cómo proceder
 
-          1. Reproducir en local: \`python scripts/verify_seed.py\`.
-          2. Revisar manualmente el texto consolidado en BOE: confirmar si
-             la norma cambió o si es un falso positivo (cambio editorial
-             en el XML del BOE).
+          1. Reproducir en local:
+             \`\`\`
+             python scripts/verify_seed.py --include-regional --report drift-report.json
+             \`\`\`
+          2. Para cada **deducción/escala afectada** listada arriba, revisar
+             el texto consolidado en BOE: ¿la norma ha cambiado realmente o
+             es un falso positivo editorial (cambio de clase CSS, nota_pie,
+             etc.)?
           3. Si el cambio es legítimo (la norma se ha modificado):
              - Refrescar hashes: \`python scripts/verify_seed.py --update\`.
-             - Revisar si la regla afectada sigue siendo correcta tras el
-               cambio normativo (importes, requisitos, vigencia).
+             - Revisar si los importes/requisitos/vigencia de las reglas
+               citadas siguen siendo correctos tras el cambio normativo.
              - Abrir PR con el JSON actualizado y, si procede, una nueva
                \`VersionNorma\` en \`data/normas/\`.
           4. Si es un falso positivo: ajustar el parser de
              \`scripts/verify_seed.py\` (clases CSS excluidas, regex de
              versión, etc.) y añadir test de regresión.
+          5. Para **URLs autonómicas rotas**: comprobar manualmente si el
+             documento sigue accesible bajo otra URL canónica del boletín
+             correspondiente y actualizar el \`url\` en el JSON afectado.
 
-          Cierra este issue cuando el corpus vuelva a estar alineado con
-          BOE. Si el siguiente cron detecta drift de nuevo, dejará un
+          Cierra este issue cuando todas las divergencias listadas estén
+          resueltas. Si el siguiente cron sigue detectando drift, dejará un
           comentario en este issue en vez de abrir uno nuevo.
+
+          ---
+          _Reporte JSON estructurado disponible como artefacto
+          \`drift-report\` del run._
           EOF
           )
           existing=$(gh issue list \
@@ -104,7 +166,9 @@ jobs:
               --body "${body}" \
               --label verify-seed
           else
-            gh issue comment "${existing}" --body "Drift detectado de nuevo en ejecución [#${{ github.run_id }}](${RUN_URL}) — ${now_utc}."
+            gh issue comment "${existing}" --body "Drift detectado de nuevo en ejecución [#${{ github.run_id }}](${RUN_URL}) — ${now_utc}.
+
+          ${impact_section}"
           fi
 
       - name: Surface network error as warning (no issue)
