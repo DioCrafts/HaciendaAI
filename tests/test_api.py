@@ -353,12 +353,19 @@ def test_qw6_pdf_html_includes_manual_calculation_label_and_class() -> None:
     assert "status-requires_manual_calculation" in html
 
 
-def test_safety_module_has_been_removed() -> None:
-    """`safety.py` era teatro de cumplimiento: declarado en README y nunca
-    invocado por ningún endpoint. Se ha eliminado del paquete; cualquier
-    reintroducción debe venir acompañada de uso real en producción."""
-    with pytest.raises(ModuleNotFoundError):
-        importlib.import_module("hacienda_ai.safety")
+def test_safety_module_is_wired_to_a_real_endpoint(client: TestClient) -> None:
+    """El paquete `safety` se eliminó en su día por ser teatro (declarado
+    en README y nunca invocado). Reintroducido en QW2 como verificador de
+    citas anti-alucinación: debe existir Y estar conectado a un endpoint
+    real. Este test cierra la garantía contra una nueva regresión.
+    """
+    importlib.import_module("hacienda_ai.safety")
+    r = client.post(
+        "/citations/verify",
+        json={"text": "El art. 999 LIRPF inventa algo."},
+    )
+    assert r.status_code == 200
+    assert r.json()["verdict"] == "block"
 
 
 def test_evaluation_response_carries_evaluation_id_and_profile_snapshot(
@@ -657,6 +664,62 @@ def test_evaluation_payload_quota_persists_in_db(client: TestClient) -> None:
     eid = posted["evaluation_id"]
     recovered = client.get(f"/evaluations/{eid}").json()
     assert recovered["cuota"] == posted["cuota"]
+
+
+def test_citations_verify_blocks_inventado_article(client: TestClient) -> None:
+    """El endpoint `/citations/verify` es la frontera anti-alucinación: una
+    respuesta de un LLM que mencione un artículo inexistente en el corpus
+    debe ser bloqueada antes de llegar al cliente."""
+    r = client.post(
+        "/citations/verify",
+        json={
+            "text": "El art. 999 LIRPF reconoce una nueva deducción.",
+            "devengo_date": "2024-12-31",
+        },
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["verdict"] == "block"
+    codes = {i["code"] for i in data["issues"]}
+    assert "ARTICLE_NOT_IN_CORPUS" in codes
+
+
+def test_citations_verify_passes_safe_text(client: TestClient) -> None:
+    """Texto con citas verificables y vigentes en el devengo debe pasar."""
+    r = client.post(
+        "/citations/verify",
+        json={
+            "text": "El art. 57 LIRPF fija el mínimo personal del contribuyente en 5.550 €.",
+            "devengo_date": "2024-12-31",
+        },
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["verdict"] == "safe", data["issues"]
+    assert any(c["boe_id"] == "BOE-A-2006-20764" for c in data["citations"])
+
+
+def test_citations_verify_jurisprudence_warns(client: TestClient) -> None:
+    """Jurisprudencia (STS/TEAC/DGT) sin corpus indexado: warn, no safe."""
+    r = client.post(
+        "/citations/verify",
+        json={"text": "La STS 1234/2020 sentó doctrina."},
+    )
+    assert r.status_code == 200
+    assert r.json()["verdict"] == "warn"
+
+
+def test_citations_verify_requires_text_field(client: TestClient) -> None:
+    r = client.post("/citations/verify", json={"devengo_date": "2024-12-31"})
+    assert r.status_code == 422
+
+
+def test_citations_verify_rejects_bad_devengo_format(client: TestClient) -> None:
+    r = client.post(
+        "/citations/verify",
+        json={"text": "x", "devengo_date": "31/12/2024"},
+    )
+    assert r.status_code == 422
 
 
 def test_create_app_uses_in_memory_db_for_tests() -> None:

@@ -50,6 +50,7 @@ from hacienda_ai.models import (
 )
 from hacienda_ai.normas import load_norma_registry
 from hacienda_ai.rules import evaluate_deductions
+from hacienda_ai.safety import verify_citations
 from hacienda_ai.storage import EvaluationsRepo, ProfilesRepo, init_db
 
 DISCLAIMER = (
@@ -346,6 +347,71 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
             media_type="application/pdf",
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
+
+    @app.post("/citations/verify")
+    def verify_citations_endpoint(body: dict[str, Any]) -> dict[str, Any]:
+        """Verifica las citas legales contenidas en un texto.
+
+        Pensado como guard rail antes de devolver al cliente cualquier
+        respuesta generada por un LLM: si el texto cita una norma o
+        artículo que no existe (o estaba derogado en el devengo), el
+        endpoint devuelve `verdict="block"` y el llamante debe rechazar
+        la respuesta. Es independiente del flujo de evaluación: no
+        requiere un perfil ni una evaluación previa.
+
+        Body esperado:
+            {"text": "...", "devengo_date": "2024-12-31" (opcional)}
+        """
+        text = body.get("text")
+        if not isinstance(text, str):
+            raise HTTPException(
+                status_code=422, detail="text (string) requerido"
+            )
+        devengo_raw = body.get("devengo_date")
+        devengo: date | None = None
+        if isinstance(devengo_raw, str) and devengo_raw:
+            try:
+                devengo = date.fromisoformat(devengo_raw)
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail="devengo_date debe ser ISO 8601 (YYYY-MM-DD)",
+                ) from exc
+        result = verify_citations(
+            text,
+            corpus=deductions,
+            scales=tax_scales,
+            registry=registry,
+            devengo=devengo,
+        )
+        return {
+            "verdict": result.verdict,
+            "citations": [
+                {
+                    "kind": c.kind,
+                    "raw": c.raw,
+                    "span": list(c.span),
+                    "boe_id": c.boe_id,
+                    "article": c.article,
+                    "article_suffix": c.article_suffix,
+                    "paragraph": c.paragraph,
+                    "law_label": c.law_label,
+                    "juris_kind": c.juris_kind,
+                    "juris_ref": c.juris_ref,
+                }
+                for c in result.citations
+            ],
+            "issues": [
+                {
+                    "level": i.level,
+                    "code": i.code,
+                    "message": i.message,
+                    "citation_raw": i.citation.raw,
+                    "citation_span": list(i.citation.span),
+                }
+                for i in result.issues
+            ],
+        }
 
     @app.get("/")
     def root() -> FileResponse:
