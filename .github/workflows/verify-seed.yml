@@ -1,0 +1,42 @@
+name: Verify seed against BOE
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"  # Lunes 06:00 UTC: detecta drift normativo semanal.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: verify-seed
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Run scripts/verify_seed.py against BOE
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run verifier
+        id: verify
+        run: |
+          python scripts/verify_seed.py
+        # Sale 0 si no hay drift; 1 si hay drift; 2 si hay error de red/parsing.
+        # No abortamos el job en código 2 (red caída) para no hacer ruido.
+        continue-on-error: true
+
+      - name: Surface drift as warning
+        if: steps.verify.outcome == 'failure'
+        run: |
+          echo "::warning::Drift detectado o error en verify_seed.py. Revisar y refrescar hashes."
+          exit 1
