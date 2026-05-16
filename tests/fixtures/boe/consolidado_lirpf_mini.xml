@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FIXTURE SINTETICO PARA TESTS -->
+<legislacion-consolidada>
+  <meta>
+    <identificador>BOE-A-2006-20764</identificador>
+    <titulo>Ley 35/2006, de 28 de noviembre, del Impuesto sobre la Renta de las Personas Fisicas y de modificacion parcial de las leyes de los Impuestos sobre Sociedades, sobre la Renta de no Residentes y sobre el Patrimonio.</titulo>
+    <estado_consolidacion>Vigente</estado_consolidacion>
+  </meta>
+  <texto>
+    <bloque id="a1" tipo="precepto">
+      <version fecha_vigencia="20070101" fecha_vigencia_fin="20141231">
+        <p class="parrafo">El Impuesto sobre la Renta de las Personas Fisicas es un tributo de caracter personal y directo que grava, segun los principios de igualdad, generalidad y progresividad, la renta de las personas fisicas de acuerdo con su naturaleza y sus circunstancias personales y familiares.</p>
+        <p class="nota_pie">Original: Ley 35/2006, BOE num. 285 de 29/11/2006.</p>
+      </version>
+      <version fecha_vigencia="20150101">
+        <p class="parrafo">El Impuesto sobre la Renta de las Personas Fisicas es un tributo de caracter personal y directo que grava, segun los principios de igualdad, generalidad y progresividad, la renta de las personas fisicas de acuerdo con su naturaleza y sus circunstancias personales y familiares.</p>
+        <p class="nota_pie">Sin modificacion material respecto a la redaccion original. Renumeracion en consolidacion.</p>
+      </version>
+    </bloque>
+    <bloque id="a2" tipo="precepto">
+      <version fecha_vigencia="20070101">
+        <p class="parrafo">Constituye el objeto de este Impuesto la renta del contribuyente, entendida como la totalidad de sus rendimientos, ganancias y perdidas patrimoniales y las imputaciones de renta que se establezcan por la ley, con independencia del lugar donde se hubiesen producido y cualquiera que sea la residencia del pagador.</p>
+      </version>
+    </bloque>
+    <bloque id="a19" tipo="precepto">
+      <version fecha_vigencia="20070101" fecha_vigencia_fin="20141231">
+        <p class="parrafo">El rendimiento neto del trabajo sera el resultado de disminuir el rendimiento integro en el importe de los gastos deducibles.</p>
+        <p class="parrafo">Tendran la consideracion de gastos deducibles exclusivamente los siguientes: las cotizaciones a la Seguridad Social o a mutualidades generales obligatorias de funcionarios, las detracciones por derechos pasivos, las cotizaciones a los colegios de huerfanos o entidades similares, las cuotas satisfechas a sindicatos y colegios profesionales y los gastos de defensa juridica derivados directamente de litigios suscitados en la relacion del contribuyente con la persona de la que percibe los rendimientos.</p>
+        <p class="nota_pie">Redaccion original.</p>
+      </version>
+      <version fecha_vigencia="20150101">
+        <p class="parrafo">El rendimiento neto del trabajo sera el resultado de disminuir el rendimiento integro en el importe de los gastos deducibles. Se consideraran como tales los siguientes gastos, siempre que esten debidamente justificados.</p>
+        <p class="parrafo">Como otros gastos distintos de los anteriores, se deduciran 2.000 euros anuales, importe que se incrementara en los terminos previstos por reglamento para trabajadores activos con discapacidad o desempleados que acepten un puesto de trabajo en otro municipio.</p>
+        <p class="nota_pie">Reforma Ley 26/2014: introduce los 2.000 euros de gastos generales deducibles.</p>
+      </version>
+    </bloque>
+    <bloque id="a81bis" tipo="precepto">
+      <version fecha_vigencia="20150101">
+        <p class="parrafo">Los contribuyentes que realicen una actividad por cuenta propia o ajena por la cual esten dados de alta en el regimen correspondiente de la Seguridad Social o mutualidad, podran minorar la cuota diferencial del impuesto en las deducciones previstas en este articulo.</p>
+        <p class="parrafo">Deduccion por maternidad: hasta 1.200 euros anuales por cada hijo menor de tres anos, en los terminos y con los requisitos establecidos reglamentariamente.</p>
+      </version>
+    </bloque>
+    <bloque id="prefacio" tipo="estructura">
+      <version fecha_vigencia="20070101">
+        <p class="parrafo">Exposicion de motivos (no es articulado, no debe entrar al hash de preceptos).</p>
+      </version>
+    </bloque>
+    <bloque id="dadecimoctava" tipo="precepto">
+      <version fecha_vigencia="20070101">
+        <p class="parrafo">Disposicion adicional decimoctava: regimenes especiales aplicables a los contribuyentes residentes en territorios forales del Pais Vasco y Navarra, conforme a lo dispuesto en el Concierto Economico y en el Convenio Economico respectivamente.</p>
+      </version>
+    </bloque>
+  </texto>
+</legislacion-consolidada>

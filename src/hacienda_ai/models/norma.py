@@ -211,6 +211,14 @@ class NormaRegistry:
     def knows(self, boe_id: str) -> bool:
         return boe_id in self._normas
 
+    def all_boe_ids(self) -> tuple[str, ...]:
+        """Devuelve los `boe_id` de todas las normas registradas, ordenados.
+
+        Pensado para iteradores externos (cron de drift consolidado, dumps
+        diagnósticos) sin acceder al `_normas` interno.
+        """
+        return tuple(sorted(self._normas.keys()))
+
     @staticmethod
     def _overlap(a: VersionNorma, b: VersionNorma) -> bool:
         a_end = a.effective_to or date.max

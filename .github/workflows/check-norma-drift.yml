@@ -1,0 +1,238 @@
+name: Check norma consolidated drift
+
+on:
+  schedule:
+    # Diario 08:30 UTC (90 min después de ingest-boe). El consolidado
+    # del BOE se actualiza durante las horas siguientes a la
+    # publicación del sumario; pedirlo a media mañana minimiza el
+    # riesgo de leer una versión a medio refrescar.
+    - cron: "30 8 * * *"
+  workflow_dispatch:
+    inputs:
+      reference_date:
+        description: "Fecha de evaluación de versiones vigentes (YYYY-MM-DD). Por defecto, hoy."
+        required: false
+        type: string
+
+permissions:
+  # Necesarios para commitear snapshots actualizados y log de
+  # invalidaciones, abrir/actualizar issues con drift detectado, y leer
+  # contenido. NO se usa pull-requests directamente porque commiteamos
+  # contra la rama; el push es el mecanismo de propagación.
+  contents: write
+  issues: write
+
+concurrency:
+  # Una sola ejecución a la vez para no pisarse el log de invalidaciones
+  # ni los snapshots.
+  group: check-norma-drift
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    name: Detectar cambios legislativos en consolidado BOE
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          # Token con permiso de push para commitear snapshots/log.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Compute reference date
+        id: refdate
+        run: |
+          if [ -n "${{ github.event.inputs.reference_date }}" ]; then
+            echo "value=${{ github.event.inputs.reference_date }}" >> "${GITHUB_OUTPUT}"
+          else
+            today=$(date -u +%Y-%m-%d)
+            echo "value=${today}" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Run drift check
+        id: check
+        # Códigos de salida (ver scripts/check_norma_drift.py):
+        #   0 — sin drift (incluye bootstrap, sin cambios, todas saltadas).
+        #   1 — drift detectado en al menos una norma.
+        #   2 — error fatal (snapshot corrupto, red caída sobre todas).
+        # Capturamos sin abortar para ramificar después.
+        run: |
+          set +e
+          python scripts/check_norma_drift.py \
+            --reference-date "${{ steps.refdate.outputs.value }}" \
+            --report drift-norma-report.json
+          code=$?
+          echo "exit_code=${code}" >> "${GITHUB_OUTPUT}"
+          exit 0
+
+      - name: Surface fatal error as warning (no issue)
+        if: steps.check.outputs.exit_code == '2'
+        run: |
+          echo "::warning::check_norma_drift.py salió con código 2 (red caída sobre todas las normas o snapshot corrupto). Si persiste, investigar manualmente."
+          exit 1
+
+      - name: Render issue body from drift report
+        if: steps.check.outputs.exit_code == '1'
+        id: body
+        # Construye un markdown estructurado con: resumen + sección por
+        # norma con bloques added/removed/modified. Lo usaremos como
+        # body del issue.
+        run: |
+          python - <<'PY' > drift-body.md
+          import json
+          import pathlib
+
+          data = json.loads(pathlib.Path("drift-norma-report.json").read_text())
+          outcomes = data.get("outcomes", [])
+          drifts = [o for o in outcomes if (o.get("drift") or {}).get("has_changes")]
+          ref = data.get("reference_date", "?")
+          today = data.get("today", "?")
+
+          lines = [
+              "## Drift legislativo detectado en consolidado BOE\n",
+              f"- Fecha de referencia: `{ref}`",
+              f"- Fecha de ejecución: `{today}`",
+              f"- Normas con drift: **{len(drifts)}**",
+              "",
+              "Estos cambios provienen de comparar el hash SHA-256 de los "
+              "bloques precepto del texto consolidado contra el snapshot "
+              "guardado en `data/normas/snapshots/`. Los artículos afectados "
+              "ya están listados en el log de invalidaciones RAG "
+              "`data/rag_cache_invalidations.json`.",
+              "",
+              "## Cómo proceder\n",
+              "1. Para cada artículo modificado: comprobar en BOE qué "
+              "norma de modificación causó el cambio (DT, DF, Ley posterior, "
+              "RDL…). El cambio probablemente tiene `effective_from` distinto "
+              "al de hoy — verificarlo y, si procede, **cerrar la versión "
+              "anterior** con `effective_to` y crear nueva `VersionNorma` con "
+              "`modified_by_boe_id`.",
+              "2. Para artículos añadidos/eliminados: documentar la causa "
+              "(nuevo artículo introducido, derogación expresa, etc.).",
+              "3. Reindexar el RAG (cuando esté en producción) consumiendo "
+              "el log `rag_cache_invalidations.json`.",
+              "",
+          ]
+          for o in drifts:
+              boe = o["boe_id"]
+              d = o["drift"]
+              lines.append(f"### {boe}\n")
+              if d["modified"]:
+                  lines.append("**Bloques modificados:**\n")
+                  lines.append("| Bloque | Hash anterior | Hash nuevo |")
+                  lines.append("|---|---|---|")
+                  for m in d["modified"]:
+                      ph = (m.get("previous_hash") or "")[:16]
+                      ch = (m.get("current_hash") or "")[:16]
+                      lines.append(f"| `{m['block_id']}` | `{ph}…` | `{ch}…` |")
+                  lines.append("")
+              if d["added"]:
+                  lines.append("**Bloques añadidos:** " + ", ".join(f"`{a['block_id']}`" for a in d["added"]))
+                  lines.append("")
+              if d["removed"]:
+                  lines.append("**Bloques eliminados:** " + ", ".join(f"`{r['block_id']}`" for r in d["removed"]))
+                  lines.append("")
+
+          print("\n".join(lines))
+          PY
+
+      - name: Upload report artifact
+        if: steps.check.outputs.exit_code == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-norma-report
+          path: |
+            drift-norma-report.json
+            drift-body.md
+          retention-days: 30
+
+      - name: Configure git for bot commits
+        if: steps.check.outputs.exit_code == '1' && hashFiles('src/hacienda_ai/data/normas/snapshots/**', 'src/hacienda_ai/data/rag_cache_invalidations.json') != ''
+        run: |
+          git config user.name "haciendaai-bot"
+          git config user.email "bot@haciendaai.local"
+
+      - name: Commit updated snapshots and invalidation log
+        if: steps.check.outputs.exit_code == '1'
+        run: |
+          # Snapshots + log SE COMMITEAN: el repo es la fuente de verdad
+          # del estado de cada norma. Sin esto, el próximo cron volvería a
+          # detectar el mismo drift.
+          changed=false
+          if [ -n "$(git status --porcelain src/hacienda_ai/data/normas/snapshots src/hacienda_ai/data/rag_cache_invalidations.json)" ]; then
+            git add src/hacienda_ai/data/normas/snapshots src/hacienda_ai/data/rag_cache_invalidations.json
+            git commit -m "chore(snapshots): actualizar snapshots y log de invalidaciones RAG" \
+                       -m "Drift detectado por scripts/check_norma_drift.py el $(date -u +%Y-%m-%d). Ver issue asociado para detalle por artículo."
+            changed=true
+          fi
+          if [ "${changed}" = "true" ]; then
+            # Push directo a la rama del workflow (típicamente main). Si
+            # main está protegida, este paso fallará y habrá que abrir PR
+            # en su lugar (TODO si se aplica esa política).
+            git push
+          fi
+
+      - name: Ensure 'norma-drift' label exists
+        if: steps.check.outputs.exit_code == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create norma-drift \
+            --color B60205 \
+            --description "Drift legislativo detectado en consolidado BOE" \
+            2>/dev/null || true
+
+      - name: Open or update drift issue
+        if: steps.check.outputs.exit_code == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -e
+          now_utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          title="Drift legislativo en consolidado BOE"
+
+          body=$(cat <<EOF
+          El cron diario \`check-norma-drift\` ha detectado cambios en el
+          texto consolidado de una o más normas registradas.
+
+          - Ejecución: ${RUN_URL}
+          - Fecha (UTC): ${now_utc}
+          - Commit auditado: \`${{ github.sha }}\`
+
+          $(cat drift-body.md)
+
+          ---
+          _Reporte JSON estructurado disponible como artefacto
+          \`drift-norma-report\` del run. Los snapshots y el log de
+          invalidaciones ya han sido commiteados por el bot._
+          EOF
+          )
+
+          existing=$(gh issue list \
+            --label norma-drift \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+          if [ -z "${existing}" ]; then
+            gh issue create \
+              --title "${title}" \
+              --body "${body}" \
+              --label norma-drift
+          else
+            gh issue comment "${existing}" --body "Drift detectado de nuevo en ejecución [#${{ github.run_id }}](${RUN_URL}) — ${now_utc}.
+
+          $(cat drift-body.md)"
+          fi
