@@ -57,6 +57,50 @@ class ProfilesRepo:
         return TaxProfile.from_dict(payload)
 
 
+class ChatSessionsRepo:
+    """Persistencia de sesiones de chat: id + historial conversacional completo.
+
+    El historial se serializa como JSON en `history_json` con el mismo
+    formato de `messages` que usa Anthropic (lista de dicts con role +
+    content blocks), de modo que recargar una sesión es directo: pasar
+    el array tal cual al orquestador.
+    """
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._conn = conn
+
+    def save(self, session_id: str, history: list[dict[str, Any]]) -> None:
+        now = datetime.now(UTC).isoformat(timespec="seconds")
+        # UPSERT: una sesión que ya existe se actualiza solo en
+        # `updated_at` y `history_json`; preservamos `created_at`.
+        self._conn.execute(
+            """
+            INSERT INTO chat_sessions (id, created_at, updated_at, history_json)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                updated_at = excluded.updated_at,
+                history_json = excluded.history_json
+            """,
+            (
+                session_id,
+                now,
+                now,
+                json.dumps(history, ensure_ascii=False),
+            ),
+        )
+        self._conn.commit()
+
+    def get(self, session_id: str) -> list[dict[str, Any]] | None:
+        row = self._conn.execute(
+            "SELECT history_json FROM chat_sessions WHERE id = ?",
+            (session_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        result: list[dict[str, Any]] = json.loads(row["history_json"])
+        return result
+
+
 class EvaluationsRepo:
     """Persistencia del payload completo de cada evaluación.
 

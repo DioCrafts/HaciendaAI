@@ -353,6 +353,137 @@ def test_qw6_pdf_html_includes_manual_calculation_label_and_class() -> None:
     assert "status-requires_manual_calculation" in html
 
 
+def test_chat_endpoint_requires_message(client: TestClient) -> None:
+    r = client.post("/chat", json={})
+    assert r.status_code == 422
+
+
+def test_chat_endpoint_without_llm_returns_503(client: TestClient) -> None:
+    """Sin ANTHROPIC_API_KEY y sin LLMClient inyectado, el endpoint debe
+    degradar limpiamente a 503 con motivo claro, no crashear."""
+    import os
+
+    saved = os.environ.pop("ANTHROPIC_API_KEY", None)
+    try:
+        r = client.post("/chat", json={"message": "Hola"})
+        assert r.status_code == 503
+        assert "ANTHROPIC_API_KEY" in r.json()["detail"]
+    finally:
+        if saved is not None:
+            os.environ["ANTHROPIC_API_KEY"] = saved
+
+
+def test_chat_endpoint_with_injected_fake_llm() -> None:
+    """Con un `FakeLLMClient` inyectado al construir la app, el endpoint
+    ejecuta el orquestador end-to-end y persiste la sesión en SQLite."""
+    from hacienda_ai.chat import FakeLLMClient, FakeTurn
+
+    fake = FakeLLMClient(
+        [
+            FakeTurn(
+                tool_calls=[
+                    (
+                        "compute_irpf_quota",
+                        {
+                            "profile": {
+                                "tax_year": 2024,
+                                "region": "Madrid",
+                                "filing_mode": "individual",
+                                "personal": {"has_disability": False},
+                                "family": {"children_count": 1, "ascendants_count": 0},
+                                "income": {"work_gross": 30000, "work_net": 27500},
+                                "expenses": {},
+                                "documents": [
+                                    "Libro de familia o certificado de convivencia"
+                                ],
+                            }
+                        },
+                    )
+                ]
+            ),
+            FakeTurn(
+                text=(
+                    "Tu cuota íntegra estatal es 2.452,50 € (art. 63 LIRPF). "
+                    "Este análisis no sustituye a un asesor fiscal colegiado."
+                )
+            ),
+        ]
+    )
+    app = create_app(db_path=":memory:", llm_client=fake)
+    with TestClient(app) as c:
+        r = c.post(
+            "/chat",
+            json={
+                "message": "Soy de Madrid, 30k brutos, 1 hijo. ¿Cuánto IRPF?",
+                "devengo_date": "2024-12-31",
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert "2.452,50" in data["assistant"]
+        assert data["citation_check"]["verdict"] == "safe"
+        assert data["tool_invocations"][0]["tool"] == "compute_irpf_quota"
+        sid = data["session_id"]
+
+        # La sesión persiste.
+        r2 = c.get(f"/chat/sessions/{sid}")
+        assert r2.status_code == 200
+        assert r2.json()["session_id"] == sid
+        assert len(r2.json()["history"]) >= 3
+
+
+def test_chat_endpoint_blocks_hallucinated_response() -> None:
+    """Si el LLM cierra con un artículo inventado, el endpoint sustituye
+    la respuesta por el mensaje seguro y devuelve verdict=block. El
+    cliente NUNCA ve el texto alucinado en `assistant` (sí en
+    `blocked_text` para auditoría)."""
+    from hacienda_ai.chat import FakeLLMClient, FakeTurn
+
+    fake = FakeLLMClient(
+        [FakeTurn(text="Aplicamos el art. 999 LIRPF: nueva deducción de 500 €.")]
+    )
+    app = create_app(db_path=":memory:", llm_client=fake)
+    with TestClient(app) as c:
+        r = c.post("/chat", json={"message": "¿Algo?"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["citation_check"]["verdict"] == "block"
+        assert "art. 999" not in data["assistant"]
+        assert "art. 999" in data["blocked_text"]
+
+
+def test_chat_endpoint_continues_existing_session() -> None:
+    """Al pasar `session_id` existente, el orquestador recibe el historial
+    previo y el LLM puede usarlo."""
+    from hacienda_ai.chat import FakeLLMClient, FakeTurn
+
+    fake = FakeLLMClient(
+        [
+            FakeTurn(text="Hola, dime tu CCAA."),
+            FakeTurn(text="Anotado. Necesito también tu salario neto."),
+        ]
+    )
+    app = create_app(db_path=":memory:", llm_client=fake)
+    with TestClient(app) as c:
+        r1 = c.post("/chat", json={"message": "Quiero calcular mi IRPF."}).json()
+        sid = r1["session_id"]
+        r2 = c.post("/chat", json={"session_id": sid, "message": "Soy de Madrid."}).json()
+        assert r2["session_id"] == sid
+        # El segundo turno debe ver el primer mensaje en su historial.
+        msgs = [m for m in fake.calls[1]["messages"] if m["role"] == "user"]
+        assert any("Quiero calcular" in (m["content"] if isinstance(m["content"], str) else "") for m in msgs)
+
+
+def test_chat_session_not_found_returns_404() -> None:
+    """El GET de una sesión inexistente debe ser 404, no crash ni 200 vacío."""
+    from hacienda_ai.chat import FakeLLMClient
+
+    app = create_app(db_path=":memory:", llm_client=FakeLLMClient([]))
+    with TestClient(app) as c:
+        r = c.get("/chat/sessions/does-not-exist")
+        assert r.status_code == 404
+
+
 def test_safety_module_is_wired_to_a_real_endpoint(client: TestClient) -> None:
     """El paquete `safety` se eliminó en su día por ser teatro (declarado
     en README y nunca invocado). Reintroducido en QW2 como verificador de

@@ -40,6 +40,13 @@ CREATE TABLE IF NOT EXISTS evaluations (
 );
 
 CREATE INDEX IF NOT EXISTS idx_evaluations_profile_id ON evaluations(profile_id);
+
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    id           TEXT PRIMARY KEY,
+    created_at   TEXT NOT NULL,
+    updated_at   TEXT NOT NULL,
+    history_json TEXT NOT NULL
+);
 """
 
 
