@@ -117,7 +117,7 @@ def test_evaluation_requires_profile_id(client: TestClient) -> None:
 def test_evaluation_returns_expected_distribution(client: TestClient) -> None:
     pid = client.post("/profiles", json=_synthetic_profile()).json()["profile_id"]
     r = client.post("/evaluations", json={"profile_id": pid})
-    assert r.status_code == 200
+    assert r.status_code == 201
     data = r.json()
     assert data["devengo_date"] == "2024-12-31"
     assert data["corpus"]["count"] >= 20
@@ -275,3 +275,110 @@ def test_safety_module_has_been_removed() -> None:
     reintroducción debe venir acompañada de uso real en producción."""
     with pytest.raises(ModuleNotFoundError):
         importlib.import_module("hacienda_ai.safety")
+
+
+def test_evaluation_response_carries_evaluation_id_and_profile_snapshot(
+    client: TestClient,
+) -> None:
+    """QW5: cada evaluación se persiste con un evaluation_id estable y lleva
+    un snapshot del perfil aplicado, para que el PDF y el lookup posterior
+    sean reproducibles aunque el perfil cambie."""
+    pid = client.post("/profiles", json=_synthetic_profile()).json()["profile_id"]
+    data = client.post("/evaluations", json={"profile_id": pid}).json()
+    assert isinstance(data["evaluation_id"], str)
+    assert len(data["evaluation_id"]) >= 16
+    assert data["profile"]["region"] == "Madrid"
+    assert data["profile"]["tax_year"] == 2024
+
+
+def test_corpus_meta_carries_stable_fingerprint(client: TestClient) -> None:
+    """QW5: el footer del PDF firmable necesita un SHA-256 agregado del
+    corpus determinista entre arranques del proceso (mismo corpus →
+    misma firma) y de 64 hex characters."""
+    data1 = client.get("/deductions").json()
+    data2 = client.get("/deductions").json()
+    fp = data1["corpus"]["fingerprint_sha256"]
+    assert isinstance(fp, str)
+    assert len(fp) == 64
+    assert all(c in "0123456789abcdef" for c in fp)
+    assert fp == data2["corpus"]["fingerprint_sha256"], (
+        "fingerprint_sha256 debe ser estable entre llamadas; obtenido drift"
+    )
+
+
+def test_get_evaluation_round_trip(client: TestClient) -> None:
+    pid = client.post("/profiles", json=_synthetic_profile()).json()["profile_id"]
+    evaluation = client.post("/evaluations", json={"profile_id": pid}).json()
+    eid = evaluation["evaluation_id"]
+    r = client.get(f"/evaluations/{eid}")
+    assert r.status_code == 200
+    assert r.json()["evaluation_id"] == eid
+    assert r.json()["devengo_date"] == evaluation["devengo_date"]
+
+
+def test_get_evaluation_unknown_returns_404(client: TestClient) -> None:
+    r = client.get("/evaluations/does-not-exist")
+    assert r.status_code == 404
+
+
+def test_evaluation_pdf_renders_with_pdf_headers(client: TestClient) -> None:
+    """QW5: el endpoint /evaluations/{id}/pdf devuelve un PDF nativo
+    (cabecera mágica %PDF-), con content-type apropiado y
+    Content-Disposition de descarga con nombre de archivo legible."""
+    pid = client.post("/profiles", json=_synthetic_profile()).json()["profile_id"]
+    eid = client.post("/evaluations", json={"profile_id": pid}).json()["evaluation_id"]
+    r = client.get(f"/evaluations/{eid}/pdf")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/pdf"
+    disposition = r.headers["content-disposition"]
+    assert "attachment" in disposition
+    assert "hacienda-ai-evaluacion-" in disposition
+    assert disposition.endswith('.pdf"')
+    body = r.content
+    assert body.startswith(b"%PDF-"), f"magic header inesperada: {body[:8]!r}"
+    assert len(body) > 5000, f"PDF sospechosamente pequeño: {len(body)} bytes"
+
+
+def test_evaluation_pdf_unknown_id_returns_404(client: TestClient) -> None:
+    r = client.get("/evaluations/does-not-exist/pdf")
+    assert r.status_code == 404
+
+
+def test_evaluation_pdf_uses_madrid_profile_with_state_and_regional_sources(
+    client: TestClient,
+) -> None:
+    """Un PDF real (perfil rico Madrid con campos QW4) debe renderizar sin
+    error tanto las citas BOE estatales como las BOCM autonómicas."""
+    rich = {
+        "tax_year": 2024,
+        "region": "Madrid",
+        "filing_mode": "conjunta",
+        "personal": {
+            "is_under_35": True,
+            "rental_deposit_madrid": True,
+            "fosters_elderly_or_disabled_at_home": True,
+            "reta_new_alta_this_year": True,
+            "gender": "F",
+        },
+        "family": {
+            "children_count": 2,
+            "children_young_count": 1,
+            "international_adoptions_this_year": 1,
+            "births_or_adoptions_this_year": 1,
+            "unit_type": "biparental",
+        },
+        "income": {"work_gross": 30000, "work_net": 27500},
+        "expenses": {
+            "rental_madrid_youth": 6000,
+            "investment_madrid_startups": 5000,
+            "donations_madrid_cultural": 200,
+            "cultural_consumption_madrid": 800,
+            "pension_plan_individual": 2000,
+        },
+        "documents": ["Libro de familia o certificado de convivencia"],
+    }
+    pid = client.post("/profiles", json=rich).json()["profile_id"]
+    eid = client.post("/evaluations", json={"profile_id": pid}).json()["evaluation_id"]
+    r = client.get(f"/evaluations/{eid}/pdf")
+    assert r.status_code == 200
+    assert r.content.startswith(b"%PDF-")

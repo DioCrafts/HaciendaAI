@@ -122,18 +122,25 @@ pinpoint clicables al BOE para cada deducción del corpus.
 
 Endpoints disponibles:
 
-- `GET  /`             — página de demo (HTML estático sin frameworks).
-- `GET  /health`       — sonda de vida.
-- `GET  /deductions`   — catálogo del corpus con citas pinpoint a BOE.
-- `POST /profiles`     — valida y guarda un perfil fiscal en memoria.
-- `GET  /profiles/{id}`— recupera un perfil guardado.
-- `POST /evaluations`  — evalúa todas las deducciones contra un perfil
-  guardado y devuelve estados + citas pinpoint + versión del corpus +
-  disclaimer. Cada entrada lleva además `applicable_versions`: la
-  redacción vigente de cada norma citada en la fecha del devengo, con
-  origen del cambio (`modified_by_boe_id`). Cambiar `devengo_date` en el
-  perfil hace que la respuesta vuelva con la versión histórica de la
-  norma que estaba viva entonces.
+- `GET  /`                          — página de demo (HTML estático).
+- `GET  /health`                    — sonda de vida.
+- `GET  /deductions`                — catálogo del corpus con citas pinpoint.
+- `POST /profiles`                  — valida y guarda un perfil fiscal en memoria.
+- `GET  /profiles/{id}`             — recupera un perfil guardado.
+- `POST /evaluations`               — evalúa todas las deducciones contra un perfil
+  guardado, persiste el resultado y devuelve `evaluation_id` + estados +
+  citas pinpoint + `applicable_versions` (redacción vigente de cada norma
+  citada en la fecha del devengo, con origen del cambio
+  `modified_by_boe_id`) + disclaimer. Cambiar `devengo_date` en el perfil
+  hace que la respuesta vuelva con la versión histórica de la norma que
+  estaba viva entonces.
+- `GET  /evaluations/{id}`          — recupera una evaluación previa.
+- `GET  /evaluations/{id}/pdf`      — exporta la evaluación a PDF firmable
+  para incorporar al expediente del cliente. El pie del PDF lleva el
+  SHA-256 agregado del corpus + versión del motor + timestamp, de modo
+  que cualquier cambio posterior del corpus modifica la firma. Citas BOE
+  estatales clicables al texto consolidado; citas BOCM al consolidado de
+  sede CM.
 
 Sin persistencia: los perfiles viven en memoria por proceso. Reiniciar el
 servidor los pierde. Es deliberado: la persistencia entra en una iteración

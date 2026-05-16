@@ -53,6 +53,11 @@
   fieldset.madrid-block legend { font-weight: 600; font-size: 0.85em; padding: 0 6px; }
   fieldset.madrid-block { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
                           gap: 8px 14px; }
+  a.pdf-link { display: inline-block; margin-left: 12px; padding: 4px 10px;
+               background: var(--ok-bg); color: var(--ok); border-radius: 3px;
+               font-weight: 600; text-decoration: none; font-size: 0.85em; }
+  a.pdf-link:hover { background: var(--ok); color: white; text-decoration: none; }
+  code { font-family: ui-monospace, monospace; font-size: 0.85em; color: #555; }
   a { color: var(--primary); text-decoration: none; }
   a:hover { text-decoration: underline; }
   .legend { font-size: 0.75em; color: #777; margin: 10px 0; }
@@ -318,8 +323,11 @@ Título vigente de familia numerosa especial</textarea>
           <td>${renderSources(e.sources)}${renderVersions(e.applicable_versions)}</td>
         </tr>
       `).join('');
+      const pdfHref = `/evaluations/${encodeURIComponent(data.evaluation_id)}/pdf`;
       document.getElementById('results').innerHTML = `
-        <p>Devengo: <strong>${data.devengo_date}</strong> · evaluado en ${data.elapsed_ms} ms</p>
+        <p>Devengo: <strong>${data.devengo_date}</strong> · evaluado en ${data.elapsed_ms} ms ·
+           evaluación nº <code>${escapeHtml(data.evaluation_id)}</code>
+           <a class="pdf-link" href="${pdfHref}" download>📄 Descargar PDF para el expediente</a></p>
         <div class="summary">${summaryHtml}</div>
         <table>
           <thead>

@@ -9,6 +9,7 @@ dependencies = []
 api = [
     "fastapi>=0.110",
     "uvicorn>=0.27",
+    "weasyprint>=60",
 ]
 dev = [
     "pytest>=7.0",
@@ -16,6 +17,7 @@ dev = [
     "mypy>=1.10",
     "fastapi>=0.110",
     "uvicorn>=0.27",
+    "weasyprint>=60",
     "httpx>=0.27",
 ]
 

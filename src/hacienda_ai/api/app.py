@@ -2,21 +2,24 @@
 
 Endpoints:
 
-- `GET  /`             — sirve la página estática de demo (HTML).
-- `GET  /health`       — sonda de vida.
-- `GET  /deductions`   — catálogo del corpus con pinpoint a BOE.
-- `POST /profiles`     — valida y guarda un `TaxProfile` en memoria.
-- `GET  /profiles/{id}`— recupera un perfil guardado.
-- `POST /evaluations`  — evalúa todas las deducciones contra un perfil
-                         guardado y devuelve estados + citas pinpoint.
+- `GET  /`                              — sirve la página estática de demo.
+- `GET  /health`                        — sonda de vida.
+- `GET  /deductions`                    — catálogo del corpus con pinpoint a BOE.
+- `POST /profiles`                      — valida y guarda un `TaxProfile`.
+- `GET  /profiles/{id}`                 — recupera un perfil guardado.
+- `POST /evaluations`                   — evalúa el perfil y guarda el resultado.
+- `GET  /evaluations/{id}`              — recupera una evaluación guardada.
+- `GET  /evaluations/{id}/pdf`          — exporta la evaluación a PDF firmable.
 
-Sin persistencia: los perfiles viven en un dict por proceso. Reiniciar
-el servidor los pierde. Es deliberado para demo. Cuando aparezca
-Postgres, este módulo deberá inyectar un repositorio de perfiles.
+Sin persistencia en disco: perfiles y evaluaciones viven en dicts por
+proceso. Reiniciar el servidor los pierde. Es deliberado para demo.
+Cuando aparezca Postgres, este módulo deberá inyectar repositorios.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import time
 import uuid
@@ -25,10 +28,11 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from hacienda_ai import __version__
+from hacienda_ai.api.pdf import render_evaluation_report_pdf
 from hacienda_ai.deductions import load_deductions
 from hacienda_ai.models import (
     Deduction,
@@ -148,6 +152,32 @@ def _applicable_versions(
     return out
 
 
+def _corpus_fingerprint(deductions: list[Deduction]) -> str:
+    """SHA-256 estable del corpus: id, boe_id y content_hash de cada fuente.
+
+    Sirve para que el PDF exportado lleve una firma reproducible: si el
+    corpus cambia entre la evaluación y la verificación posterior, la
+    firma cambia y el asesor puede detectarlo. Determinista para una
+    misma versión del corpus, independiente del orden interno.
+    """
+    fingerprint_input = json.dumps(
+        sorted(
+            (
+                d.id,
+                d.tax_year,
+                tuple(
+                    sorted((s.boe_id, s.article, s.content_hash) for s in d.sources)
+                ),
+            )
+            for d in deductions
+        ),
+        sort_keys=True,
+        ensure_ascii=False,
+        default=str,
+    )
+    return hashlib.sha256(fingerprint_input.encode("utf-8")).hexdigest()
+
+
 def create_app() -> FastAPI:
     """Construye una instancia nueva del app, útil para tests aislados."""
     app = FastAPI(
@@ -157,6 +187,7 @@ def create_app() -> FastAPI:
     )
 
     profiles: dict[str, TaxProfile] = {}
+    evaluations_store: dict[str, dict[str, Any]] = {}
     deductions = load_deductions()
     registry = load_norma_registry()
     last_reviewed = max(
@@ -168,6 +199,7 @@ def create_app() -> FastAPI:
         "last_reviewed_at": last_reviewed.isoformat() if last_reviewed else None,
         "engine_version": __version__,
         "normas_registered": sum(1 for d in deductions for s in d.sources if s.boe_id and registry.knows(s.boe_id)) > 0,
+        "fingerprint_sha256": _corpus_fingerprint(deductions),
     }
 
     @app.get("/health")
@@ -199,7 +231,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail="profile_id no encontrado")
         return {"profile_id": profile_id, "profile": profile.to_dict()}
 
-    @app.post("/evaluations")
+    @app.post("/evaluations", status_code=201)
     def create_evaluation(body: dict[str, Any]) -> dict[str, Any]:
         pid = body.get("profile_id")
         if not isinstance(pid, str) or not pid:
@@ -235,8 +267,11 @@ def create_app() -> FastAPI:
                 }
             )
 
-        return {
+        evaluation_id = uuid.uuid4().hex
+        response: dict[str, Any] = {
+            "evaluation_id": evaluation_id,
             "profile_id": pid,
+            "profile": profile.to_dict(),
             "devengo_date": devengo.isoformat(),
             "evaluated_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "elapsed_ms": round(elapsed_ms, 2),
@@ -244,6 +279,28 @@ def create_app() -> FastAPI:
             "disclaimer": DISCLAIMER,
             "evaluations": items,
         }
+        evaluations_store[evaluation_id] = response
+        return response
+
+    @app.get("/evaluations/{evaluation_id}")
+    def get_evaluation(evaluation_id: str) -> dict[str, Any]:
+        stored = evaluations_store.get(evaluation_id)
+        if stored is None:
+            raise HTTPException(status_code=404, detail="evaluation_id no encontrado")
+        return stored
+
+    @app.get("/evaluations/{evaluation_id}/pdf")
+    def download_evaluation_pdf(evaluation_id: str) -> Response:
+        stored = evaluations_store.get(evaluation_id)
+        if stored is None:
+            raise HTTPException(status_code=404, detail="evaluation_id no encontrado")
+        pdf_bytes = render_evaluation_report_pdf(stored)
+        filename = f"hacienda-ai-evaluacion-{evaluation_id[:8]}.pdf"
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
     @app.get("/")
     def root() -> FileResponse:
