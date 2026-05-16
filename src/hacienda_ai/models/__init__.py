@@ -36,21 +36,31 @@ from .schema import (
     Tier,
     ValidationStatus,
 )
+from .sentencia import (
+    FalloSentido,
+    Organo,
+    RatioConfidence,
+    Sentencia,
+)
 
 __all__ = [
     "Calculation",
     "Deduction",
     "DeductionCategory",
+    "FalloSentido",
     "ForalTerritory",
     "Norma",
     "NormaRegistry",
     "NormaStatus",
+    "Organo",
+    "RatioConfidence",
     "Requirement",
     "RiskLevel",
     "RiskLiteral",
     "RuleEvaluation",
     "RuleStatus",
     "Scope",
+    "Sentencia",
     "Source",
     "SourceKind",
     "TaxProfile",

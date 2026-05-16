@@ -1,0 +1,205 @@
+name: Ingest CENDOJ jurisprudence
+
+on:
+  # Manual SOLO. CENDOJ no expone API REST oficial y el buscador del CGPJ
+  # no autoriza scraping masivo. Este workflow se activa cuando un operador
+  # tiene una lista de ECLIs (extraídos manualmente del buscador o recibidos
+  # de un colaborador) que quiere incorporar al corpus.
+  #
+  # Si en el futuro existe una vía oficial (API CGPJ, dataset abierto) este
+  # workflow se podrá programar diariamente sin cambios al pipeline.
+  workflow_dispatch:
+    inputs:
+      eclis:
+        description: "Lista de ECLIs separados por comas (ej. ECLI:ES:TS:2024:1234,ECLI:ES:AN:2024:567)"
+        required: true
+        type: string
+      client:
+        description: "Origen: 'local' (fixtures/repo) o 'http' (experimental, contra CGPJ)"
+        required: true
+        type: choice
+        default: local
+        options:
+          - local
+          - http
+      local_dir:
+        description: "Solo si client=local: ruta del directorio con los HTML descargados."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ingest-cendoj
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    name: Ingerir sentencias y abrir PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Write input ECLIs to file
+        # Los inputs llegan como CSV. El script acepta `--ecli-file` con
+        # una ECLI por línea; convertimos en un fichero temporal.
+        run: |
+          echo "${{ github.event.inputs.eclis }}" | tr ',' '\n' | sed 's/^[[:space:]]*//' > eclis-input.txt
+          echo "ECLIs solicitados:"
+          cat eclis-input.txt
+
+      - name: Run ingest
+        id: ingest
+        # Códigos de salida (ver scripts/ingest_cendoj.py):
+        #   0 — todas las ECLIs procesadas (con aciertos/rechazos/errores parciales).
+        #   1 — uno o más ECLIs fallaron al fetch/parse/build (parcial).
+        #   2 — error fatal (args inválidos, cliente mal configurado).
+        run: |
+          set +e
+          if [ "${{ github.event.inputs.client }}" = "local" ]; then
+            python scripts/ingest_cendoj.py \
+              --ecli-file eclis-input.txt \
+              --client local \
+              --local-dir "${{ github.event.inputs.local_dir }}" \
+              --report ingest-report.json
+          else
+            python scripts/ingest_cendoj.py \
+              --ecli-file eclis-input.txt \
+              --client http \
+              --report ingest-report.json
+          fi
+          code=$?
+          echo "exit_code=${code}" >> "${GITHUB_OUTPUT}"
+          exit 0
+
+      - name: Fail on fatal error
+        if: steps.ingest.outputs.exit_code == '2'
+        run: |
+          echo "::error::ingest_cendoj.py salió con código 2 (configuración inválida). Revisar logs."
+          exit 1
+
+      - name: Check for working-tree changes
+        id: diff
+        run: |
+          if [ -z "$(git status --porcelain src/hacienda_ai/data/jurisprudencia)" ]; then
+            echo "changed=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "changed=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Render PR body
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          python - <<'PY' > pr-body.md
+          import json
+          import pathlib
+
+          data = json.loads(pathlib.Path("ingest-report.json").read_text())
+          totals = data.get("totals", {})
+          by_organo = data.get("by_organo", {})
+          outcomes = data.get("outcomes", [])
+
+          lines = [
+              "## Ingesta de jurisprudencia CENDOJ\n",
+              "Este PR ha sido abierto por el workflow manual "
+              "`ingest-cendoj.yml`. **Requiere revisión humana** antes de "
+              "mergear; especialmente del campo `ratio_decidendi`, que se "
+              "extrae heurísticamente y queda marcado como "
+              "`ratio_confidence=auto`.\n",
+              f"- Aceptadas: **{totals.get('accepted', 0)}** "
+              f"(nuevas: {totals.get('newly_persisted', 0)})",
+              f"- Rechazadas (no fiscales): {totals.get('rejected', 0)}",
+              f"- Errores: {totals.get('errored', 0)}",
+              "",
+              "**Por órgano:** "
+              + ", ".join(f"{k.upper()}={v}" for k, v in by_organo.items() if v > 0),
+              "",
+          ]
+
+          accepted = [o for o in outcomes if o.get("accepted")]
+          if accepted:
+              lines.append("### Sentencias aceptadas")
+              lines.append("| ECLI | Fallo | Ratio confidence | Nueva |")
+              lines.append("|---|---|---|---|")
+              for o in accepted:
+                  is_new = "✅" if o.get("newly_persisted") else "—"
+                  lines.append(
+                      f"| `{o['ecli']}` | {o.get('fallo_sentido', '?')} | "
+                      f"{o.get('ratio_confidence', '?')} | {is_new} |"
+                  )
+
+          errored = [o for o in outcomes if o.get("error")]
+          if errored:
+              lines.append("\n### Errores")
+              for o in errored:
+                  lines.append(f"- `{o['ecli']}`: {o['error']}")
+
+          lines.append("\n## Cómo revisar este PR\n")
+          lines.append(
+              "1. Para cada sentencia: abrir el fichero JSON y verificar "
+              "que la cabecera (órgano, sala, sección, ponente, fecha) es "
+              "coherente con el ECLI.\n"
+              "2. **Revisar `ratio_decidendi`**: el extracto heurístico "
+              "puede contener obiter dicta. Si lo validas, edita el campo y "
+              "promueve `ratio_confidence` a `manual` para que el LLM lo "
+              "cite como doctrina firme.\n"
+              "3. Si una sentencia no es realmente tributaria (falso "
+              "positivo del filtro), eliminar el JSON.\n"
+          )
+          print("\n".join(lines))
+          PY
+
+      - name: Upload report artifact
+        if: steps.diff.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ingest-cendoj-report
+          path: |
+            ingest-report.json
+            pr-body.md
+            eclis-input.txt
+          retention-days: 30
+
+      - name: Create Pull Request
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: bot/ingest-cendoj-${{ github.run_id }}
+          title: "Ingesta CENDOJ: nuevas sentencias tributarias"
+          body-path: pr-body.md
+          commit-message: |
+            chore(corpus): ingesta CENDOJ de sentencias tributarias
+
+            Procesa una lista de ECLIs y añade las sentencias clasificadas
+            como tributarias en data/jurisprudencia/<organo>/<año>/.
+            Cada entrada incluye fallo extraído heurísticamente y
+            ratio_decidendi marcado como `auto` — revisar y promover a
+            `manual` tras validación humana.
+          author: "haciendaai-bot <bot@haciendaai.local>"
+          committer: "haciendaai-bot <bot@haciendaai.local>"
+          labels: |
+            ingesta-cendoj
+            requiere-revision
+            jurisprudencia
+
+      - name: Surface partial failure as warning
+        if: steps.ingest.outputs.exit_code == '1'
+        run: |
+          echo "::warning::ingest_cendoj.py salió con código 1 (fallos parciales). El PR (si se abrió) contiene solo las sentencias que sí se procesaron. Revisar pr-body.md."
