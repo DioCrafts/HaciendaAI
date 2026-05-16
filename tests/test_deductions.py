@@ -57,13 +57,19 @@ def profile(**overrides):
     return TaxProfile.from_dict(data)
 
 
-def test_loads_seed_deductions_with_normalized_schema():
+def test_loads_validated_irpf_state_seed():
+    """El corpus semilla 2024 estatal carga ≥20 deducciones, todas validadas
+    y con al menos una fuente BOE-anclada (boe_id + content_hash)."""
     deductions = load_deductions()
-    assert {deduction.id for deduction in deductions} == {
-        "es_cuotas_sindicales_2025_pendiente",
-        "es_donativos_2025_pendiente",
-    }
-    assert all(deduction.sources for deduction in deductions)
+    assert len(deductions) >= 20, f"Se esperaban ≥20 deducciones, hay {len(deductions)}"
+    assert all(d.validation_status.value == "validada" for d in deductions), (
+        "Hay deducciones no validadas en el corpus semilla"
+    )
+    for d in deductions:
+        anchors = [s for s in d.sources if s.boe_id and s.boe_id.startswith("BOE-A-") and s.content_hash]
+        assert anchors, f"Deducción {d.id} no tiene fuente BOE-anclada con content_hash"
+    ids = [d.id for d in deductions]
+    assert len(ids) == len(set(ids)), "Hay ids duplicados en el corpus"
 
 
 def test_rejects_deduction_without_source():
@@ -76,11 +82,47 @@ def test_rejects_unsupported_operator():
         validated_deduction(requirements=[{"field": "x", "operator": "contains", "value": 1}])
 
 
-def test_pending_source_deduction_is_not_recommended_directly():
-    deduction = load_deductions()[0]
-    result = evaluate_deduction(deduction, profile(expenses={"union_dues_amount": 50.0}))
+def test_non_validada_deduction_is_not_recommended_directly():
+    """Una deducción en `pendiente_fuente` se rechaza como `pending_validation`
+    aunque sus requisitos se cumplan."""
+    pending = validated_deduction(
+        validation_status="pendiente_fuente",
+        sources=[
+            {
+                "kind": "pendiente_validacion",
+                "title": "Por contrastar",
+                "url": None,
+                "checked_at": None,
+            }
+        ],
+    )
+    result = evaluate_deduction(pending, profile())
     assert result.status == "pending_validation"
     assert result.estimated_amount == 0.0
+
+
+def test_synthetic_profile_yields_multiple_applies_and_missing():
+    """Criterio de aceptación QW2: un perfil sintético sobre el corpus 2024 da
+    al menos 3 `applies`, al menos 2 `missing_data`/`missing_evidence` y cero
+    `pending_validation`."""
+    deductions = load_deductions()
+    synth = TaxProfile.from_dict({
+        "tax_year": 2024,
+        "region": "Madrid",
+        "filing_mode": "individual",
+        "personal": {},
+        "family": {"children_count": 1, "ascendants_count": 0},
+        "income": {"work_gross": 30000.0, "work_net": 27500.0},
+        "expenses": {},
+        "documents": ["Libro de familia o certificado de convivencia"],
+    })
+    statuses = [evaluate_deduction(d, synth).status for d in deductions]
+    applies = sum(1 for s in statuses if s == "applies")
+    missing = sum(1 for s in statuses if s in {"missing_data", "missing_evidence"})
+    pending = sum(1 for s in statuses if s == "pending_validation")
+    assert applies >= 3, f"applies={applies}; estados={statuses}"
+    assert missing >= 2, f"missing_*={missing}; estados={statuses}"
+    assert pending == 0, f"pending_validation={pending}; estados={statuses}"
 
 
 def test_validated_deduction_applies_with_evidence_and_caps_amount():

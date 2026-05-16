@@ -1,4 +1,4 @@
-"""Modelos tipados y validadores ligeros para datos fiscales.
+"""Esquema de datos fiscales: enums, fuentes, deducciones y perfil.
 
 El proyecto arranca sin dependencias externas para que la base fiscal pueda
 validarse en cualquier entorno. Si más adelante se incorpora FastAPI, estos
@@ -8,12 +8,21 @@ modelos pueden migrarse a Pydantic manteniendo los mismos campos públicos.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from enum import Enum
 from typing import Any, Literal
 
-
-class ValidationError(ValueError):
-    """Error de validación de datos fiscales o reglas."""
+from ._common import (
+    ValidationError,
+    as_list,
+    as_non_empty_str,
+    as_optional_number,
+    as_optional_str,
+    parse_iso_date,
+    require_keys,
+    validate_content_hash,
+)
+from .norma import SourceKind
 
 
 class Scope(str, Enum):
@@ -28,29 +37,6 @@ class ForalTerritory(str, Enum):
     GIPUZKOA = "gipuzkoa"
     ALAVA = "alava"
     NAVARRA = "navarra"
-
-
-class SourceKind(str, Enum):
-    """Jerarquía normativa de la fuente citada.
-
-    Permite ordenar por rango (ley > reglamento > doctrina administrativa >
-    jurisprudencia) y distinguir doctrina administrativa de pronunciamientos
-    jurisdiccionales al presentar la respuesta al usuario.
-    """
-
-    LEY_ORGANICA = "ley_organica"
-    LEY = "ley"
-    REAL_DECRETO_LEGISLATIVO = "real_decreto_legislativo"
-    REAL_DECRETO = "real_decreto"
-    ORDEN_MINISTERIAL = "orden_ministerial"
-    DGT_VINCULANTE = "dgt_vinculante"
-    TEAC = "teac"
-    TS = "ts"
-    AN = "an"
-    TSJ = "tsj"
-    MANUAL_AEAT = "manual_aeat"
-    INSTRUCCION_AEAT = "instruccion_aeat"
-    PENDIENTE_VALIDACION = "pendiente_validacion"
 
 
 class DeductionCategory(str, Enum):
@@ -86,8 +72,18 @@ RuleStatus = Literal[
 ]
 
 
+RiskLiteral = Literal["low", "medium", "high"]
+
+
 @dataclass(frozen=True)
 class Source:
+    """Cita pinpoint hacia una norma (artículo + apartado opcional).
+
+    `boe_id` enlaza con `Norma.boe_id` en un `NormaRegistry`. La vigencia y el
+    estado (vigente/derogada/...) viven en `VersionNorma`, no aquí: una `Source`
+    es solo un puntero textual.
+    """
+
     kind: SourceKind
     title: str
     url: str | None = None
@@ -95,7 +91,7 @@ class Source:
     paragraph: str | None = None
     boe_id: str | None = None
     content_hash: str | None = None
-    checked_at: str | None = None
+    checked_at: date | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Source":
@@ -108,7 +104,7 @@ class Source:
             raise ValidationError(
                 f"source.kind '{kind_raw}' no soportado; valores admitidos: {allowed}"
             ) from exc
-        content_hash = _validate_content_hash(
+        content_hash = validate_content_hash(
             as_optional_str(data.get("content_hash"), "source.content_hash")
         )
         return cls(
@@ -119,7 +115,7 @@ class Source:
             paragraph=as_optional_str(data.get("paragraph"), "source.paragraph"),
             boe_id=as_optional_str(data.get("boe_id"), "source.boe_id"),
             content_hash=content_hash,
-            checked_at=as_optional_str(data.get("checked_at"), "source.checked_at"),
+            checked_at=parse_iso_date(data.get("checked_at"), "source.checked_at"),
         )
 
 
@@ -187,12 +183,23 @@ class Deduction:
     required_documents: tuple[str, ...]
     rent_web_boxes: tuple[str, ...]
     sources: tuple[Source, ...]
-    effective_from: str | None
-    effective_to: str | None
-    last_reviewed_at: str | None
+    effective_from: date | None
+    effective_to: date | None
+    last_reviewed_at: date | None
     risk_level: RiskLevel
     validation_status: ValidationStatus
     foral_territory: ForalTerritory | None = None
+
+    def __post_init__(self) -> None:
+        if (
+            self.effective_from is not None
+            and self.effective_to is not None
+            and self.effective_to < self.effective_from
+        ):
+            raise ValidationError(
+                f"Deducción {self.id}: effective_to ({self.effective_to.isoformat()}) "
+                f"anterior a effective_from ({self.effective_from.isoformat()})"
+            )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Deduction":
@@ -216,7 +223,9 @@ class Deduction:
         )
         sources = tuple(Source.from_dict(item) for item in as_list(data["sources"], "sources"))
         if not sources:
-            raise ValidationError("Cada deducción debe incluir al menos una fuente o una marca pendiente de fuente")
+            raise ValidationError(
+                "Cada deducción debe incluir al menos una fuente o una marca pendiente de fuente"
+            )
         tax_year = data["tax_year"]
         if not isinstance(tax_year, int) or tax_year < 2000:
             raise ValidationError("tax_year debe ser un entero válido")
@@ -259,7 +268,9 @@ class Deduction:
             scope=scope,
             region=as_optional_str(data.get("region"), "region"),
             category=DeductionCategory(data["category"]),
-            requirements=tuple(Requirement.from_dict(item) for item in as_list(data["requirements"], "requirements")),
+            requirements=tuple(
+                Requirement.from_dict(item) for item in as_list(data["requirements"], "requirements")
+            ),
             calculation=Calculation.from_dict(data["calculation"]),
             limit=as_optional_number(data.get("limit"), "limit"),
             taxable_base_limits=dict(data.get("taxable_base_limits") or {}),
@@ -276,9 +287,9 @@ class Deduction:
                 for item in data.get("rent_web_boxes", [])
             ),
             sources=sources,
-            effective_from=as_optional_str(data.get("effective_from"), "effective_from"),
-            effective_to=as_optional_str(data.get("effective_to"), "effective_to"),
-            last_reviewed_at=as_optional_str(data.get("last_reviewed_at"), "last_reviewed_at"),
+            effective_from=parse_iso_date(data.get("effective_from"), "effective_from"),
+            effective_to=parse_iso_date(data.get("effective_to"), "effective_to"),
+            last_reviewed_at=parse_iso_date(data.get("last_reviewed_at"), "last_reviewed_at"),
             risk_level=RiskLevel(data["risk_level"]),
             validation_status=validation_status,
             foral_territory=foral_territory,
@@ -294,7 +305,7 @@ class RuleEvaluation:
     missing_fields: tuple[str, ...] = ()
     missing_documents: tuple[str, ...] = ()
     sources: tuple[Source, ...] = ()
-    risk_level: Literal["low", "medium", "high"] = "medium"
+    risk_level: RiskLiteral = "medium"
     confidence: float = 0.0
 
 
@@ -302,6 +313,7 @@ class RuleEvaluation:
 class TaxProfile:
     tax_year: int
     region: str
+    devengo_date: date | None = None
     filing_mode: str = "unknown"
     personal: dict[str, Any] = field(default_factory=dict)
     family: dict[str, Any] = field(default_factory=lambda: {"children": [], "ascendants": []})
@@ -311,15 +323,31 @@ class TaxProfile:
     deduction_candidates: list[str] = field(default_factory=list)
     documents: list[str] = field(default_factory=list)
 
+    def effective_devengo_date(self) -> date:
+        """Fecha del hecho imponible aplicable.
+
+        En IRPF, el devengo general es el 31 de diciembre del ejercicio salvo
+        causas de cese (fallecimiento, fin de residencia). Si el perfil no
+        especifica `devengo_date`, se asume 31-dic del `tax_year`.
+        """
+        return self.devengo_date if self.devengo_date is not None else date(self.tax_year, 12, 31)
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TaxProfile":
         require_keys(data, ["tax_year", "region"], "tax_profile")
         tax_year = data["tax_year"]
         if not isinstance(tax_year, int) or tax_year < 2000:
             raise ValidationError("tax_profile.tax_year debe ser un entero válido")
+        devengo_date = parse_iso_date(data.get("devengo_date"), "tax_profile.devengo_date")
+        if devengo_date is not None and devengo_date.year != tax_year:
+            raise ValidationError(
+                f"tax_profile.devengo_date ({devengo_date.isoformat()}) "
+                f"debe pertenecer al tax_year {tax_year}"
+            )
         return cls(
             tax_year=tax_year,
             region=as_non_empty_str(data["region"], "tax_profile.region"),
+            devengo_date=devengo_date,
             filing_mode=data.get("filing_mode", "unknown"),
             personal=dict(data.get("personal") or {}),
             family=dict(data.get("family") or {"children": [], "ascendants": []}),
@@ -334,6 +362,7 @@ class TaxProfile:
         return {
             "tax_year": self.tax_year,
             "region": self.region,
+            "devengo_date": self.devengo_date.isoformat() if self.devengo_date is not None else None,
             "filing_mode": self.filing_mode,
             "personal": self.personal,
             "family": self.family,
@@ -343,55 +372,6 @@ class TaxProfile:
             "deduction_candidates": self.deduction_candidates,
             "documents": self.documents,
         }
-
-
-def require_keys(data: dict[str, Any], keys: list[str], context: str) -> None:
-    missing = [key for key in keys if key not in data]
-    if missing:
-        raise ValidationError(f"Faltan campos obligatorios en {context}: {', '.join(missing)}")
-
-
-def as_non_empty_str(value: Any, field_name: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise ValidationError(f"{field_name} debe ser texto no vacío")
-    return value.strip()
-
-
-def as_optional_str(value: Any, field_name: str) -> str | None:
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise ValidationError(f"{field_name} debe ser texto o null")
-    return value.strip() or None
-
-
-def as_optional_number(value: Any, field_name: str) -> float | None:
-    if value is None:
-        return None
-    if not isinstance(value, (int, float)) or isinstance(value, bool):
-        raise ValidationError(f"{field_name} debe ser numérico o null")
-    return float(value)
-
-
-def as_list(value: Any, field_name: str) -> list[Any]:
-    if not isinstance(value, list):
-        raise ValidationError(f"{field_name} debe ser una lista")
-    return value
-
-
-_HEX_CHARS = frozenset("0123456789abcdef")
-
-
-def _validate_content_hash(value: str | None) -> str | None:
-    """Valida formato SHA-256 hex (64 caracteres) y normaliza a minúsculas."""
-    if value is None:
-        return None
-    normalized = value.lower()
-    if len(normalized) != 64 or any(c not in _HEX_CHARS for c in normalized):
-        raise ValidationError(
-            "source.content_hash debe ser SHA-256 en hexadecimal (64 caracteres)"
-        )
-    return normalized
 
 
 def _parse_expenses(value: Any) -> dict[str, float]:
