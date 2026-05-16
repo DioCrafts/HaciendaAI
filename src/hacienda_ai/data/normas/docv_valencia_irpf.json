@@ -1,0 +1,23 @@
+{
+  "_meta": {
+    "ambito": "autonomico",
+    "comunidad": "Comunitat Valenciana",
+    "alcance": "Norma autonómica raíz que regula los tributos cedidos en la Comunitat Valenciana, citada por el catálogo IRPF autonómico valenciano del corpus. Sembrado estructural por QW5: el identificador `DOCV-2024-1` es un placeholder estable del sumario hasta que el verificador de boletines autonómicos pueda fijarlo contra el DOCV oficial. La norma sustantiva (Ley valenciana de medidas fiscales sobre tributos cedidos) es de existencia pública y verificable manualmente; solo el `boe_id` del sumario está pendiente de afinar."
+  },
+  "normas": [
+    {
+      "boe_id": "DOCV-2024-1",
+      "kind": "ley",
+      "title": "Ley valenciana sobre tributos cedidos por el Estado (consolidación administrativa, vigente para el ejercicio 2024)",
+      "enacted_at": "2024-01-01"
+    }
+  ],
+  "versions": [
+    {
+      "norma_boe_id": "DOCV-2024-1",
+      "effective_from": "2024-01-01",
+      "status": "vigente",
+      "notes": "Versión estructural placeholder para 2024-2025. Cuando un fiscalista colegiado valenciano firme el catálogo, esta `VersionNorma` debe sustituirse por la de la Ley vigente con su `effective_from` real y, si procede, ventanas históricas con `modified_by_boe_id`."
+    }
+  ]
+}

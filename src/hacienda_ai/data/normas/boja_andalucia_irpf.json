@@ -1,0 +1,23 @@
+{
+  "_meta": {
+    "ambito": "autonomico",
+    "comunidad": "Andalucía",
+    "alcance": "Norma autonómica raíz que regula los tributos cedidos en Andalucía, citada por el catálogo IRPF autonómico andaluz del corpus. Sembrado estructural por QW5: el identificador `BOJA-2024-1` es un placeholder estable del sumario hasta que el verificador de boletines autonómicos pueda fijarlo contra el BOJA oficial. La norma sustantiva (Decreto Legislativo TR de tributos cedidos de Andalucía) es de existencia pública y verificable manualmente; solo el `boe_id` del sumario está pendiente de afinar."
+  },
+  "normas": [
+    {
+      "boe_id": "BOJA-2024-1",
+      "kind": "real_decreto_legislativo",
+      "title": "Texto refundido andaluz sobre tributos cedidos por el Estado (consolidación administrativa, vigente para el ejercicio 2024)",
+      "enacted_at": "2024-01-01"
+    }
+  ],
+  "versions": [
+    {
+      "norma_boe_id": "BOJA-2024-1",
+      "effective_from": "2024-01-01",
+      "status": "vigente",
+      "notes": "Versión estructural placeholder para 2024-2025. Cuando un fiscalista colegiado andaluz firme el catálogo, esta `VersionNorma` debe sustituirse por la del Decreto Legislativo vigente con su `effective_from` real y, si procede, ventanas históricas con `modified_by_boe_id`."
+    }
+  ]
+}

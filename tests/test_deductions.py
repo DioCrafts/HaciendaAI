@@ -57,16 +57,42 @@ def profile(**overrides):
 
 
 def test_loads_validated_irpf_state_seed():
-    """El corpus semilla carga ≥30 deducciones, todas validadas, con anclaje
-    apropiado al tipo de boletín: BOE-A-... + content_hash para estatales,
-    y BOCM-/DOGC-/... (sin hash) para autonómicas, según la regla relajada
-    de QW4."""
+    """El corpus semilla carga ≥30 deducciones. Las marcadas como
+    `validada` deben llevar el anclaje fuerte: BOE-A-... + content_hash
+    para estatales, y BOCM-/DOGC-/... (sin hash) para autonómicas (regla
+    relajada de QW4).
+
+    Las marcadas como `pendiente_fuente` son legítimas: sembrados
+    estructurales (QW5) donde la infraestructura existe pero el
+    articulado y los importes están pendientes de validar por fiscalista
+    colegiado. El motor las devuelve como `pending_validation`, así que
+    no se aplican como cifra firme; el catálogo crece sin contaminar
+    resultados. Ese contrato lo verifica
+    `test_non_validada_deduction_is_not_recommended_directly`.
+    """
     deductions = load_deductions()
     assert len(deductions) >= 30, f"Se esperaban ≥30 deducciones, hay {len(deductions)}"
-    assert all(d.validation_status.value == "validada" for d in deductions), (
-        "Hay deducciones no validadas en el corpus semilla"
-    )
+    ids = [d.id for d in deductions]
+    assert len(ids) == len(set(ids)), "Hay ids duplicados en el corpus"
+
+    allowed_non_validada = {"pendiente_fuente"}
     for d in deductions:
+        if d.validation_status.value not in {"validada", *allowed_non_validada}:
+            raise AssertionError(
+                f"{d.id}: validation_status='{d.validation_status.value}' no "
+                f"permitido en el corpus semilla (admitidos: validada o "
+                f"{sorted(allowed_non_validada)})"
+            )
+        if d.validation_status.value != "validada":
+            # Para semillas estructurales no exigimos hashes; pero sí que
+            # citen una norma identificable: el cron de drift y el guard
+            # de citas dependen de tener `boe_id` para cruzar.
+            anchors = [s for s in d.sources if s.boe_id]
+            assert anchors, (
+                f"Deducción {d.id} en estado {d.validation_status.value} "
+                "sin boe_id en ninguna fuente"
+            )
+            continue
         if d.scope.value == "estatal":
             anchors = [
                 s for s in d.sources
@@ -80,8 +106,6 @@ def test_loads_validated_irpf_state_seed():
             assert anchors, (
                 f"Deducción {d.scope.value} {d.id} sin boe_id en ninguna fuente"
             )
-    ids = [d.id for d in deductions]
-    assert len(ids) == len(set(ids)), "Hay ids duplicados en el corpus"
 
 
 def test_rejects_deduction_without_source():
