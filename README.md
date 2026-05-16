@@ -212,11 +212,17 @@ semanal (`.github/workflows/verify-seed.yml`) lo lanza los lunes.
 - Los importes lineales o tramificados publicados por AEAT (mínimos
   personales y familiares, gasto del trabajo, reducción art. 20 tramo
   bajo, maternidad, familia numerosa, tributación conjunta) ya los
-  calcula el motor. Las reglas no lineales que escalan por base
-  imponible (arrendamiento de vivienda art. 23.2, donativos Ley 49/2002,
-  Ceuta/Melilla, eficiencia energética, regímenes transitorios
-  DT 15ª/DT 18ª) siguen marcadas como `manual_review` hasta validación
-  por asesor colegiado.
+  calcula el motor. QW7 ha migrado tres familias adicionales a cálculo
+  real: donativos Ley 49/2002 (escala 80 / 40 % con boost 45 % de
+  fidelización y cap dinámico 10 % de la base liquidable), DT 18ª
+  inversión en vivienda habitual (15 % sobre base máxima 9.040 €) y
+  los tres tramos del art. DA 50ª LIRPF de eficiencia energética
+  (20 % / 40 % / 60 % discriminados por `personal.energy_works_type`).
+  Las reglas restantes que escalan por base imponible u otros
+  parámetros no modelados (arrendamiento de vivienda art. 23.2,
+  Ceuta/Melilla, régimen transitorio DT 15ª) siguen marcadas como
+  `manual_review` y se surfacean como `requires_manual_calculation`
+  cuando aplican.
 - API HTTP de demostración disponible (FastAPI + uvicorn) y persistencia
   SQLite local; no hay frontend más allá de la página de demo estática
   ni control de accesos por usuario o despacho (próxima iteración:

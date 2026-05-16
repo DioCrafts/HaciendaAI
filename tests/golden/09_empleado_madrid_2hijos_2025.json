@@ -1,0 +1,29 @@
+{
+  "name": "Empleado Madrid con 2 hijos en ejercicio 2025",
+  "description": "Replica el caso canónico de empleado básico pero sobre el corpus 2025. Como la LPGE 2025 no se aprobó y los preceptos LIRPF citados no cambiaron, los importes deben ser idénticos a los de 2024 para el mismo perfil. Este caso protege contra una posible regresión en la propagación de vigencia 2024→2025 (las 2024 deben quedar excluidas por filtro temporal).",
+  "profile": {
+    "tax_year": 2025,
+    "region": "Madrid",
+    "filing_mode": "individual",
+    "personal": {"has_disability": false},
+    "family": {"children_count": 2, "ascendants_count": 0},
+    "income": {"work_gross": 30000, "work_net": 27500},
+    "expenses": {},
+    "documents": ["Libro de familia o certificado de convivencia"]
+  },
+  "expected": {
+    "applies": [
+      {"deduction_id": "es_minimo_contribuyente_general_2025", "amount": 5550.0, "justificacion": "art. 57 LIRPF, ejercicio 2025"},
+      {"deduction_id": "es_minimo_descendientes_tramo_1_2025", "amount": 2400.0, "justificacion": "art. 58.1 LIRPF, primer hijo"},
+      {"deduction_id": "es_minimo_descendientes_tramo_2_2025", "amount": 2700.0, "justificacion": "art. 58.1 LIRPF, segundo hijo"},
+      {"deduction_id": "es_gastos_deducibles_trabajo_general_2025", "amount": 2000.0, "justificacion": "art. 19.2.f LIRPF"}
+    ],
+    "requires_manual_calculation": [
+      "es_minimo_personal_familiar_general_2025"
+    ],
+    "does_not_apply_includes": [
+      "es_minimo_contribuyente_general_2024",
+      "es_minimo_descendientes_tramo_1_2024"
+    ]
+  }
+}

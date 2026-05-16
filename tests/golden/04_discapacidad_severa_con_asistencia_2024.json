@@ -1,0 +1,37 @@
+{
+  "name": "Contribuyente con discapacidad ≥65% y asistencia (2024)",
+  "description": "Contribuyente individual con discapacidad reconocida ≥65% y necesidad acreditada de asistencia/movilidad reducida. Dispara los tres tramos del art. 60.1 LIRPF: base 3 000 € + grado severo 6 000 € + asistencia 3 000 € = 12 000 €. Suma además mínimo personal y gasto del trabajo. Ingresos por debajo del umbral del tramo bajo del art. 20 (14 852 €) para verificar el lineal de 7 302 €.",
+  "profile": {
+    "tax_year": 2024,
+    "region": "Madrid",
+    "filing_mode": "individual",
+    "personal": {"has_disability": true, "disability_degree": 80, "needs_assistance": true},
+    "family": {"children_count": 0, "ascendants_count": 0},
+    "income": {"work_gross": 13000, "work_net": 11500},
+    "expenses": {},
+    "documents": [
+      "Certificado de discapacidad vigente",
+      "Certificado de discapacidad vigente con grado ≥65%",
+      "Certificado de discapacidad con mención de asistencia/movilidad reducida"
+    ]
+  },
+  "expected": {
+    "applies": [
+      {"deduction_id": "es_minimo_contribuyente_general_2024", "amount": 5550.0, "justificacion": "art. 57 LIRPF"},
+      {"deduction_id": "es_minimo_discapacidad_contribuyente_base_2024", "amount": 3000.0, "justificacion": "art. 60.1 LIRPF, base"},
+      {"deduction_id": "es_minimo_discapacidad_contribuyente_grado_severo_2024", "amount": 6000.0, "justificacion": "art. 60.1 LIRPF, incremento ≥65%"},
+      {"deduction_id": "es_minimo_discapacidad_contribuyente_asistencia_2024", "amount": 3000.0, "justificacion": "art. 60.1 LIRPF, asistencia/movilidad"},
+      {"deduction_id": "es_gastos_deducibles_trabajo_general_2024", "amount": 2000.0, "justificacion": "art. 19.2.f LIRPF"},
+      {"deduction_id": "es_reduccion_rendimientos_trabajo_tramo_bajo_2024", "amount": 7302.0, "justificacion": "art. 20.1.a LIRPF, tramo bajo lineal"}
+    ],
+    "requires_manual_calculation": [
+      "es_minimo_personal_familiar_general_2024"
+    ],
+    "missing_data_includes": [
+      "es_reduccion_tributacion_conjunta_biparental_2024"
+    ],
+    "does_not_apply_includes": [
+      "es_minimo_descendientes_tramo_1_2024"
+    ]
+  }
+}

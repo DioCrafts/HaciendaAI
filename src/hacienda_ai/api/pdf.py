@@ -24,6 +24,7 @@ STATUS_LABEL = {
     "missing_data": "Faltan datos",
     "missing_evidence": "Faltan justificantes",
     "pending_validation": "Pendiente de validar",
+    "requires_manual_calculation": "Requiere cálculo manual",
 }
 
 CONFIDENCE_LABEL = {
@@ -157,6 +158,7 @@ td.muted, small.muted { color: #777; }
 .status-does_not_apply { background: #eee; color: #555; }
 .status-missing_data, .status-missing_evidence { background: #ffe7c6; color: #8a4d00; }
 .status-pending_validation { background: #ffd6d6; color: #8a1a1a; }
+.status-requires_manual_calculation { background: #d6e4ff; color: #1a3a8a; }
 .risk-low { color: #195e19; }
 .risk-medium { color: #8a4d00; }
 .risk-high { color: #8a1a1a; }

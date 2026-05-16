@@ -1,0 +1,26 @@
+{
+  "name": "Devengo histórico 2018 contra corpus 2024/2025 (todo does_not_apply)",
+  "description": "Verifica el filtro temporal del motor: una consulta sobre un perfil con tax_year=2018 y devengo 2018-06-30 NO debe disparar ninguna deducción del corpus actual (que solo cubre ejercicios 2024 y 2025). Todas las deducciones salen does_not_apply porque effective_from=2024-01-01/2025-01-01 está por encima del devengo. El `applicable_versions` del API resolvería a la redacción Ley 26/2014 de la LIRPF (2015-2021), aunque ese check es del test de API; aquí solo verificamos que no hay falsos positivos para devengos pre-corpus.",
+  "profile": {
+    "tax_year": 2018,
+    "region": "Madrid",
+    "devengo_date": "2018-06-30",
+    "filing_mode": "individual",
+    "personal": {"has_disability": false},
+    "family": {"children_count": 1, "ascendants_count": 0},
+    "income": {"work_gross": 30000, "work_net": 27500},
+    "expenses": {},
+    "documents": ["Libro de familia o certificado de convivencia"]
+  },
+  "expected": {
+    "applies": [],
+    "requires_manual_calculation": [],
+    "does_not_apply_includes": [
+      "es_minimo_contribuyente_general_2024",
+      "es_minimo_descendientes_tramo_1_2024",
+      "es_gastos_deducibles_trabajo_general_2024",
+      "es_minimo_contribuyente_general_2025",
+      "mad_arrendamiento_vivienda_habitual_menor_35_2024"
+    ]
+  }
+}

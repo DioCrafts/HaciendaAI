@@ -1,0 +1,37 @@
+{
+  "name": "Pareja conjunta biparental Madrid 2 hijos (2024)",
+  "description": "Unidad familiar biparental que tributa conjunta. Suman dos rendimientos del trabajo (declarados en el contribuyente principal a efectos de demo); dispara los dos primeros tramos del mínimo por descendientes y la reducción del art. 84.2.3º LIRPF por tributación conjunta biparental (3 400 €). Sigue sin dispararse maternidad (no se declara hijo <3 ni género F) ni autonómicas Madrid (no aporta los campos específicos).",
+  "profile": {
+    "tax_year": 2024,
+    "region": "Madrid",
+    "filing_mode": "conjunta",
+    "personal": {"has_disability": false},
+    "family": {"children_count": 2, "ascendants_count": 0, "unit_type": "biparental"},
+    "income": {"work_gross": 45000, "work_net": 41000},
+    "expenses": {},
+    "documents": ["Libro de familia o certificado de convivencia"]
+  },
+  "expected": {
+    "applies": [
+      {"deduction_id": "es_minimo_contribuyente_general_2024", "amount": 5550.0, "justificacion": "art. 57 LIRPF"},
+      {"deduction_id": "es_minimo_descendientes_tramo_1_2024", "amount": 2400.0, "justificacion": "art. 58.1 LIRPF, primer hijo"},
+      {"deduction_id": "es_minimo_descendientes_tramo_2_2024", "amount": 2700.0, "justificacion": "art. 58.1 LIRPF, segundo hijo"},
+      {"deduction_id": "es_gastos_deducibles_trabajo_general_2024", "amount": 2000.0, "justificacion": "art. 19.2.f LIRPF"},
+      {"deduction_id": "es_reduccion_tributacion_conjunta_biparental_2024", "amount": 3400.0, "justificacion": "art. 84.2.3º LIRPF, reducción tributación conjunta biparental"}
+    ],
+    "requires_manual_calculation": [
+      "es_minimo_personal_familiar_general_2024",
+      "mad_familias_dos_o_mas_descendientes_2024"
+    ],
+    "missing_data_includes": [
+      "es_deduccion_maternidad_tramo_1_2024",
+      "es_deduccion_donativos_general_2024"
+    ],
+    "does_not_apply_includes": [
+      "es_minimo_descendientes_tramo_3_2024",
+      "es_minimo_descendientes_tramo_4_y_siguientes_2024",
+      "es_reduccion_tributacion_conjunta_monoparental_2024",
+      "es_reduccion_rendimientos_trabajo_tramo_bajo_2024"
+    ]
+  }
+}

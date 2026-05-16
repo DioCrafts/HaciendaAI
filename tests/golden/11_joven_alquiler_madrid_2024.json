@@ -1,0 +1,36 @@
+{
+  "name": "Joven <35 con alquiler en Madrid y fianza depositada (2024)",
+  "description": "Contribuyente menor de 35 años residente en Madrid que paga 6 000 € de alquiler anual de su vivienda habitual y ha depositado fianza en la Agencia de Vivienda Social CM. Verifica la deducción autonómica del art. 4 TRTC Madrid: 30 % de 6 000 € = 1 800 € → capeado al límite anual 1 237,20 €. Caso fundamental para la demo Madrid joven inquilino.",
+  "profile": {
+    "tax_year": 2024,
+    "region": "Madrid",
+    "filing_mode": "individual",
+    "personal": {
+      "has_disability": false,
+      "is_under_35": true,
+      "rental_deposit_madrid": true
+    },
+    "family": {"children_count": 0, "ascendants_count": 0},
+    "income": {"work_gross": 24000, "work_net": 21000},
+    "expenses": {"rental_madrid_youth": 6000},
+    "documents": [
+      "Contrato de arrendamiento",
+      "Justificantes de pago",
+      "Acreditación del depósito de fianza en la Agencia de Vivienda Social CM"
+    ]
+  },
+  "expected": {
+    "applies": [
+      {"deduction_id": "es_minimo_contribuyente_general_2024", "amount": 5550.0, "justificacion": "art. 57 LIRPF"},
+      {"deduction_id": "es_gastos_deducibles_trabajo_general_2024", "amount": 2000.0, "justificacion": "art. 19.2.f LIRPF"},
+      {"deduction_id": "mad_arrendamiento_vivienda_habitual_menor_35_2024", "amount": 1237.2, "justificacion": "art. 4 TRTC Madrid: 6 000 × 30 % = 1 800; cap 1 237,20 €"}
+    ],
+    "requires_manual_calculation": [
+      "es_minimo_personal_familiar_general_2024"
+    ],
+    "does_not_apply_includes": [
+      "es_minimo_descendientes_tramo_1_2024",
+      "es_reduccion_rendimientos_trabajo_tramo_bajo_2024"
+    ]
+  }
+}

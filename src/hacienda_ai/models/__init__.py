@@ -33,6 +33,7 @@ from .schema import (
     Scope,
     Source,
     TaxProfile,
+    Tier,
     ValidationStatus,
 )
 
@@ -53,6 +54,7 @@ __all__ = [
     "Source",
     "SourceKind",
     "TaxProfile",
+    "Tier",
     "ValidationError",
     "ValidationStatus",
     "VersionNorma",

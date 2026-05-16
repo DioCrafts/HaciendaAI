@@ -71,6 +71,7 @@ RuleStatus = Literal[
     "missing_data",
     "missing_evidence",
     "pending_validation",
+    "requires_manual_calculation",
 ]
 
 
@@ -141,30 +142,156 @@ class Requirement:
 
 
 @dataclass(frozen=True)
+class Tier:
+    """Tramo de un cálculo progresivo (`tiered_progressive`).
+
+    `up_to`: límite superior de la BASE de este tramo, no acumulado de
+    importe. En donativos Ley 49/2002: tier1 cubre los primeros 250 € de
+    donativo (`up_to=250`), tier2 cubre el resto (`up_to=None` = sin
+    techo). `percentage` se aplica a esa porción.
+
+    `alternate_percentage` + `alternate_when_field`: ramificación
+    declarativa para casos como fidelización en donativos (45% en lugar
+    de 40% cuando el contribuyente ha igualado o superado el donativo a
+    la misma entidad los 2 ejercicios anteriores). Si el campo del
+    perfil existe y vale `True`, se usa `alternate_percentage`; en
+    cualquier otro caso, `percentage`. Default conservador: el tramo
+    general.
+    """
+
+    up_to: float | None
+    percentage: float
+    alternate_percentage: float | None = None
+    alternate_when_field: str | None = None
+
+    def __post_init__(self) -> None:
+        if not (0 <= self.percentage <= 1):
+            raise ValidationError(
+                f"tier.percentage debe estar entre 0 y 1, recibido {self.percentage}"
+            )
+        if self.alternate_percentage is not None and not (
+            0 <= self.alternate_percentage <= 1
+        ):
+            raise ValidationError(
+                "tier.alternate_percentage debe estar entre 0 y 1, recibido "
+                f"{self.alternate_percentage}"
+            )
+        if (self.alternate_percentage is None) != (self.alternate_when_field is None):
+            raise ValidationError(
+                "tier.alternate_percentage y alternate_when_field deben "
+                "declararse juntos o no declararse ninguno"
+            )
+        if self.up_to is not None and self.up_to <= 0:
+            raise ValidationError(
+                f"tier.up_to debe ser positivo o null, recibido {self.up_to}"
+            )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Tier":
+        require_keys(data, ["percentage"], "tier")
+        up_to = as_optional_number(data.get("up_to"), "tier.up_to")
+        percentage_value = as_optional_number(data["percentage"], "tier.percentage")
+        if percentage_value is None:
+            raise ValidationError("tier.percentage es obligatorio")
+        return cls(
+            up_to=up_to,
+            percentage=percentage_value,
+            alternate_percentage=as_optional_number(
+                data.get("alternate_percentage"), "tier.alternate_percentage"
+            ),
+            alternate_when_field=as_optional_str(
+                data.get("alternate_when_field"), "tier.alternate_when_field"
+            ),
+        )
+
+
+_SUPPORTED_CALC_TYPES = frozenset(
+    {
+        "manual_review",
+        "amount_field",
+        "percentage_with_cap",
+        "fixed_amount",
+        "tiered_progressive",
+    }
+)
+
+
+@dataclass(frozen=True)
 class Calculation:
     type: str
     base_field: str | None = None
     percentage: float | None = None
     cap: float | None = None
     fixed_amount: float | None = None
+    tiers: tuple[Tier, ...] = ()
+    cap_field: str | None = None
+    cap_percentage: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.type == "tiered_progressive":
+            if not self.tiers:
+                raise ValidationError(
+                    "calculation.type=tiered_progressive requiere al menos un tier"
+                )
+            if self.base_field is None:
+                raise ValidationError(
+                    "calculation.type=tiered_progressive requiere base_field"
+                )
+            # Solo el último tramo puede tener `up_to=None`; los demás deben
+            # estar ordenados de forma estrictamente creciente.
+            previous: float = 0.0
+            for index, tier in enumerate(self.tiers):
+                is_last = index == len(self.tiers) - 1
+                if tier.up_to is None and not is_last:
+                    raise ValidationError(
+                        "Solo el último tier puede tener up_to=null"
+                    )
+                if tier.up_to is not None:
+                    if tier.up_to <= previous:
+                        raise ValidationError(
+                            f"tiers deben ser estrictamente crecientes; "
+                            f"tier {index} (up_to={tier.up_to}) ≤ anterior ({previous})"
+                        )
+                    previous = tier.up_to
+        if (self.cap_field is None) != (self.cap_percentage is None):
+            raise ValidationError(
+                "calculation.cap_field y cap_percentage deben declararse "
+                "juntos o no declararse ninguno"
+            )
+        if self.cap_percentage is not None and not (0 <= self.cap_percentage <= 1):
+            raise ValidationError(
+                "calculation.cap_percentage debe estar entre 0 y 1, recibido "
+                f"{self.cap_percentage}"
+            )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Calculation":
         require_keys(data, ["type"], "calculation")
         calculation_type = as_non_empty_str(data["type"], "calculation.type")
-        if calculation_type not in {"manual_review", "amount_field", "percentage_with_cap", "fixed_amount"}:
+        if calculation_type not in _SUPPORTED_CALC_TYPES:
             raise ValidationError(f"Tipo de cálculo no soportado: {calculation_type}")
         percentage = as_optional_number(data.get("percentage"), "calculation.percentage")
         cap = as_optional_number(data.get("cap"), "calculation.cap")
         fixed_amount = as_optional_number(data.get("fixed_amount"), "calculation.fixed_amount")
         if calculation_type == "percentage_with_cap" and percentage is not None and not (0 <= percentage <= 1):
             raise ValidationError("calculation.percentage debe expresarse entre 0 y 1")
+        tiers_raw = data.get("tiers") or []
+        if not isinstance(tiers_raw, list):
+            raise ValidationError("calculation.tiers debe ser una lista")
+        tiers = tuple(Tier.from_dict(item) for item in tiers_raw)
+        cap_field = as_optional_str(data.get("cap_field"), "calculation.cap_field")
+        cap_percentage = as_optional_number(
+            data.get("cap_percentage"), "calculation.cap_percentage"
+        )
         return cls(
             type=calculation_type,
             base_field=as_optional_str(data.get("base_field"), "calculation.base_field"),
             percentage=percentage,
             cap=cap,
             fixed_amount=fixed_amount,
+            tiers=tiers,
+            cap_field=cap_field,
+            cap_percentage=cap_percentage,
         )
 
 

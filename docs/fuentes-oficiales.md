@@ -2,7 +2,7 @@
 
 ## Corpus semilla (estado actual)
 
-- `src/hacienda_ai/data/deductions/2024_irpf_estatal.json` — 32
+- `src/hacienda_ai/data/deductions/2024_irpf_estatal.json` — 34
   entradas estatales IRPF 2024 con `boe_id`, pinpoint de artículo y
   SHA-256 del texto normativo consolidado en BOE. Estado:
   `validation_status = validada` en todas. La mayoría usa
@@ -10,12 +10,20 @@
   tramificados, gasto del trabajo, reducción art. 20 tramo bajo,
   maternidad por hijo, familia numerosa, tributación conjunta,
   irregulares art. 18/32, inversión startups art. 68, pensiones
-  individuales art. 51-52). Quedan en `manual_review` las reglas no
-  lineales que escalan por base imponible: arrendamiento art. 23.2,
-  donativos Ley 49/2002, Ceuta/Melilla, eficiencia energética DA 50ª,
-  regímenes transitorios DT 15ª/DT 18ª, encuadre general art. 56 y el
-  tramo intermedio del art. 20 (14.852 €–19.747,5 €).
-- `src/hacienda_ai/data/deductions/2025_irpf_estatal.json` — 32
+  individuales art. 51-52). QW7 incorpora además
+  `tiered_progressive` para donativos Ley 49/2002 (escala 80 / 40 %,
+  boost a 45 % por fidelización, cap dinámico 10 % base liquidable)
+  y parte la entrada agregada de eficiencia energética en tres
+  tramos calculables (DA 50ª.1 / .2 / .3) con discriminador
+  `personal.energy_works_type`; la DT 18ª inversión vivienda
+  habitual pasa a `percentage_with_cap` 15 % sobre base máxima
+  9.040 €. Quedan en `manual_review` las reglas no lineales que el
+  motor todavía no modela: arrendamiento art. 23.2, Ceuta/Melilla,
+  régimen transitorio DT 15ª, encuadre general art. 56 y el tramo
+  intermedio del art. 20 (14.852 €–19.747,5 €). Estas se surfacean
+  como `requires_manual_calculation` (QW6) en lugar de
+  `applies + 0 €`.
+- `src/hacienda_ai/data/deductions/2025_irpf_estatal.json` — 34
   entradas estatales IRPF 2025 (Sprint 1 #1). Clon estructural del
   archivo 2024 con `tax_year=2025`, `effective_from=2025-01-01`,
   `effective_to=2025-12-31` y `last_reviewed_at` refrescado; los
