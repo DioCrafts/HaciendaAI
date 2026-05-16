@@ -1,0 +1,209 @@
+name: Ingest manuales AEAT y FAQs INFORMA
+
+on:
+  # Manual only. La AEAT publica los manuales como PDF y los archivos
+  # están sujetos a derechos de uso publicados en sede.agenciatributaria.
+  # El operador descarga el PDF de la sede (o un volcado INFORMA), lo
+  # sube como artefacto del workflow y dispara la ingesta.
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Modo: 'pdf' para Manual Práctico, 'informa' para FAQ INFORMA."
+        required: true
+        type: choice
+        default: pdf
+        options:
+          - pdf
+          - informa
+      source_path:
+        description: "Ruta (relativa al repo) del PDF/HTML a ingerir."
+        required: true
+        type: string
+      fuente:
+        description: "Fuente del manual (solo si mode=pdf). manual_irpf|manual_is|manual_iva|manual_sociedades"
+        required: false
+        type: string
+      ejercicio:
+        description: "Año fiscal del manual (solo si mode=pdf). Ej: 2024"
+        required: false
+        type: string
+      url:
+        description: "URL canónica del manual (opcional, se persiste en cada chunk)."
+        required: false
+        type: string
+      txt:
+        description: "Si el source_path es texto plano (.txt con form feeds) en vez de PDF."
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ingest-manuals-aeat
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    name: Ingerir manual/INFORMA y abrir PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package (con extras [manuals] para pypdf)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[manuals,dev]"
+
+      - name: Validate inputs
+        run: |
+          if [ "${{ github.event.inputs.mode }}" = "pdf" ]; then
+            if [ -z "${{ github.event.inputs.fuente }}" ]; then
+              echo "::error::--fuente es obligatorio en modo pdf"
+              exit 1
+            fi
+          fi
+          if [ ! -f "${{ github.event.inputs.source_path }}" ]; then
+            echo "::error::source_path no existe: ${{ github.event.inputs.source_path }}"
+            exit 1
+          fi
+
+      - name: Run ingest (PDF)
+        if: github.event.inputs.mode == 'pdf'
+        id: ingest_pdf
+        run: |
+          set +e
+          ARGS="--pdf '${{ github.event.inputs.source_path }}' --fuente '${{ github.event.inputs.fuente }}' --report ingest-report.json"
+          if [ -n "${{ github.event.inputs.ejercicio }}" ]; then
+            ARGS="$ARGS --ejercicio ${{ github.event.inputs.ejercicio }}"
+          fi
+          if [ -n "${{ github.event.inputs.url }}" ]; then
+            ARGS="$ARGS --url '${{ github.event.inputs.url }}'"
+          fi
+          if [ "${{ github.event.inputs.txt }}" = "true" ]; then
+            ARGS="$ARGS --txt"
+          fi
+          eval "python scripts/ingest_manual_aeat.py $ARGS"
+          code=$?
+          echo "exit_code=${code}" >> "${GITHUB_OUTPUT}"
+          exit 0
+
+      - name: Run ingest (INFORMA)
+        if: github.event.inputs.mode == 'informa'
+        id: ingest_informa
+        run: |
+          set +e
+          ARGS="--informa '${{ github.event.inputs.source_path }}' --report ingest-report.json"
+          if [ -n "${{ github.event.inputs.url }}" ]; then
+            ARGS="$ARGS --url '${{ github.event.inputs.url }}'"
+          fi
+          eval "python scripts/ingest_manual_aeat.py $ARGS"
+          code=$?
+          echo "exit_code=${code}" >> "${GITHUB_OUTPUT}"
+          exit 0
+
+      - name: Check for working-tree changes
+        id: diff
+        run: |
+          if [ -z "$(git status --porcelain src/hacienda_ai/data/manuales)" ]; then
+            echo "changed=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "changed=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Render PR body
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          python - <<'PY' > pr-body.md
+          import json
+          import pathlib
+
+          data = json.loads(pathlib.Path("ingest-report.json").read_text())
+          chunks = data.get("chunks", [])
+          total = data.get("total_chunks", 0)
+          new = data.get("newly_persisted", 0)
+
+          lines = [
+              "## Ingesta de manual AEAT / FAQs INFORMA\n",
+              "Workflow manual `ingest-manuals-aeat.yml`. **Revisar antes "
+              "de mergear**: los chunks heredan estructura jerárquica "
+              "detectada heurísticamente; comprobar al menos un par de "
+              "chunks por capítulo para confirmar que el chunker no se ha "
+              "tragado contenido entre encabezados.\n",
+              f"- Chunks generados: **{total}**",
+              f"- Nuevos: {new}",
+              f"- Duplicados (mismo content_hash): {total - new}",
+              "",
+          ]
+          # Sample de los primeros 10 chunks para revisión visual.
+          sample = chunks[:10]
+          if sample:
+              lines.append("### Muestra (primeros 10)")
+              lines.append("| Chunk ID | Página | Referencias |")
+              lines.append("|---|---|---|")
+              for c in sample:
+                  refs = ", ".join(c.get("referencias", [])[:3])
+                  if not refs:
+                      refs = "—"
+                  page = c.get("page_inicio") or "—"
+                  lines.append(
+                      f"| `{c['chunk_id'][:80]}` | {page} | {refs} |"
+                  )
+          lines.append("\n## Cómo revisar este PR\n")
+          lines.append(
+              "1. Abrir varios JSON en distintos puntos (inicio, medio, "
+              "final del manual) y verificar que `contenido` es coherente "
+              "con `capitulo`/`seccion`/`subseccion`.\n"
+              "2. Comprobar `referencias_normativas`: deben coincidir con "
+              "las leyes citadas en el cuerpo.\n"
+              "3. Si algún chunk tiene `(preámbulo)` en el título, "
+              "verificar que su contenido es realmente el texto previo a "
+              "la primera subsección (no contenido perdido).\n"
+              "4. Para INFORMA, comprobar que `Pregunta:` y `Respuesta:` "
+              "aparecen ambos en `contenido`.\n"
+          )
+          print("\n".join(lines))
+          PY
+
+      - name: Upload report artifact
+        if: steps.diff.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ingest-manuals-report
+          path: |
+            ingest-report.json
+            pr-body.md
+          retention-days: 30
+
+      - name: Create Pull Request
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: bot/ingest-manuals-${{ github.run_id }}
+          title: "Ingesta manuales AEAT / INFORMA: ${{ github.event.inputs.mode }}"
+          body-path: pr-body.md
+          commit-message: |
+            chore(corpus): ingesta manual AEAT / INFORMA
+
+            Procesa un PDF de Manual Práctico o un HTML INFORMA y añade
+            los chunks resultantes a data/manuales/<fuente>/<ejercicio>/.
+            Cada chunk preserva la jerarquía (capítulo > sección >
+            subsección) y las referencias normativas detectadas.
+          author: "haciendaai-bot <bot@haciendaai.local>"
+          committer: "haciendaai-bot <bot@haciendaai.local>"
+          labels: |
+            ingesta-manuales
+            requiere-revision
+            doctrina-administrativa

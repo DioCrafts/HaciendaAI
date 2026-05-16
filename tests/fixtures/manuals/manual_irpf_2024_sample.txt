@@ -1,0 +1,40 @@
+Capítulo 1. RENDIMIENTOS DEL TRABAJO
+
+1.1. Concepto y delimitación
+
+Los rendimientos del trabajo, conforme al artículo 17 de la Ley 35/2006, de 28 de noviembre, del Impuesto sobre la Renta de las Personas Físicas (LIRPF), son aquellos rendimientos íntegros que deriven, directa o indirectamente, del trabajo personal o de la relación laboral o estatutaria. Esta delimitación resulta esencial para diferenciar las rentas del trabajo respecto de las rentas procedentes de actividades económicas, del capital mobiliario o inmobiliario, y de las ganancias y pérdidas patrimoniales. La calificación correcta determina el régimen de retenciones aplicable, la posibilidad de aplicar reducciones específicas y el tratamiento de los gastos deducibles previstos por la normativa.
+
+
+1.1.1. Definición legal
+
+Tienen la consideración de rendimientos del trabajo todas las contraprestaciones o utilidades, cualquiera que sea su denominación o naturaleza, dinerarias o en especie, que deriven, directa o indirectamente, del trabajo personal o de la relación laboral o estatutaria y no tengan el carácter de rendimientos de actividades económicas. La amplitud del concepto legal pretende abarcar cualquier forma de retribución vinculada al trabajo dependiente, evitando posibles vías de elusión basadas en la denominación formal de la contraprestación percibida por el contribuyente.
+
+1.1.2. Casos particulares
+
+Se incluyen entre otros: las prestaciones por desempleo, las pensiones y haberes pasivos percibidos de los regímenes públicos de la Seguridad Social, las pensiones compensatorias recibidas del cónyuge, las contribuciones empresariales a sistemas de previsión social, y las retribuciones de los administradores y miembros de los Consejos de Administración. También se asimilan a rendimientos del trabajo determinadas becas no exentas, las retribuciones derivadas de relaciones laborales de carácter especial y las prestaciones percibidas por los beneficiarios de planes de pensiones, conforme al artículo 17.2 LIRPF.
+
+
+1.2. Cuantificación del rendimiento neto del trabajo
+
+El rendimiento neto del trabajo se determina restando del rendimiento íntegro los gastos deducibles previstos en el artículo 19 LIRPF. A su vez, sobre el rendimiento neto resultante, se aplican las reducciones que correspondan (artículos 18 y 20 LIRPF). Este esquema bifásico permite ajustar la base imponible a la capacidad económica real del contribuyente, reconociendo tanto los gastos efectivamente soportados como determinadas circunstancias personales o de irregularidad temporal en la percepción de los rendimientos.
+
+1.2.1. Gastos deducibles
+
+Conforme al artículo 19.2 LIRPF, son gastos deducibles exclusivamente los siguientes:
+a) Las cotizaciones a la Seguridad Social o a mutualidades generales obligatorias de funcionarios.
+b) Las detracciones por derechos pasivos.
+c) Las cotizaciones a colegios de huérfanos o entidades similares.
+d) Las cuotas satisfechas a sindicatos y a colegios profesionales, cuando la colegiación tenga carácter obligatorio, con el límite que reglamentariamente se establezca.
+e) Los gastos de defensa jurídica derivados directamente de litigios suscitados en la relación del contribuyente con la persona de la que percibe los rendimientos, con el límite de 300 euros anuales.
+f) En concepto de otros gastos distintos de los anteriores, 2.000 euros anuales. Este importe se incrementa en los supuestos de movilidad geográfica y para trabajadores activos con discapacidad, conforme a los porcentajes y cuantías legalmente establecidos.
+
+
+Capítulo 2. RENDIMIENTOS DEL CAPITAL INMOBILIARIO
+
+2.1. Concepto
+
+Tienen la consideración de rendimientos íntegros del capital inmobiliario, conforme al artículo 22 LIRPF, los procedentes del arrendamiento o de la constitución o cesión de derechos o facultades de uso o disfrute sobre bienes inmuebles rústicos y urbanos, o de derechos reales que recaigan sobre los mismos. Quedan excluidos de esta categoría los rendimientos derivados de inmuebles afectos a actividades económicas, que tributan en sede de la actividad económica correspondiente, así como las rentas imputadas previstas en el artículo 85 LIRPF para inmuebles urbanos no arrendados ni afectos.
+
+2.1.1. Tributación del arrendamiento de vivienda
+
+Los rendimientos íntegros derivados del arrendamiento de vivienda habitual están sujetos a las reducciones del artículo 23.2 LIRPF, que prevé porcentajes del 50, 60, 70 y 90 por ciento según las circunstancias de la vivienda y del arrendatario, conforme a la Ley 12/2023, de 24 de mayo, por el derecho a la vivienda. La aplicación del porcentaje incrementado exige el cumplimiento de requisitos específicos relativos a la ubicación del inmueble en zonas de mercado residencial tensionado, la rebaja efectiva del precio respecto del contrato anterior, o el arrendamiento a jóvenes de entre 18 y 35 años, entre otros supuestos tasados.

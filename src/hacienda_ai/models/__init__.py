@@ -18,6 +18,10 @@ from .consulta_dgt import (
     CriterioConfidence,
     Impuesto,
 )
+from .manual_aeat import (
+    ManualChunk,
+    ManualFuente,
+)
 from .norma import (
     Norma,
     NormaRegistry,
@@ -63,6 +67,8 @@ __all__ = [
     "FalloSentido",
     "ForalTerritory",
     "Impuesto",
+    "ManualChunk",
+    "ManualFuente",
     "Norma",
     "NormaRegistry",
     "NormaStatus",
