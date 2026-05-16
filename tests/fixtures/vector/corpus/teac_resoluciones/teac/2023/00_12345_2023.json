@@ -1,0 +1,17 @@
+{
+  "numero": "00/12345/2023",
+  "organo": "teac",
+  "sede": "Madrid",
+  "fecha": "2023-06-15",
+  "tipo": "unifica_criterio",
+  "sentido": "desestimatoria",
+  "impuesto": "irpf",
+  "asunto": "Unificacion de criterio sobre la deducibilidad de gastos de locomocion en el regimen de dietas exoneradas del IRPF.",
+  "criterio": "La carga de acreditar la realidad del desplazamiento que justifica la exoneracion de las dietas en IRPF corresponde al empleador como pagador, sin que pueda exigirse al trabajador aportar prueba documental adicional.",
+  "criterio_confidence": "auto",
+  "normativa": ["Ley 35/2006 art. 17"],
+  "resolucion_texto": "El Tribunal Economico-Administrativo Central, en unificacion de criterio, desestima el recurso extraordinario interpuesto y fija como criterio que la prueba del desplazamiento que da derecho a la exoneracion de las dietas corresponde al pagador, en aplicacion del art. 17 LIRPF y del art. 9 del Reglamento.",
+  "url": "https://serviciostelematicosext.hacienda.gob.es/TEAC/00/12345/2023",
+  "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "last_fetched_at": "2024-09-01"
+}

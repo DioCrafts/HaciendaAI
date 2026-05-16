@@ -1,0 +1,15 @@
+{
+  "numero": "V0123-24",
+  "fecha_salida": "2024-01-30",
+  "fecha_entrada": "2023-12-10",
+  "impuesto": "irpf",
+  "asunto": "Tributacion en IRPF de las dietas por gastos de manutencion abonadas a trabajador desplazado.",
+  "cuestion_planteada": "El consultante, empleado de una empresa con sede en Madrid, se desplaza durante varios meses a Sevilla para prestar servicios. Plantea si las dietas por manutencion abonadas por la empresa estan exentas de IRPF al amparo del art. 9 del Reglamento del Impuesto.",
+  "contestacion_completa": "Conforme al art. 17.1.d) de la Ley 35/2006, las dietas y asignaciones para gastos de viaje quedan exoneradas de gravamen en los terminos del art. 9 del Reglamento IRPF, siempre que se acredite el desplazamiento a municipio distinto del lugar habitual de trabajo y la realidad del gasto. Las cantidades que excedan los limites reglamentarios tributan como rendimiento del trabajo.",
+  "criterio": "Las dietas por manutencion estan exoneradas hasta los limites reglamentarios cuando se acredite desplazamiento efectivo a municipio distinto del centro de trabajo habitual.",
+  "criterio_confidence": "auto",
+  "normativa": ["Ley 35/2006 art. 19.2.e)"],
+  "url": "https://petete.tributos.hacienda.gob.es/consultas/?num_consulta=V0123-24",
+  "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "last_fetched_at": "2024-09-01"
+}

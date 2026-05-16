@@ -1,0 +1,19 @@
+{
+  "ecli": "ECLI:ES:TS:2024:1234",
+  "organo": "ts",
+  "tribunal_codigo": "TS",
+  "sala": "Tercera",
+  "seccion": "Segunda",
+  "fecha": "2024-06-15",
+  "ponente": "Magistrado Ejemplo",
+  "numero_resolucion": "987/2024",
+  "numero_recurso": "1234/2022",
+  "fallo_sentido": "desestimatoria",
+  "fallo_texto": "Desestimamos el recurso de casacion interpuesto y confirmamos la sentencia recurrida en lo relativo a la tributacion de los rendimientos del trabajo.",
+  "ratio_decidendi": "Las dietas y asignaciones para gastos de locomocion solo quedan exoneradas de gravamen en IRPF cuando el contribuyente acredita la realidad del desplazamiento y su vinculacion con la actividad laboral, en los terminos del art. 17 LIRPF y su reglamento.",
+  "ratio_confidence": "auto",
+  "resumen": "El Tribunal Supremo confirma que la carga de acreditar la realidad del desplazamiento de las dietas exoneradas en IRPF recae sobre el empleador como pagador.",
+  "url": "https://www.poderjudicial.es/search/AN/openDocument/ECLI:ES:TS:2024:1234",
+  "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "last_fetched_at": "2024-09-01"
+}
