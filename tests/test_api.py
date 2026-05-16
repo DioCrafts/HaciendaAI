@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import importlib
+from dataclasses import replace
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
 from hacienda_ai.api import create_app
-from hacienda_ai.api.app import _qualitative_confidence
+from hacienda_ai.api.app import _corpus_fingerprint, _qualitative_confidence
+from hacienda_ai.deductions import load_deductions
+from hacienda_ai.models import Deduction, ValidationStatus
 
 
 @pytest.fixture
@@ -382,3 +385,94 @@ def test_evaluation_pdf_uses_madrid_profile_with_state_and_regional_sources(
     r = client.get(f"/evaluations/{eid}/pdf")
     assert r.status_code == 200
     assert r.content.startswith(b"%PDF-")
+
+
+# --------------------------------------------------------------------------
+# Tests de `_corpus_fingerprint` (QW2): la firma del PDF tiene que cubrir
+# todos los campos que determinan la recomendación, no solo `(id, tax_year,
+# sources)`. Si alguien edita un importe sin tocar las fuentes BOE, o ajusta
+# un tope, o cambia `validation_status`, la firma DEBE moverse — si no, el
+# PDF "firmado" miente.
+# --------------------------------------------------------------------------
+
+
+def _pick_calculable_deduction() -> Deduction:
+    """Devuelve la primera deducción del corpus con `calculation.type ==
+    fixed_amount` y `fixed_amount` no nulo, para poder mutar el importe."""
+    for d in load_deductions():
+        if d.calculation.type == "fixed_amount" and d.calculation.fixed_amount is not None:
+            return d
+    raise AssertionError("se esperaba al menos una deducción con fixed_amount no nulo")
+
+
+def test_fingerprint_moves_when_fixed_amount_changes() -> None:
+    """Bug original de QW2: cambiar el importe sin tocar las fuentes no
+    movía la firma. Ahora debe moverla."""
+    deductions = load_deductions()
+    base_fp = _corpus_fingerprint(deductions)
+    target = _pick_calculable_deduction()
+    bumped_calc = replace(target.calculation, fixed_amount=(target.calculation.fixed_amount or 0) + 1.0)
+    mutated = [replace(d, calculation=bumped_calc) if d.id == target.id else d for d in deductions]
+    assert _corpus_fingerprint(mutated) != base_fp
+
+
+def test_fingerprint_moves_when_limit_changes() -> None:
+    deductions = load_deductions()
+    base_fp = _corpus_fingerprint(deductions)
+    target = deductions[0]
+    new_limit = (target.limit or 0.0) + 100.0
+    mutated = [replace(d, limit=new_limit) if d.id == target.id else d for d in deductions]
+    assert _corpus_fingerprint(mutated) != base_fp
+
+
+def test_fingerprint_moves_when_effective_to_changes() -> None:
+    """Acortar la vigencia de una deducción cambia la recomendación para
+    devengos cercanos al límite. La firma debe reflejarlo."""
+    from datetime import date as _date
+    deductions = load_deductions()
+    base_fp = _corpus_fingerprint(deductions)
+    target = next(d for d in deductions if d.effective_to is not None)
+    mutated = [
+        replace(d, effective_to=_date(target.effective_to.year, 6, 30))
+        if d.id == target.id else d
+        for d in deductions
+    ]
+    assert _corpus_fingerprint(mutated) != base_fp
+
+
+def test_fingerprint_moves_when_validation_status_changes() -> None:
+    """Degradar una deducción de `validada` a `dudosa` cambia su estado en
+    cualquier evaluación. La firma debe reflejarlo."""
+    deductions = load_deductions()
+    base_fp = _corpus_fingerprint(deductions)
+    target = deductions[0]
+    mutated = [
+        replace(d, validation_status=ValidationStatus.DUDOSA) if d.id == target.id else d
+        for d in deductions
+    ]
+    assert _corpus_fingerprint(mutated) != base_fp
+
+
+def test_fingerprint_moves_when_requirements_change() -> None:
+    """Añadir un requisito estructurado cambia las condiciones de
+    aplicación. La firma debe reflejarlo."""
+    from hacienda_ai.models import Requirement
+    deductions = load_deductions()
+    base_fp = _corpus_fingerprint(deductions)
+    target = deductions[0]
+    new_reqs = (*target.requirements, Requirement(field="dummy.field", operator="exists"))
+    mutated = [replace(d, requirements=new_reqs) if d.id == target.id else d for d in deductions]
+    assert _corpus_fingerprint(mutated) != base_fp
+
+
+def test_fingerprint_stable_under_deduction_reordering() -> None:
+    """El orden de la lista de entrada no debe afectar a la firma."""
+    deductions = load_deductions()
+    reversed_list = list(reversed(deductions))
+    assert _corpus_fingerprint(deductions) == _corpus_fingerprint(reversed_list)
+
+
+def test_fingerprint_stable_across_repeated_calls() -> None:
+    """Misma entrada → mismo hash. Reproducibilidad básica."""
+    deductions = load_deductions()
+    assert _corpus_fingerprint(deductions) == _corpus_fingerprint(deductions)

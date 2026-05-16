@@ -23,7 +23,9 @@ import json
 import re
 import time
 import uuid
+from dataclasses import asdict
 from datetime import UTC, date, datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -152,30 +154,58 @@ def _applicable_versions(
     return out
 
 
-def _corpus_fingerprint(deductions: list[Deduction]) -> str:
-    """SHA-256 estable del corpus: id, boe_id y content_hash de cada fuente.
+def _canonical_default(value: Any) -> Any:
+    """Serializa los tipos no-JSON que pueden aparecer dentro de `Deduction`.
 
-    Sirve para que el PDF exportado lleve una firma reproducible: si el
-    corpus cambia entre la evaluación y la verificación posterior, la
-    firma cambia y el asesor puede detectarlo. Determinista para una
-    misma versión del corpus, independiente del orden interno.
+    `asdict` deja los Enum como Enum y las fechas como `date`; los convertimos
+    a sus formas estables (Enum.value, ISO 8601) para que el hash sea
+    reproducible entre versiones de Python y plataformas.
     """
-    fingerprint_input = json.dumps(
-        sorted(
-            (
-                d.id,
-                d.tax_year,
-                tuple(
-                    sorted((s.boe_id, s.article, s.content_hash) for s in d.sources)
-                ),
-            )
-            for d in deductions
-        ),
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, date):
+        return value.isoformat()
+    raise TypeError(f"no serializable en fingerprint: {type(value).__name__}")
+
+
+def _corpus_fingerprint(deductions: list[Deduction]) -> str:
+    """SHA-256 de la serialización canónica completa del corpus.
+
+    Firma la representación íntegra de cada `Deduction` —`requirements`,
+    `calculation` (tipo, importe fijo, porcentaje, cap, base_field), `limit`,
+    `validation_status`, `effective_from`/`effective_to`, `risk_level`,
+    `incompatibilities`, `required_documents`, `rent_web_boxes`,
+    `taxable_base_limits`, `foral_territory` y todas las `sources` con su
+    `content_hash`—, no solo `(id, tax_year, sources)` como hacía la primera
+    versión. Cualquier cambio semántico —incluido modificar un importe sin
+    tocar las fuentes BOE, ajustar un tope o cambiar `validation_status`—
+    mueve la firma, y el PDF firmado lo refleja.
+
+    Determinista: ordenamos las deducciones por `id` y las `sources` de cada
+    deducción por `(boe_id, article, paragraph, content_hash)` para que el
+    orden de la lista de entrada y el orden de declaración de fuentes no
+    afecten al hash.
+    """
+    canonical: list[dict[str, Any]] = []
+    for d in sorted(deductions, key=lambda d: d.id):
+        raw = asdict(d)
+        raw["sources"] = sorted(
+            raw["sources"],
+            key=lambda s: (
+                s.get("boe_id") or "",
+                s.get("article") or "",
+                s.get("paragraph") or "",
+                s.get("content_hash") or "",
+            ),
+        )
+        canonical.append(raw)
+    payload = json.dumps(
+        canonical,
         sort_keys=True,
         ensure_ascii=False,
-        default=str,
+        default=_canonical_default,
     )
-    return hashlib.sha256(fingerprint_input.encode("utf-8")).hexdigest()
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def create_app() -> FastAPI:
