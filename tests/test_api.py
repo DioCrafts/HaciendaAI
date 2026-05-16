@@ -274,6 +274,85 @@ def test_evaluation_confidence_is_qualitative_label(client: TestClient) -> None:
         )
 
 
+def test_qw6_applies_never_returns_zero_amount(client: TestClient) -> None:
+    """QW6 — invariante: ninguna evaluación con status `applies` puede tener
+    `estimated_amount == 0`. Era el patrón con el que las 23 deducciones
+    `manual_review` del corpus se camuflaban en la tabla como "Aplica · 0 €".
+    Tras QW6 esos casos salen como `requires_manual_calculation`."""
+    pid = client.post("/profiles", json=_synthetic_profile()).json()["profile_id"]
+    data = client.post("/evaluations", json={"profile_id": pid}).json()
+    offenders = [
+        ev["deduction_id"]
+        for ev in data["evaluations"]
+        if ev["status"] == "applies" and ev["estimated_amount"] == 0
+    ]
+    assert not offenders, (
+        f"deducciones con 'applies' + 0 €: {offenders} — "
+        "deben migrar a 'requires_manual_calculation'"
+    )
+
+
+def test_qw6_corpus_surfaces_requires_manual_calculation(client: TestClient) -> None:
+    """El corpus actual tiene 23 entradas `calculation.type=manual_review`.
+    Con cualquier perfil que satisfaga sus requisitos (al menos
+    `es_minimo_personal_familiar_general_2024` no tiene requisitos), el API
+    debe emitir el nuevo estado. Si esta cuenta cae a 0 inesperadamente,
+    o un refactor del motor anula la rama, este test la caza."""
+    pid = client.post("/profiles", json=_synthetic_profile()).json()["profile_id"]
+    data = client.post("/evaluations", json={"profile_id": pid}).json()
+    rmc = [
+        ev for ev in data["evaluations"]
+        if ev["status"] == "requires_manual_calculation"
+    ]
+    assert rmc, "no aparece ninguna 'requires_manual_calculation' en la respuesta"
+    sample = rmc[0]
+    # El payload sigue llevando citas pinpoint clicables y `applicable_versions`:
+    # la deducción aplica, lo que falta es el cómputo.
+    assert sample["sources"], f"{sample['deduction_id']} sin citas"
+    assert sample["estimated_amount"] == 0
+    assert sample["confidence"] in {"alta", "media", "baja"}
+
+
+def test_qw6_pdf_renders_requires_manual_calculation_label(client: TestClient) -> None:
+    """El PDF firmable tiene que rotular el nuevo estado con texto humano
+    en castellano. Si alguien añade un estado al `RuleStatus` literal pero
+    olvida la traducción, en el PDF se vería el snake_case crudo."""
+    pid = client.post("/profiles", json=_synthetic_profile()).json()["profile_id"]
+    eid = client.post("/evaluations", json={"profile_id": pid}).json()["evaluation_id"]
+    r = client.get(f"/evaluations/{eid}/pdf")
+    assert r.status_code == 200
+    assert r.content.startswith(b"%PDF-")
+
+
+def test_qw6_pdf_html_includes_manual_calculation_label_and_class() -> None:
+    """Renderizamos el HTML intermedio para inspeccionar etiquetas/CSS sin
+    parsear PDF. El estado debe aparecer con label "Requiere cálculo manual"
+    y clase CSS dedicada distinta de `status-applies` (color azul, no
+    verde) para que el asesor lo distinga al revisar el expediente."""
+    from hacienda_ai.api.pdf import render_evaluation_report_html
+
+    evaluation = {
+        "evaluation_id": "test-eid",
+        "evaluated_at": "2026-05-16T10:00:00+00:00",
+        "devengo_date": "2024-12-31",
+        "profile": {"tax_year": 2024, "region": "Madrid", "filing_mode": "individual"},
+        "corpus": {"count": 1, "last_reviewed_at": "2026-05-16",
+                   "engine_version": "0.1.0", "fingerprint_sha256": "x" * 64},
+        "disclaimer": "Aviso legal.",
+        "evaluations": [{
+            "deduction_id": "test_mr", "deduction_name": "Manual review test",
+            "status": "requires_manual_calculation", "estimated_amount": 0,
+            "reason": "Fórmula no lineal.",
+            "missing_fields": [], "missing_documents": [],
+            "risk_level": "medium", "confidence": "media",
+            "sources": [], "applicable_versions": [],
+        }],
+    }
+    html = render_evaluation_report_html(evaluation)
+    assert "Requiere cálculo manual" in html
+    assert "status-requires_manual_calculation" in html
+
+
 def test_safety_module_has_been_removed() -> None:
     """`safety.py` era teatro de cumplimiento: declarado en README y nunca
     invocado por ningún endpoint. Se ha eliminado del paquete; cualquier

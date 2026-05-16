@@ -472,6 +472,89 @@ def test_deduction_for_other_region_does_not_apply():
 
 
 # --------------------------------------------------------------------------
+# QW6: estado propio `requires_manual_calculation` para `manual_review`.
+# Antes salía como `applies` con `estimated_amount=0.0`, lo que en el demo
+# se leía como "Aplica · 0,00 €" y un asesor lo interpretaba como
+# "no hay deducción". El nuevo estado mantiene visible que la regla aplica
+# pero el importe lo tiene que calcular un humano sobre la fuente citada.
+# --------------------------------------------------------------------------
+
+
+def _manual_review_deduction(**overrides: object) -> Deduction:
+    """Variante sintética con `calculation.type=manual_review` lista para
+    aplicar (requisitos cumplidos, documentos presentes). Los `overrides`
+    se fusionan sobre los defaults para permitir sustituir requirements o
+    required_documents sin colisión de kwargs."""
+    defaults = {
+        "id": "test_manual_review",
+        "requirements": [],
+        "calculation": {"type": "manual_review", "base_field": "expenses.test_amount"},
+        "limit": None,
+        "required_documents": [],
+    }
+    defaults.update(overrides)
+    return validated_deduction(**defaults)
+
+
+def test_qw6_manual_review_surfaces_as_requires_manual_calculation():
+    """Requisitos cumplidos + sin docs pendientes + cálculo no lineal:
+    debe salir como `requires_manual_calculation`, NO como `applies`."""
+    result = evaluate_deduction(_manual_review_deduction(), profile())
+    assert result.status == "requires_manual_calculation"
+    assert result.estimated_amount == 0.0
+    assert "fórmula no lineal" in result.reason or "asesor" in result.reason
+    # Confianza media: la regla aplica pero el importe es desconocido.
+    assert 0.5 <= result.confidence < 0.8
+
+
+def test_qw6_manual_review_still_blocks_on_missing_data():
+    """Si faltan datos estructurados para evaluar los requisitos, el motor
+    debe priorizar `missing_data` sobre `requires_manual_calculation`: el
+    asesor ni siquiera puede empezar el cálculo manual sin esos datos."""
+    deduction = _manual_review_deduction(
+        requirements=[{"field": "expenses.unknown_field", "operator": ">", "value": 0}],
+    )
+    result = evaluate_deduction(deduction, profile())
+    assert result.status == "missing_data"
+
+
+def test_qw6_manual_review_still_blocks_on_missing_evidence():
+    """Si faltan justificantes documentales, gana `missing_evidence`. El
+    asesor primero recoge los papeles, luego ya verá si toca cálculo manual."""
+    deduction = _manual_review_deduction(
+        required_documents=["Justificante imposible de tener"],
+    )
+    result = evaluate_deduction(deduction, profile())
+    assert result.status == "missing_evidence"
+
+
+def test_qw6_corpus_manual_review_never_surfaces_as_applies_zero():
+    """Invariante global del corpus: ninguna evaluación devuelve `applies`
+    con importe 0 €. Si alguien añade una deducción `manual_review` futura
+    y olvida la rama de QW6, este test la caza. Validado contra los dos
+    perfiles sintéticos del repo (_rich_profile + _rich_madrid_profile)."""
+    for builder in (_rich_profile, _rich_madrid_profile):
+        for d in load_deductions():
+            r = evaluate_deduction(d, builder())
+            if r.status == "applies":
+                assert r.estimated_amount > 0, (
+                    f"{d.id} sale como 'applies' con 0 €: "
+                    "síntoma de manual_review oculto. "
+                    "Debe migrar a `requires_manual_calculation`."
+                )
+
+
+def test_qw6_rule_status_literal_includes_requires_manual_calculation():
+    """Type-level: el Literal `RuleStatus` debe incluir el nuevo valor.
+    Si alguien lo borra del modelo, mypy --strict y este test lo cazan."""
+    from typing import get_args
+
+    from hacienda_ai.models import RuleStatus
+
+    assert "requires_manual_calculation" in get_args(RuleStatus)
+
+
+# --------------------------------------------------------------------------
 # Sprint 1 #1: corpus IRPF 2025 estatal. Se incorpora como clon estructural
 # del corpus 2024 con vigencia trasladada a 2025, validado contra el texto
 # BOE consolidado vigente con `verify_seed.py` (ok=33 drift=0 sobre la

@@ -8,6 +8,7 @@
   :root { --primary: #2657c6; --primary-hover: #1a44a3; --warning: #d6a900;
           --warning-bg: #fff4cc; --ok: #195e19; --ok-bg: #d6f1d6;
           --pend: #8a4d00; --pend-bg: #ffe7c6; --bad: #8a1a1a; --bad-bg: #ffd6d6;
+          --manual: #1a3a8a; --manual-bg: #d6e4ff;
           --muted: #555; --border: #e3e3e3; }
   * { box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
@@ -17,6 +18,7 @@
   .disclaimer { background: var(--warning-bg); border-left: 4px solid var(--warning);
                 padding: 9px 12px; margin: 8px 0; font-size: 0.88em; }
   .corpus { color: var(--muted); font-size: 0.84em; margin: 6px 0 14px; }
+  .muted { color: var(--muted); }
   details.profile { margin-bottom: 14px; border: 1px solid var(--border); border-radius: 4px; padding: 8px 12px; }
   details.profile > summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
   form { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -40,6 +42,7 @@
   .status-does_not_apply { background: #eee; color: var(--muted); }
   .status-missing_data, .status-missing_evidence { background: var(--pend-bg); color: var(--pend); }
   .status-pending_validation { background: var(--bad-bg); color: var(--bad); }
+  .status-requires_manual_calculation { background: var(--manual-bg); color: var(--manual); }
   .risk-low { color: var(--ok); }
   .risk-medium { color: var(--pend); }
   .risk-high { color: var(--bad); }
@@ -218,6 +221,7 @@ Título vigente de familia numerosa especial</textarea>
       missing_data: 'Faltan datos',
       missing_evidence: 'Faltan justificantes',
       pending_validation: 'Pendiente de validar',
+      requires_manual_calculation: 'Requiere cálculo manual',
     };
     const eurFmt = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 
@@ -312,7 +316,7 @@ Título vigente de familia numerosa especial</textarea>
         <tr>
           <td>${e.deduction_name}</td>
           <td><span class="status status-${e.status}">${STATUS_LABEL[e.status] ?? e.status}</span></td>
-          <td>${e.estimated_amount > 0 ? eurFmt.format(e.estimated_amount) : ''}</td>
+          <td>${e.estimated_amount > 0 ? eurFmt.format(e.estimated_amount) : '<span class="muted">—</span>'}</td>
           <td class="risk-${e.risk_level}">${e.risk_level}</td>
           <td><span class="conf conf-${e.confidence}">${e.confidence}</span></td>
           <td>${escapeHtml(e.reason)}${

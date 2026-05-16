@@ -114,6 +114,24 @@ def evaluate_deduction(
             missing_documents=missing_documents,
             confidence=0.7,
         )
+    if deduction.calculation.type == "manual_review":
+        # Requisitos estructurados y justificantes correctos, pero la fórmula no
+        # es lineal (escalado por base imponible, tipo de obra, fidelización
+        # de donativos…). El motor no la modela todavía; devolverla como
+        # `applies` con `estimated_amount=0` era engañoso: el asesor leía
+        # "Aplica · 0,00 €" y descartaba la deducción. Surfacear como estado
+        # propio mantiene visible que la regla aplica pero el importe lo
+        # tiene que calcular un humano sobre la fuente citada.
+        return _result(
+            deduction,
+            "requires_manual_calculation",
+            "Se cumplen los requisitos estructurados y constan los "
+            "justificantes, pero el motor no modela la fórmula no lineal de "
+            "esta deducción. El importe debe calcularlo el asesor sobre la "
+            "fuente citada.",
+            estimated_amount=0.0,
+            confidence=0.6,
+        )
     return _result(
         deduction,
         "applies",
