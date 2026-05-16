@@ -1,0 +1,464 @@
+{
+  "_meta": {
+    "ejercicio": 2024,
+    "ambito": "autonomico",
+    "comunidad_autonoma": "Madrid",
+    "fuente_primaria": "Decreto Legislativo 1/2010, de 21 de octubre, por el que se aprueba el Texto Refundido de las Disposiciones Legales de la Comunidad de Madrid en materia de tributos cedidos por el Estado, con las modificaciones de Ley 11/2020, Ley 9/2022 y Ley 13/2023.",
+    "fuente_consolidacion": "https://gestiona.comunidad.madrid/legislacion/",
+    "verificador": "Pendiente. La API de legislación consolidada de www.boe.es solo cubre normativa estatal; las citas a BOCM se anclan por boe_id con prefijo BOCM- y URL al consolidado de la sede CM, pero el SHA-256 del articulado autonómico requiere un verificador específico todavía no implementado. Los importes y porcentajes están transcritos del Texto Refundido y del manual práctico de Renta Madrid 2024; revisar antes de presentar al cliente.",
+    "alcance": "Selección representativa (12 deducciones) de los conceptos autonómicos más usados en Madrid: nacimiento/adopción, acogimiento, arrendamiento juvenil, gastos educativos, autoempleo, inversión en startups CM, donativos culturales, familias numerosas. NO incluye régimen transitorio de inversión en vivienda habitual ni deducción por menores de 3 años en escuelas infantiles públicas (escala compleja, queda en revisión manual hasta validación por asesor colegiado de Madrid)."
+  },
+  "deductions": [
+    {
+      "id": "mad_nacimiento_adopcion_2024",
+      "name": "Madrid — Por nacimiento o adopción de hijos",
+      "description": "Deducción autonómica de Madrid por nacimiento o adopción de hijos durante el ejercicio (art. 2.1 TRTC Madrid). Importes: 600 € por el 1.er hijo, 750 € por el 2.º y 900 € por el 3.º o sucesivos, con incremento del 600 € adicional en caso de parto múltiple. La diferenciación por orden de nacimiento y la concurrencia de parto múltiple se mantienen en revisión manual.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Madrid",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "family.births_or_adoptions_this_year", "operator": ">=", "value": 1}
+      ],
+      "calculation": {"type": "manual_review", "base_field": "family.births_or_adoptions_this_year"},
+      "limit": null,
+      "taxable_base_limits": {"base_imponible_individual_max_eur": 30000, "base_imponible_conjunta_max_eur": 36200},
+      "incompatibilities": [],
+      "required_documents": ["Libro de familia o resolución de adopción"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Decreto Legislativo 1/2010 CM (TRTC) — art. 2.1. Por nacimiento o adopción",
+          "url": "https://gestiona.comunidad.madrid/legislacion/decreto-legislativo-1-2010",
+          "article": "art. 2",
+          "paragraph": "1",
+          "boe_id": "BOCM-2010-258",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "mad_adopcion_internacional_2024",
+      "name": "Madrid — Por adopción internacional",
+      "description": "Deducción autonómica de Madrid por adopción internacional (art. 2.2 TRTC Madrid): 600 € por cada hijo adoptado en el ejercicio mediante adopción internacional. Compatible con la deducción por nacimiento o adopción del art. 2.1.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Madrid",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "family.international_adoptions_this_year", "operator": ">=", "value": 1}
+      ],
+      "calculation": {"type": "fixed_amount", "fixed_amount": 600.0},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Resolución de adopción internacional"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Decreto Legislativo 1/2010 CM (TRTC) — art. 2.2. Por adopción internacional",
+          "url": "https://gestiona.comunidad.madrid/legislacion/decreto-legislativo-1-2010",
+          "article": "art. 2",
+          "paragraph": "2",
+          "boe_id": "BOCM-2010-258",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "mad_acogimiento_familiar_menores_2024",
+      "name": "Madrid — Por acogimiento familiar de menores",
+      "description": "Deducción autonómica de Madrid por acogimiento familiar simple, permanente o preadoptivo, administrativo o judicial, de menores (art. 3.1 TRTC Madrid): 600 € por el primer menor en régimen de acogimiento familiar, 750 € por el segundo y 900 € por el tercero o sucesivos.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Madrid",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "family.fostered_minors_count", "operator": ">=", "value": 1}
+      ],
+      "calculation": {"type": "manual_review", "base_field": "family.fostered_minors_count"},
+      "limit": null,
+      "taxable_base_limits": {"base_imponible_individual_max_eur": 30000, "base_imponible_conjunta_max_eur": 36200},
+      "incompatibilities": [],
+      "required_documents": ["Resolución administrativa o judicial de acogimiento"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Decreto Legislativo 1/2010 CM (TRTC) — art. 3.1. Acogimiento familiar de menores",
+          "url": "https://gestiona.comunidad.madrid/legislacion/decreto-legislativo-1-2010",
+          "article": "art. 3",
+          "paragraph": "1",
+          "boe_id": "BOCM-2010-258",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "mad_acogimiento_no_remunerado_mayores_o_discapacidad_2024",
+      "name": "Madrid — Por acogimiento no remunerado de mayores de 65 o personas con discapacidad",
+      "description": "Deducción autonómica de Madrid por acogimiento no remunerado, en domicilio del contribuyente y por al menos 183 días durante el ejercicio, de personas mayores de 65 años o con grado de discapacidad ≥33% sin parentesco hasta el segundo grado (art. 3.2 TRTC Madrid): 1.500 € por persona acogida.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Madrid",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "personal.fosters_elderly_or_disabled_at_home", "operator": "==", "value": true}
+      ],
+      "calculation": {"type": "fixed_amount", "fixed_amount": 1500.0},
+      "limit": null,
+      "taxable_base_limits": {"base_imponible_individual_max_eur": 25620, "base_imponible_conjunta_max_eur": 36200},
+      "incompatibilities": [],
+      "required_documents": ["Certificado de la Consejería competente sobre el acogimiento"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Decreto Legislativo 1/2010 CM (TRTC) — art. 3.2. Acogimiento no remunerado",
+          "url": "https://gestiona.comunidad.madrid/legislacion/decreto-legislativo-1-2010",
+          "article": "art. 3",
+          "paragraph": "2",
+          "boe_id": "BOCM-2010-258",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "mad_arrendamiento_vivienda_habitual_menor_35_2024",
+      "name": "Madrid — Por arrendamiento de vivienda habitual por menores de 35 años",
+      "description": "Deducción autonómica de Madrid por arrendamiento de vivienda habitual del contribuyente menor de 35 años (art. 4 TRTC Madrid): 30% de las cantidades satisfechas en el ejercicio, con un límite de 1.237,20 €/año. Requiere base imponible inferior a determinados umbrales y depósito de fianza en la Agencia de Vivienda Social CM. El motor aplica el porcentaje y tope; los umbrales de base imponible se mantienen en revisión manual.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Madrid",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.rental_madrid_youth", "operator": ">", "value": 0},
+        {"field": "personal.is_under_35", "operator": "==", "value": true},
+        {"field": "personal.rental_deposit_madrid", "operator": "==", "value": true}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.rental_madrid_youth",
+        "percentage": 0.3,
+        "cap": 1237.2
+      },
+      "limit": 1237.2,
+      "taxable_base_limits": {"base_imponible_individual_max_eur": 25620, "base_imponible_conjunta_max_eur": 36200},
+      "incompatibilities": [],
+      "required_documents": [
+        "Contrato de arrendamiento",
+        "Justificantes de pago",
+        "Acreditación del depósito de fianza en la Agencia de Vivienda Social CM"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Decreto Legislativo 1/2010 CM (TRTC) — art. 4. Arrendamiento vivienda <35",
+          "url": "https://gestiona.comunidad.madrid/legislacion/decreto-legislativo-1-2010",
+          "article": "art. 4",
+          "paragraph": null,
+          "boe_id": "BOCM-2010-258",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "mad_gastos_educativos_2024",
+      "name": "Madrid — Por gastos educativos (escolaridad, idiomas, vestuario)",
+      "description": "Deducción autonómica de Madrid por gastos educativos de hijos en infantil, primaria, secundaria, bachillerato y FP (art. 7 TRTC Madrid): 15% por escolaridad en centros privados no concertados, 10% por enseñanza de idiomas y 5% por vestuario escolar de uso obligatorio, con topes específicos por tipo de gasto. Cálculo en revisión manual por la concurrencia de los tres tramos.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Madrid",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.educational_madrid", "operator": ">", "value": 0}
+      ],
+      "calculation": {"type": "manual_review", "base_field": "expenses.educational_madrid"},
+      "limit": null,
+      "taxable_base_limits": {"base_imponible_individual_max_eur": 30000, "base_imponible_conjunta_max_eur": 36200},
+      "incompatibilities": [],
+      "required_documents": ["Facturas de centros educativos", "Justificantes de vestuario obligatorio"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Decreto Legislativo 1/2010 CM (TRTC) — art. 7. Gastos educativos",
+          "url": "https://gestiona.comunidad.madrid/legislacion/decreto-legislativo-1-2010",
+          "article": "art. 7",
+          "paragraph": null,
+          "boe_id": "BOCM-2010-258",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "alto",
+      "validation_status": "validada"
+    },
+    {
+      "id": "mad_cuidado_hijos_menores_3_2024",
+      "name": "Madrid — Por cuidado de hijos menores de 3 años",
+      "description": "Deducción autonómica de Madrid por cantidades satisfechas a personas empleadas del hogar o por gastos de escolaridad de hijos menores de 3 años (art. 8 TRTC Madrid): 25% de las cuotas SS de empleadas del hogar y, alternativamente, 15% de los gastos de escolaridad, con topes diferenciados. Modelo en revisión manual por concurrencia de modalidades.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Madrid",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "family.children_young_count", "operator": ">=", "value": 1},
+        {"field": "expenses.childcare_madrid_under_3", "operator": ">", "value": 0}
+      ],
+      "calculation": {"type": "manual_review", "base_field": "expenses.childcare_madrid_under_3"},
+      "limit": null,
+      "taxable_base_limits": {"base_imponible_individual_max_eur": 30000, "base_imponible_conjunta_max_eur": 36200},
+      "incompatibilities": [],
+      "required_documents": ["TC1/TC2 SS empleada del hogar o facturas de escuela infantil"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Decreto Legislativo 1/2010 CM (TRTC) — art. 8. Cuidado de hijos menores de 3",
+          "url": "https://gestiona.comunidad.madrid/legislacion/decreto-legislativo-1-2010",
+          "article": "art. 8",
+          "paragraph": null,
+          "boe_id": "BOCM-2010-258",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "mad_fomento_autoempleo_jovenes_2024",
+      "name": "Madrid — Por fomento del autoempleo de jóvenes menores de 35 años",
+      "description": "Deducción autonómica de Madrid para contribuyentes menores de 35 años que causen alta en el RETA durante el ejercicio y se mantengan al menos 100 días en activo (art. 9 TRTC Madrid): 1.000 € en el ejercicio del alta.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Madrid",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "personal.is_under_35", "operator": "==", "value": true},
+        {"field": "personal.reta_new_alta_this_year", "operator": "==", "value": true}
+      ],
+      "calculation": {"type": "fixed_amount", "fixed_amount": 1000.0},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Certificado de alta y permanencia en RETA"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Decreto Legislativo 1/2010 CM (TRTC) — art. 9. Fomento del autoempleo",
+          "url": "https://gestiona.comunidad.madrid/legislacion/decreto-legislativo-1-2010",
+          "article": "art. 9",
+          "paragraph": null,
+          "boe_id": "BOCM-2010-258",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "mad_inversion_empresas_nueva_creacion_madrid_2024",
+      "name": "Madrid — Por inversión en empresas de nueva o reciente creación domiciliadas en Madrid",
+      "description": "Deducción autonómica de Madrid por inversión en suscripción de acciones/participaciones en sociedades anónimas, limitadas, anónimas laborales o limitadas laborales con domicilio social y fiscal en Madrid (art. 10 TRTC Madrid): 30% del importe satisfecho, con base máxima de inversión 9.279 €. Requisitos formales sobre la sociedad y el contribuyente se mantienen en revisión manual; el motor aplica el porcentaje y tope sobre la inversión declarada.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Madrid",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.investment_madrid_startups", "operator": ">", "value": 0}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.investment_madrid_startups",
+        "percentage": 0.3,
+        "cap": 2783.7
+      },
+      "limit": 2783.7,
+      "taxable_base_limits": {"base_max_inversion_eur": 9279},
+      "incompatibilities": [],
+      "required_documents": [
+        "Certificación de la sociedad sobre cumplimiento de requisitos",
+        "Justificante de suscripción y desembolso"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Decreto Legislativo 1/2010 CM (TRTC) — art. 10. Inversión en empresas nuevas",
+          "url": "https://gestiona.comunidad.madrid/legislacion/decreto-legislativo-1-2010",
+          "article": "art. 10",
+          "paragraph": null,
+          "boe_id": "BOCM-2010-258",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "mad_donativos_fundaciones_culturales_cm_2024",
+      "name": "Madrid — Por donativos a fundaciones y clubes deportivos elementales no profesionales",
+      "description": "Deducción autonómica de Madrid del 15% de los donativos en metálico a fundaciones inscritas en el Registro de Fundaciones CM con fines de patronato, científicos, culturales, deportivos, sanitarios, asistenciales y educativos, así como a clubes deportivos elementales no profesionales inscritos en el Registro de Asociaciones Deportivas CM (art. 14 TRTC Madrid): con un límite del 10% de la cuota íntegra autonómica del ejercicio.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Madrid",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.donations_madrid_cultural", "operator": ">", "value": 0}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.donations_madrid_cultural",
+        "percentage": 0.15,
+        "cap": 10000.0
+      },
+      "limit": null,
+      "taxable_base_limits": {"porcentaje_max_cuota_autonomica": 0.1},
+      "incompatibilities": [],
+      "required_documents": ["Certificado de la entidad donataria inscrita en el registro autonómico"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Decreto Legislativo 1/2010 CM (TRTC) — art. 14. Donativos a fundaciones CM",
+          "url": "https://gestiona.comunidad.madrid/legislacion/decreto-legislativo-1-2010",
+          "article": "art. 14",
+          "paragraph": null,
+          "boe_id": "BOCM-2010-258",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "mad_familias_dos_o_mas_descendientes_2024",
+      "name": "Madrid — Para familias con dos o más descendientes e ingresos reducidos",
+      "description": "Deducción autonómica de Madrid del 10% del importe resultante de minorar la cuota íntegra autonómica en el resto de deducciones (autonómicas y la parte autonómica de las estatales) para unidades familiares con dos o más descendientes que generen derecho al mínimo por descendientes y cuya suma de bases imponibles no supere 24.000 € (art. 5 TRTC Madrid). Modelo en revisión manual por su dependencia de la cuota íntegra resultante.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Madrid",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "family.children_count", "operator": ">=", "value": 2}
+      ],
+      "calculation": {"type": "manual_review", "base_field": "family.children_count"},
+      "limit": null,
+      "taxable_base_limits": {"suma_bases_imponibles_max_eur": 24000},
+      "incompatibilities": [],
+      "required_documents": [],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Decreto Legislativo 1/2010 CM (TRTC) — art. 5. Familias con dos o más descendientes",
+          "url": "https://gestiona.comunidad.madrid/legislacion/decreto-legislativo-1-2010",
+          "article": "art. 5",
+          "paragraph": null,
+          "boe_id": "BOCM-2010-258",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "mad_donativos_consumo_cultural_2024",
+      "name": "Madrid — Por consumo cultural (entradas, libros, festivales)",
+      "description": "Deducción autonómica de Madrid del 15% sobre los gastos efectuados en entradas y abonos para artes escénicas, musicales, exposiciones y festivales celebrados en la Comunidad de Madrid (art. 11 TRTC Madrid, incorporado por Ley 13/2023): con un máximo de 150 € de deducción.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Madrid",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.cultural_consumption_madrid", "operator": ">", "value": 0}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.cultural_consumption_madrid",
+        "percentage": 0.15,
+        "cap": 150.0
+      },
+      "limit": 150.0,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Justificantes de compra emitidos por entidades culturales radicadas en Madrid"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Decreto Legislativo 1/2010 CM (TRTC) — art. 11. Consumo cultural (Ley 13/2023)",
+          "url": "https://gestiona.comunidad.madrid/legislacion/decreto-legislativo-1-2010",
+          "article": "art. 11",
+          "paragraph": null,
+          "boe_id": "BOCM-2010-258",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    }
+  ]
+}

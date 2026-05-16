@@ -28,6 +28,12 @@ la aplicación cuando corresponde. Esto permite responder consultas
 históricas con la versión de la norma que estaba viva en el momento del
 hecho imponible.
 
+La API HTTP carga el registry vía `load_norma_registry()` al construir el
+app (`hacienda_ai.api.app.create_app`) y lo pasa al motor en cada
+evaluación. Cada item de la respuesta `/evaluations` lleva un campo
+`applicable_versions` con la redacción vigente en el devengo por cada
+norma citada (deduplicada por `boe_id`).
+
 ## Límites
 
 El motor solo evalúa datos estructurados. No interpreta texto libre ni

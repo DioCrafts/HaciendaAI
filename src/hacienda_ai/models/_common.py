@@ -82,3 +82,46 @@ def require_iso_date(value: Any, field_name: str) -> date:
     if parsed is None:
         raise ValidationError(f"{field_name} es obligatorio")
     return parsed
+
+
+# Prefijos de boletines oficiales autonómicos/forales reconocidos. Una cita
+# con uno de estos prefijos se considera anclada a fuente oficial aunque aún
+# no exista verificador SHA-256 para ese boletín (la API consolidada de
+# www.boe.es solo cubre normativa estatal). El verificador específico por
+# boletín queda como trabajo pendiente; mientras tanto, el motor acepta
+# `validation_status="validada"` con boe_id de un boletín de esta lista y
+# `content_hash=None`.
+REGIONAL_BULLETIN_PREFIXES = (
+    "BOCM-",   # Boletín Oficial de la Comunidad de Madrid
+    "DOGC-",   # Diari Oficial de la Generalitat de Catalunya
+    "DOCV-",   # Diari Oficial de la Comunitat Valenciana
+    "BOJA-",   # Boletín Oficial de la Junta de Andalucía
+    "BOPV-",   # Boletín Oficial del País Vasco
+    "BOB-",    # Boletín Oficial de Bizkaia
+    "BOG-",    # Boletín Oficial de Gipuzkoa
+    "BOTHA-",  # Boletín Oficial del Territorio Histórico de Álava
+    "BON-",    # Boletín Oficial de Navarra
+    "DOG-",    # Diario Oficial de Galicia
+    "BOC-",    # Boletín Oficial de Canarias / Cantabria
+    "BORM-",   # Boletín Oficial de la Región de Murcia
+    "BOIB-",   # Butlletí Oficial de les Illes Balears
+    "BOCYL-",  # Boletín Oficial de Castilla y León
+    "DOCM-",   # Diario Oficial de Castilla-La Mancha
+    "BOPA-",   # Boletín Oficial del Principado de Asturias
+    "DOE-",    # Diario Oficial de Extremadura
+    "BOR-",    # Boletín Oficial de La Rioja
+    "BOA-",    # Boletín Oficial de Aragón
+)
+
+
+def is_regional_bulletin_id(boe_id: str) -> bool:
+    """True si `boe_id` empieza por un prefijo de boletín autonómico/foral
+    reconocido. Las citas a estos boletines se aceptan como anclaje válido
+    aunque no haya hash todavía."""
+    return any(boe_id.startswith(prefix) for prefix in REGIONAL_BULLETIN_PREFIXES)
+
+
+def is_state_bulletin_id(boe_id: str) -> bool:
+    """True si `boe_id` apunta al BOE estatal (único boletín con
+    verificador SHA-256 activo)."""
+    return boe_id.startswith("BOE-A-")
