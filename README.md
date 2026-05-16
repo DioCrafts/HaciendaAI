@@ -107,7 +107,11 @@ Endpoints disponibles:
 - `GET  /profiles/{id}`— recupera un perfil guardado.
 - `POST /evaluations`  — evalúa todas las deducciones contra un perfil
   guardado y devuelve estados + citas pinpoint + versión del corpus +
-  disclaimer.
+  disclaimer. Cada entrada lleva además `applicable_versions`: la
+  redacción vigente de cada norma citada en la fecha del devengo, con
+  origen del cambio (`modified_by_boe_id`). Cambiar `devengo_date` en el
+  perfil hace que la respuesta vuelva con la versión histórica de la
+  norma que estaba viva entonces.
 
 Sin persistencia: los perfiles viven en memoria por proceso. Reiniciar el
 servidor los pierde. Es deliberado: la persistencia entra en una iteración

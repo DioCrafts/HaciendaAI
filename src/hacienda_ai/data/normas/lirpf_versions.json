@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "norma_principal": "Ley 35/2006 del IRPF (LIRPF)",
+    "boe_id": "BOE-A-2006-20764",
+    "alcance": "Versiones AGREGADAS a nivel de norma entera. La LIRPF tiene decenas de modificaciones más finas (PGE, leyes sectoriales, RDLeyes, etc.); este corpus inicial agrupa los grandes cortes para responder con honestidad consultas con devengo histórico. Una granularidad por artículo (p. ej. art. 20 según Ley 31/2022, art. 23 según Ley 12/2023) requiere extender el modelo de Norma con preceptos y queda fuera de esta primera siembra.",
+    "fuente_consolidacion": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764"
+  },
+  "normas": [
+    {
+      "boe_id": "BOE-A-2006-20764",
+      "kind": "ley",
+      "title": "Ley 35/2006, de 28 de noviembre, del Impuesto sobre la Renta de las Personas Físicas y de modificación parcial de las leyes de los Impuestos sobre Sociedades, sobre la Renta de no Residentes y sobre el Patrimonio",
+      "enacted_at": "2006-11-28"
+    }
+  ],
+  "versions": [
+    {
+      "norma_boe_id": "BOE-A-2006-20764",
+      "effective_from": "2007-01-01",
+      "effective_to": "2014-12-31",
+      "status": "vigente",
+      "notes": "Redacción original de la Ley 35/2006. Vigente hasta la reforma fiscal de la Ley 26/2014."
+    },
+    {
+      "norma_boe_id": "BOE-A-2006-20764",
+      "effective_from": "2015-01-01",
+      "effective_to": "2021-12-31",
+      "status": "vigente",
+      "modified_by_boe_id": "BOE-A-2014-12328",
+      "notes": "Reforma fiscal Ley 26/2014: nueva escala IRPF, tributación rentas del ahorro, modificación de mínimos personales y familiares, supresión de la deducción por inversión en vivienda habitual con régimen transitorio (DT 18ª)."
+    },
+    {
+      "norma_boe_id": "BOE-A-2006-20764",
+      "effective_from": "2022-01-01",
+      "effective_to": null,
+      "status": "vigente",
+      "modified_by_boe_id": "BOE-A-2021-21657",
+      "notes": "Vigente para 2024. Acumula modificaciones de Ley 22/2021 (PGE 2022), Ley 31/2022 (PGE 2023: nuevo art. 20 con reducción ampliada para rendimientos del trabajo), Ley 12/2023 (vivienda: art. 23.2 con porcentajes 50/60/70/90), Ley 6/2023 (mercados de valores) y reglamentos AEAT correlativos."
+    }
+  ]
+}

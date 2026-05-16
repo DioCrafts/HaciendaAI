@@ -22,6 +22,21 @@
   modificación (`<p class="nota_pie*">`) y compara el hash SHA-256 con
   el declarado. Cron semanal en `.github/workflows/verify-seed.yml`.
 
+## Catálogo de normas vivas
+
+- `src/hacienda_ai/data/normas/lirpf_versions.json` — siembra inicial
+  con la historia agregada de la LIRPF en 3 ventanas sin solapamientos
+  (redacción original 2007-2014, reforma Ley 26/2014 hasta 2021,
+  redacción vigente desde 2022). Cubre devengos históricos a nivel de
+  norma entera; la granularidad por artículo (p. ej. art. 20 según Ley
+  31/2022) requiere extender el modelo con preceptos y queda pendiente.
+- `src/hacienda_ai/normas.py` — `load_norma_registry()`. Construye un
+  `NormaRegistry` desde uno o varios JSON; el path por defecto está en
+  `data/normas/` para que `pip install -e ".[api]"` sirva el corpus sin
+  pasos adicionales. El registry se inyecta en el motor de reglas y la
+  API enriquece cada evaluación con `applicable_versions` resuelto a la
+  fecha del devengo del perfil.
+
 ## Estructura objetivo (pendiente)
 
 - `src/hacienda_ai/rag/ingestion/`

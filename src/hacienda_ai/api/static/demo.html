@@ -47,6 +47,7 @@
   a:hover { text-decoration: underline; }
   .legend { font-size: 0.75em; color: #777; margin: 10px 0; }
   .error { color: var(--bad); padding: 8px 12px; background: var(--bad-bg); border-radius: 3px; }
+  .version-line { color: var(--muted); font-size: 0.82em; font-style: italic; }
 </style>
 </head>
 <body>
@@ -61,6 +62,9 @@
     <form id="profile-form">
       <label>Ejercicio fiscal
         <input type="number" name="tax_year" value="2024" required min="2000" max="2100">
+      </label>
+      <label>Fecha del devengo (opcional, default 31-dic)
+        <input type="date" name="devengo_date" value="">
       </label>
       <label>CCAA de residencia
         <input type="text" name="region" value="Madrid" required>
@@ -186,6 +190,7 @@ Título vigente de familia numerosa especial</textarea>
       const docs = (f.get('documents') || '').split('\n').map(s => s.trim()).filter(Boolean);
       return {
         tax_year: num('tax_year'),
+        devengo_date: str('devengo_date'),
         region: str('region') || 'unknown',
         filing_mode: str('filing_mode') || 'individual',
         personal: {
@@ -223,6 +228,15 @@ Título vigente de familia numerosa especial</textarea>
       }).join('<br>');
     }
 
+    function renderVersions(versions) {
+      if (!versions || !versions.length) return '';
+      return '<br><span class="version-line">' + versions.map(v => {
+        const until = v.effective_to ? v.effective_to : 'hoy';
+        const mod = v.modified_by_boe_id ? ` · mod. ${v.modified_by_boe_id}` : '';
+        return `Redacción vigente ${v.effective_from} → ${until}${mod}`;
+      }).join('<br>') + '</span>';
+    }
+
     function renderResults(data) {
       const summary = data.evaluations.reduce((acc, e) => {
         acc[e.status] = (acc[e.status] || 0) + 1;
@@ -243,7 +257,7 @@ Título vigente de familia numerosa especial</textarea>
           }${
             e.missing_documents.length ? '<br><em>Doc.:</em> ' + e.missing_documents.map(escapeHtml).join(', ') : ''
           }</td>
-          <td>${renderSources(e.sources)}</td>
+          <td>${renderSources(e.sources)}${renderVersions(e.applicable_versions)}</td>
         </tr>
       `).join('');
       document.getElementById('results').innerHTML = `

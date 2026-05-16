@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 import time
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +30,14 @@ from fastapi.staticfiles import StaticFiles
 
 from hacienda_ai import __version__
 from hacienda_ai.deductions import load_deductions
-from hacienda_ai.models import Deduction, Source, TaxProfile, ValidationError
+from hacienda_ai.models import (
+    Deduction,
+    NormaRegistry,
+    Source,
+    TaxProfile,
+    ValidationError,
+)
+from hacienda_ai.normas import load_norma_registry
 from hacienda_ai.rules import evaluate_deductions
 
 DISCLAIMER = (
@@ -92,6 +99,40 @@ def _deduction_payload(deduction: Deduction) -> dict[str, Any]:
     }
 
 
+def _applicable_versions(
+    deduction: Deduction, registry: NormaRegistry, devengo: date
+) -> list[dict[str, Any]]:
+    """Versión vigente en `devengo` para cada norma única citada por la deducción.
+
+    Deduplica por `boe_id` para evitar repetir la misma versión LIRPF cuando una
+    deducción cita varios artículos del mismo texto consolidado.
+    """
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for source in deduction.sources:
+        if source.boe_id is None or source.boe_id in seen:
+            continue
+        if not registry.knows(source.boe_id):
+            continue
+        version = registry.version_at(source.boe_id, devengo)
+        if version is None:
+            continue
+        seen.add(source.boe_id)
+        out.append(
+            {
+                "boe_id": source.boe_id,
+                "effective_from": version.effective_from.isoformat(),
+                "effective_to": (
+                    version.effective_to.isoformat() if version.effective_to else None
+                ),
+                "status": version.status.value,
+                "modified_by_boe_id": version.modified_by_boe_id,
+                "notes": version.notes,
+            }
+        )
+    return out
+
+
 def create_app() -> FastAPI:
     """Construye una instancia nueva del app, útil para tests aislados."""
     app = FastAPI(
@@ -102,6 +143,7 @@ def create_app() -> FastAPI:
 
     profiles: dict[str, TaxProfile] = {}
     deductions = load_deductions()
+    registry = load_norma_registry()
     last_reviewed = max(
         (d.last_reviewed_at for d in deductions if d.last_reviewed_at),
         default=None,
@@ -110,6 +152,7 @@ def create_app() -> FastAPI:
         "count": len(deductions),
         "last_reviewed_at": last_reviewed.isoformat() if last_reviewed else None,
         "engine_version": __version__,
+        "normas_registered": sum(1 for d in deductions for s in d.sources if s.boe_id and registry.knows(s.boe_id)) > 0,
     }
 
     @app.get("/health")
@@ -149,8 +192,9 @@ def create_app() -> FastAPI:
         profile = profiles.get(pid)
         if profile is None:
             raise HTTPException(status_code=404, detail="profile_id no encontrado")
+        devengo = profile.effective_devengo_date()
         t0 = time.perf_counter()
-        evaluations = evaluate_deductions(deductions, profile)
+        evaluations = evaluate_deductions(deductions, profile, registry)
         elapsed_ms = (time.perf_counter() - t0) * 1000
 
         ded_by_id = {d.id: d for d in deductions}
@@ -170,12 +214,15 @@ def create_app() -> FastAPI:
                     "risk_level": ev.risk_level,
                     "confidence": ev.confidence,
                     "sources": [_source_payload(s) for s in ev.sources],
+                    "applicable_versions": (
+                        _applicable_versions(ded, registry, devengo) if ded else []
+                    ),
                 }
             )
 
         return {
             "profile_id": pid,
-            "devengo_date": profile.effective_devengo_date().isoformat(),
+            "devengo_date": devengo.isoformat(),
             "evaluated_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "elapsed_ms": round(elapsed_ms, 2),
             "corpus": corpus_meta,
