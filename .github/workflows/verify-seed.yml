@@ -2,7 +2,10 @@ name: Verify seed against BOE
 
 on:
   schedule:
-    - cron: "0 6 * * 1"  # Lunes 06:00 UTC: detecta drift normativo semanal.
+    # Diario 06:00 UTC: BOE publica todos los días excepto domingos. Antes
+    # corría semanal y un drift detectado el viernes no se veía hasta el
+    # lunes; ahora el ciclo de detección es ≤24 h.
+    - cron: "0 6 * * *"
   workflow_dispatch:
 
 permissions:
@@ -29,14 +32,86 @@ jobs:
 
       - name: Run verifier
         id: verify
+        # Códigos de salida (ver scripts/verify_seed.py):
+        #   0 — sin drift y sin errores.
+        #   1 — drift detectado o hashes faltantes.
+        #   2 — error de red, parsing o entrada inválida.
+        # Capturamos el código sin abortar el job para poder ramificar
+        # según gravedad: drift abre issue, error de red solo deja warning.
         run: |
+          set +e
           python scripts/verify_seed.py
-        # Sale 0 si no hay drift; 1 si hay drift; 2 si hay error de red/parsing.
-        # No abortamos el job en código 2 (red caída) para no hacer ruido.
-        continue-on-error: true
+          code=$?
+          echo "exit_code=${code}" >> "${GITHUB_OUTPUT}"
+          exit 0
 
-      - name: Surface drift as warning
-        if: steps.verify.outcome == 'failure'
+      - name: Ensure 'verify-seed' label exists
+        if: steps.verify.outputs.exit_code == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "::warning::Drift detectado o error en verify_seed.py. Revisar y refrescar hashes."
-          exit 1
+          gh label create verify-seed \
+            --color FFD700 \
+            --description "Drift normativo detectado por scripts/verify_seed.py" \
+            2>/dev/null || true
+
+      - name: Open or update drift issue
+        if: steps.verify.outputs.exit_code == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -e
+          now_utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          title="verify_seed: drift detectado contra texto consolidado BOE"
+          body=$(cat <<EOF
+          El cron diario \`verify-seed\` ha detectado divergencia entre el
+          corpus local y el texto consolidado del BOE.
+
+          - Ejecución: ${RUN_URL}
+          - Fecha (UTC): ${now_utc}
+          - Commit auditado: \`${{ github.sha }}\`
+
+          ## Cómo proceder
+
+          1. Reproducir en local: \`python scripts/verify_seed.py\`.
+          2. Revisar manualmente el texto consolidado en BOE: confirmar si
+             la norma cambió o si es un falso positivo (cambio editorial
+             en el XML del BOE).
+          3. Si el cambio es legítimo (la norma se ha modificado):
+             - Refrescar hashes: \`python scripts/verify_seed.py --update\`.
+             - Revisar si la regla afectada sigue siendo correcta tras el
+               cambio normativo (importes, requisitos, vigencia).
+             - Abrir PR con el JSON actualizado y, si procede, una nueva
+               \`VersionNorma\` en \`data/normas/\`.
+          4. Si es un falso positivo: ajustar el parser de
+             \`scripts/verify_seed.py\` (clases CSS excluidas, regex de
+             versión, etc.) y añadir test de regresión.
+
+          Cierra este issue cuando el corpus vuelva a estar alineado con
+          BOE. Si el siguiente cron detecta drift de nuevo, dejará un
+          comentario en este issue en vez de abrir uno nuevo.
+          EOF
+          )
+          existing=$(gh issue list \
+            --label verify-seed \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+          if [ -z "${existing}" ]; then
+            gh issue create \
+              --title "${title}" \
+              --body "${body}" \
+              --label verify-seed
+          else
+            gh issue comment "${existing}" --body "Drift detectado de nuevo en ejecución [#${{ github.run_id }}](${RUN_URL}) — ${now_utc}."
+          fi
+
+      - name: Surface network error as warning (no issue)
+        if: steps.verify.outputs.exit_code == '2'
+        run: |
+          echo "::warning::verify_seed.py salió con código 2 (red caída o parsing roto). No se abre issue porque puede ser transitorio; si persiste varios días, investigar manualmente."
+
+      - name: Fail job if drift detected
+        if: steps.verify.outputs.exit_code == '1'
+        run: exit 1
