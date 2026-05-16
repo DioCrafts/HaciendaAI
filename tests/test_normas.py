@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from hacienda_ai.deductions import load_deductions
 from hacienda_ai.models import NormaRegistry, NormaStatus, ValidationError
 from hacienda_ai.normas import DEFAULT_NORMAS_DIR, load_norma_registry
 
@@ -106,3 +107,41 @@ def test_default_normas_dir_is_package_local() -> None:
     `pip install -e ".[api]"` sirva el corpus sin pasos adicionales."""
     assert DEFAULT_NORMAS_DIR.is_dir()
     assert (DEFAULT_NORMAS_DIR / "lirpf_versions.json").is_file()
+
+
+@pytest.mark.xfail(
+    strict=False,
+    reason=(
+        "Gap conocido del Sprint 1: el NormaRegistry semilla solo contiene "
+        "LIRPF (BOE-A-2006-20764). El corpus autonómico de Madrid cita "
+        "BOCM-2010-258 y aún no hay versionado registrado para esa norma, "
+        "por lo que el filtro temporal por estado de norma no se puede "
+        "aplicar a esas deducciones. El motor lo señala en WARN; cuando se "
+        "amplíe el registry con BOCM, RIRPF y Ley 49/2002, este xfail "
+        "pasará a XPASS y debe convertirse en aserción estricta."
+    ),
+)
+def test_every_validated_corpus_citation_is_registered() -> None:
+    """Garantía de cobertura: toda norma citada por una deducción `validada`
+    debería estar en el `NormaRegistry` para que el filtro temporal por
+    vigencia/derogación/inconstitucionalidad pueda aplicarse. Mientras este
+    test sea xfail, hay deducciones validadas cuyo filtro de norma está
+    desactivado de facto."""
+    registry = load_norma_registry()
+    deductions = load_deductions()
+    missing: dict[str, list[str]] = {}
+    for d in deductions:
+        if d.validation_status.value != "validada":
+            continue
+        for s in d.sources:
+            if s.boe_id is None or registry.knows(s.boe_id):
+                continue
+            missing.setdefault(s.boe_id, []).append(d.id)
+    assert not missing, (
+        "Normas citadas por deducciones validadas que no están en el "
+        f"NormaRegistry: {sorted(missing.keys())}. Ejemplos por norma: "
+        + "; ".join(
+            f"{boe_id} → {ids[:3]}{'…' if len(ids) > 3 else ''}"
+            for boe_id, ids in sorted(missing.items())
+        )
+    )
