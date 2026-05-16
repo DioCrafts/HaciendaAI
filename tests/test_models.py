@@ -56,7 +56,10 @@ def test_validada_requires_at_least_one_source_with_anchor() -> None:
             "checked_at": "2026-05-11",
         }
     ]
-    with pytest.raises(ValidationError, match="boe_id y content_hash"):
+    with pytest.raises(
+        ValidationError,
+        match="anclada a BOE estatal|boletín autonómico/foral",
+    ):
         Deduction.from_dict(payload)
 
 

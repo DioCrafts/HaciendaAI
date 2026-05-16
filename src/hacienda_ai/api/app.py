@@ -36,6 +36,7 @@ from hacienda_ai.models import (
     Source,
     TaxProfile,
     ValidationError,
+    is_state_bulletin_id,
 )
 from hacienda_ai.normas import load_norma_registry
 from hacienda_ai.rules import evaluate_deductions
@@ -88,7 +89,7 @@ def _source_payload(source: Source) -> dict[str, Any]:
         "checked_at": source.checked_at.isoformat() if source.checked_at else None,
     }
     anchor = _anchor_from_article(source.article)
-    if source.boe_id and anchor:
+    if source.boe_id and is_state_bulletin_id(source.boe_id) and anchor:
         base["pinpoint_url"] = BOE_PINPOINT_URL.format(boe_id=source.boe_id, anchor=anchor)
     return base
 

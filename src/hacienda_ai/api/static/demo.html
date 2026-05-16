@@ -48,6 +48,11 @@
   .conf-alta { background: var(--ok-bg); color: var(--ok); }
   .conf-media { background: var(--pend-bg); color: var(--pend); }
   .conf-baja { background: var(--bad-bg); color: var(--bad); }
+  fieldset.madrid-block { grid-column: 1 / -1; border: 1px dashed var(--border);
+                          border-radius: 4px; padding: 6px 12px; margin: 4px 0; }
+  fieldset.madrid-block legend { font-weight: 600; font-size: 0.85em; padding: 0 6px; }
+  fieldset.madrid-block { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+                          gap: 8px 14px; }
   a { color: var(--primary); text-decoration: none; }
   a:hover { text-decoration: underline; }
   .legend { font-size: 0.75em; color: #777; margin: 10px 0; }
@@ -140,6 +145,45 @@
       <label>Donativos Ley 49/2002 (€)
         <input type="number" name="donations_general" value="0" min="0" step="0.01">
       </label>
+      <fieldset class="madrid-block">
+        <legend>Datos autonómicos Madrid</legend>
+        <label>Menor de 35 años
+          <select name="is_under_35">
+            <option value="false">No</option>
+            <option value="true">Sí</option>
+          </select>
+        </label>
+        <label>Fianza depositada en Agencia Vivienda Social CM
+          <select name="rental_deposit_madrid">
+            <option value="false">No</option>
+            <option value="true">Sí</option>
+          </select>
+        </label>
+        <label>Acoge mayor 65/discapacidad en domicilio
+          <select name="fosters_elderly_or_disabled_at_home">
+            <option value="false">No</option>
+            <option value="true">Sí</option>
+          </select>
+        </label>
+        <label>Alta RETA este ejercicio
+          <select name="reta_new_alta_this_year">
+            <option value="false">No</option>
+            <option value="true">Sí</option>
+          </select>
+        </label>
+        <label>Alquiler vivienda habitual (€/año)
+          <input type="number" name="rental_madrid_youth" value="0" min="0" step="0.01">
+        </label>
+        <label>Donativos a fundaciones culturales CM (€)
+          <input type="number" name="donations_madrid_cultural" value="0" min="0" step="0.01">
+        </label>
+        <label>Inversión en empresas nuevas CM (€)
+          <input type="number" name="investment_madrid_startups" value="0" min="0" step="0.01">
+        </label>
+        <label>Consumo cultural en Madrid (€)
+          <input type="number" name="cultural_consumption_madrid" value="0" min="0" step="0.01">
+        </label>
+      </fieldset>
       <label>Documentos disponibles (uno por línea)
         <textarea name="documents" rows="4">Libro de familia o certificado de convivencia
 Libro de familia
@@ -203,6 +247,10 @@ Título vigente de familia numerosa especial</textarea>
           disability_degree: num('disability_degree') ?? 0,
           needs_assistance: bool('needs_assistance'),
           gender: str('gender'),
+          is_under_35: bool('is_under_35'),
+          rental_deposit_madrid: bool('rental_deposit_madrid'),
+          fosters_elderly_or_disabled_at_home: bool('fosters_elderly_or_disabled_at_home'),
+          reta_new_alta_this_year: bool('reta_new_alta_this_year'),
         },
         family: {
           children_count: num('children_count'),
@@ -219,6 +267,10 @@ Título vigente de familia numerosa especial</textarea>
         expenses: {
           pension_plan_individual: num('pension_plan_individual') ?? 0,
           donations_general: num('donations_general') ?? 0,
+          rental_madrid_youth: num('rental_madrid_youth') ?? 0,
+          donations_madrid_cultural: num('donations_madrid_cultural') ?? 0,
+          investment_madrid_startups: num('investment_madrid_startups') ?? 0,
+          cultural_consumption_madrid: num('cultural_consumption_madrid') ?? 0,
         },
         documents: docs,
       };
@@ -227,8 +279,9 @@ Título vigente de familia numerosa especial</textarea>
     function renderSources(sources) {
       return sources.map(s => {
         const label = `${s.boe_id ?? '—'} ${s.article ?? ''}${s.paragraph ? ' §' + s.paragraph : ''}`.trim();
-        return s.pinpoint_url
-          ? `<a target="_blank" rel="noopener" href="${s.pinpoint_url}">${label}</a>`
+        const href = s.pinpoint_url || s.url;
+        return href
+          ? `<a target="_blank" rel="noopener" href="${href}">${label}</a>`
           : label;
       }).join('<br>');
     }

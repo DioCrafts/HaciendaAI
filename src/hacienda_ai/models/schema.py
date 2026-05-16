@@ -18,6 +18,8 @@ from ._common import (
     as_non_empty_str,
     as_optional_number,
     as_optional_str,
+    is_regional_bulletin_id,
+    is_state_bulletin_id,
     parse_iso_date,
     require_keys,
     validate_content_hash,
@@ -252,13 +254,24 @@ class Deduction:
                 "foral_territory solo es válido cuando scope=foral"
             )
         if validation_status == ValidationStatus.VALIDADA:
-            has_anchor = any(
-                source.boe_id is not None and source.content_hash is not None
+            has_state_anchor = any(
+                source.boe_id is not None
+                and is_state_bulletin_id(source.boe_id)
+                and source.content_hash is not None
                 for source in sources
             )
-            if not has_anchor:
+            has_regional_anchor = any(
+                source.boe_id is not None and is_regional_bulletin_id(source.boe_id)
+                for source in sources
+            )
+            if not (has_state_anchor or has_regional_anchor):
                 raise ValidationError(
-                    "Una deducción validada exige al menos una fuente con boe_id y content_hash"
+                    "Una deducción validada exige al menos una fuente anclada a "
+                    "BOE estatal (boe_id BOE-A-... + content_hash) o a un "
+                    "boletín autonómico/foral reconocido "
+                    "(BOCM-, DOGC-, BOPV-, BON-, DOG-, etc.). El content_hash "
+                    "es obligatorio solo para fuentes BOE estatales mientras "
+                    "no exista verificador para el resto de boletines."
                 )
         return cls(
             id=as_non_empty_str(data["id"], "id"),

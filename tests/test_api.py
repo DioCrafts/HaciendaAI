@@ -47,20 +47,45 @@ def test_root_serves_demo_html(client: TestClient) -> None:
     assert 'name="region"' in body
 
 
-def test_get_deductions_returns_corpus_with_pinpoint_urls(client: TestClient) -> None:
+def test_get_deductions_returns_corpus_with_clickable_sources(client: TestClient) -> None:
+    """Cada deducción debe ser navegable a su fuente oficial: estatales con
+    pinpoint BOE (artículo + ancla #aN); autonómicas con `url` al
+    consolidado del boletín correspondiente (BOCM-CM, DOGC, etc.) — el
+    `pinpoint_url` BOE no aplica fuera del BOE estatal."""
     r = client.get("/deductions")
     assert r.status_code == 200
     data = r.json()
-    assert data["corpus"]["count"] >= 20
+    assert data["corpus"]["count"] >= 30
     assert data["corpus"]["last_reviewed_at"]
     assert data["corpus"]["engine_version"]
     assert data["disclaimer"]
     for entry in data["deductions"]:
-        anchors = [s for s in entry["sources"] if s.get("pinpoint_url")]
-        assert anchors, f"{entry['id']} sin pinpoint_url BOE"
-        url = anchors[0]["pinpoint_url"]
-        assert url.startswith("https://www.boe.es/buscar/act.php?id=BOE-A-")
-        assert "#" in url, f"pinpoint URL sin ancla: {url}"
+        if entry["scope"] == "estatal":
+            anchors = [s for s in entry["sources"] if s.get("pinpoint_url")]
+            assert anchors, f"{entry['id']} (estatal) sin pinpoint_url BOE"
+            url = anchors[0]["pinpoint_url"]
+            assert url.startswith("https://www.boe.es/buscar/act.php?id=BOE-A-")
+            assert "#" in url, f"pinpoint URL sin ancla: {url}"
+        else:
+            navigable = [s for s in entry["sources"] if s.get("url")]
+            assert navigable, f"{entry['id']} ({entry['scope']}) sin url al boletín"
+
+
+def test_get_deductions_pinpoint_url_not_built_for_regional_bulletins(
+    client: TestClient,
+) -> None:
+    """Bug latente arreglado en QW4: el pinpoint_url BOE solo debe
+    construirse cuando boe_id apunta al BOE estatal. Si una fuente cita
+    BOCM-..., DOGC-..., etc., no se genera URL https://www.boe.es/... con
+    ese id (sería un enlace roto)."""
+    data = client.get("/deductions").json()
+    for entry in data["deductions"]:
+        for s in entry["sources"]:
+            if s.get("pinpoint_url"):
+                assert s["boe_id"].startswith("BOE-A-"), (
+                    f"{entry['id']}: pinpoint_url construido para boe_id "
+                    f"no-BOE: {s['boe_id']}"
+                )
 
 
 def test_profile_creation_returns_id_and_normalized_payload(client: TestClient) -> None:
@@ -104,15 +129,14 @@ def test_evaluation_returns_expected_distribution(client: TestClient) -> None:
     assert statuses.count("pending_validation") == 0, f"pending_validation > 0: {statuses}"
 
 
-def test_evaluation_entries_carry_boe_pinpoint(client: TestClient) -> None:
+def test_evaluation_entries_carry_clickable_source(client: TestClient) -> None:
+    """Cada evaluación devuelve al menos una fuente clicable: pinpoint BOE
+    para las estatales, o `url` a sede CM para las autonómicas Madrid."""
     pid = client.post("/profiles", json=_synthetic_profile()).json()["profile_id"]
     data = client.post("/evaluations", json={"profile_id": pid}).json()
-    anchored_total = 0
     for ev in data["evaluations"]:
-        boe_sources = [s for s in ev["sources"] if s.get("pinpoint_url")]
-        assert boe_sources, f"{ev['deduction_id']} sin pinpoint en evaluación"
-        anchored_total += len(boe_sources)
-    assert anchored_total >= len(data["evaluations"])
+        clickable = [s for s in ev["sources"] if s.get("pinpoint_url") or s.get("url")]
+        assert clickable, f"{ev['deduction_id']} sin fuente clicable"
 
 
 def test_evaluation_response_is_fast(client: TestClient) -> None:
@@ -136,15 +160,23 @@ def test_get_profile_unknown_returns_404(client: TestClient) -> None:
 def test_evaluation_payload_carries_applicable_versions_for_current_devengo(
     client: TestClient,
 ) -> None:
-    """Con devengo 2024-12-31 (default), cada deducción del corpus debe
+    """Con devengo 2024-12-31 (default), cada deducción estatal debe
     declarar la versión LIRPF vigente desde 2022-01-01 sin fecha de fin,
-    modificada por BOE-A-2021-21657."""
+    modificada por BOE-A-2021-21657. Las autonómicas Madrid citan BOCM,
+    que aún no tiene Norma registrada en el registry (verificador por
+    boletín pendiente), por lo que `applicable_versions` puede estar
+    vacío para ellas — eso es honesto, no un bug."""
     pid = client.post("/profiles", json=_synthetic_profile()).json()["profile_id"]
     data = client.post("/evaluations", json={"profile_id": pid}).json()
     assert data["devengo_date"] == "2024-12-31"
-    for ev in data["evaluations"]:
+    estatales = [
+        ev for ev in data["evaluations"]
+        if any(s.get("boe_id", "").startswith("BOE-A-") for s in ev["sources"])
+    ]
+    assert estatales, "no se encontraron deducciones estatales en el payload"
+    for ev in estatales:
         versions = ev.get("applicable_versions")
-        assert versions, f"{ev['deduction_id']} sin applicable_versions"
+        assert versions, f"{ev['deduction_id']} estatal sin applicable_versions"
         lirpf = next(
             (v for v in versions if v["boe_id"] == "BOE-A-2006-20764"), None
         )
@@ -174,7 +206,10 @@ def test_evaluation_payload_uses_historical_version_for_past_devengo(
     pid = client.post("/profiles", json=historical).json()["profile_id"]
     data = client.post("/evaluations", json={"profile_id": pid}).json()
     assert data["devengo_date"] == "2018-06-30"
-    sample = next(iter(data["evaluations"]))
+    sample = next(
+        ev for ev in data["evaluations"]
+        if any(s.get("boe_id", "").startswith("BOE-A-") for s in ev["sources"])
+    )
     versions = sample["applicable_versions"]
     lirpf = next(v for v in versions if v["boe_id"] == "BOE-A-2006-20764")
     assert lirpf["effective_from"] == "2015-01-01"

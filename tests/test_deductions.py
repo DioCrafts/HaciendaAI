@@ -57,16 +57,29 @@ def profile(**overrides):
 
 
 def test_loads_validated_irpf_state_seed():
-    """El corpus semilla 2024 estatal carga ≥20 deducciones, todas validadas
-    y con al menos una fuente BOE-anclada (boe_id + content_hash)."""
+    """El corpus semilla carga ≥30 deducciones, todas validadas, con anclaje
+    apropiado al tipo de boletín: BOE-A-... + content_hash para estatales,
+    y BOCM-/DOGC-/... (sin hash) para autonómicas, según la regla relajada
+    de QW4."""
     deductions = load_deductions()
-    assert len(deductions) >= 20, f"Se esperaban ≥20 deducciones, hay {len(deductions)}"
+    assert len(deductions) >= 30, f"Se esperaban ≥30 deducciones, hay {len(deductions)}"
     assert all(d.validation_status.value == "validada" for d in deductions), (
         "Hay deducciones no validadas en el corpus semilla"
     )
     for d in deductions:
-        anchors = [s for s in d.sources if s.boe_id and s.boe_id.startswith("BOE-A-") and s.content_hash]
-        assert anchors, f"Deducción {d.id} no tiene fuente BOE-anclada con content_hash"
+        if d.scope.value == "estatal":
+            anchors = [
+                s for s in d.sources
+                if s.boe_id and s.boe_id.startswith("BOE-A-") and s.content_hash
+            ]
+            assert anchors, (
+                f"Deducción estatal {d.id} sin fuente BOE-anclada con content_hash"
+            )
+        else:
+            anchors = [s for s in d.sources if s.boe_id]
+            assert anchors, (
+                f"Deducción {d.scope.value} {d.id} sin boe_id en ninguna fuente"
+            )
     ids = [d.id for d in deductions]
     assert len(ids) == len(set(ids)), "Hay ids duplicados en el corpus"
 
@@ -226,6 +239,180 @@ def test_qw1_familia_numerosa_general_y_especial_son_excluyentes():
     assert evaluate_deduction(fn_especial, p_general).estimated_amount == 0.0
     assert evaluate_deduction(fn_general, p_especial).estimated_amount == 0.0
     assert evaluate_deduction(fn_especial, p_especial).estimated_amount == 2400.0
+
+
+def _rich_madrid_profile() -> TaxProfile:
+    """Perfil sintético orientado a ejercer las deducciones autonómicas Madrid
+    introducidas en QW4 además de las estatales."""
+    return TaxProfile.from_dict({
+        "tax_year": 2024,
+        "region": "Madrid",
+        "filing_mode": "conjunta",
+        "personal": {
+            "is_under_35": True,
+            "rental_deposit_madrid": True,
+            "fosters_elderly_or_disabled_at_home": True,
+            "reta_new_alta_this_year": True,
+            "gender": "F",
+        },
+        "family": {
+            "children_count": 2,
+            "children_young_count": 1,
+            "international_adoptions_this_year": 1,
+            "births_or_adoptions_this_year": 1,
+            "unit_type": "biparental",
+        },
+        "income": {"work_gross": 30000.0, "work_net": 27500.0},
+        "expenses": {
+            "rental_madrid_youth": 6000.0,
+            "investment_madrid_startups": 5000.0,
+            "donations_madrid_cultural": 200.0,
+            "cultural_consumption_madrid": 800.0,
+        },
+        "documents": [
+            "Libro de familia o certificado de convivencia",
+            "Libro de familia o resolución de adopción",
+            "Resolución de adopción internacional",
+            "Certificado de la Consejería competente sobre el acogimiento",
+            "Contrato de arrendamiento",
+            "Justificantes de pago",
+            "Acreditación del depósito de fianza en la Agencia de Vivienda Social CM",
+            "Certificado de alta y permanencia en RETA",
+            "Certificación de la sociedad sobre cumplimiento de requisitos",
+            "Justificante de suscripción y desembolso",
+            "Certificado de la entidad donataria inscrita en el registro autonómico",
+            "Justificantes de compra emitidos por entidades culturales radicadas en Madrid",
+        ],
+    })
+
+
+def test_qw4_corpus_includes_at_least_10_madrid_entries() -> None:
+    """El corpus combinado estatal + autonómico Madrid debe traer al menos 10
+    deducciones con scope=autonomico y region=Madrid."""
+    deductions = load_deductions()
+    madrid = [d for d in deductions if d.scope.value == "autonomico" and d.region == "Madrid"]
+    assert len(madrid) >= 10, f"solo {len(madrid)} entradas Madrid"
+    for d in madrid:
+        anchor_kinds = {s.boe_id.split("-")[0] for s in d.sources if s.boe_id}
+        assert anchor_kinds, f"{d.id}: ninguna fuente con boe_id"
+        # Anclaje a boletín autonómico reconocido (BOCM) — sin exigir hash.
+        assert any(prefix == "BOCM" for prefix in anchor_kinds), (
+            f"{d.id}: esperaba al menos una fuente BOCM-..., vi {anchor_kinds}"
+        )
+
+
+def test_qw4_madrid_profile_yields_state_plus_regional_applies() -> None:
+    """Un perfil sintético madrileño debe ver aplicar al menos 3 deducciones
+    autonómicas Madrid además del bloque estatal habitual."""
+    deductions = load_deductions()
+    results = [evaluate_deduction(d, _rich_madrid_profile()) for d in deductions]
+    by_scope = {"estatal": [], "autonomico_madrid": []}
+    for d, r in zip(deductions, results, strict=True):
+        if d.scope.value == "autonomico" and d.region == "Madrid":
+            by_scope["autonomico_madrid"].append(r)
+        elif d.scope.value == "estatal":
+            by_scope["estatal"].append(r)
+    estatal_applies = [r for r in by_scope["estatal"] if r.status == "applies"]
+    madrid_applies = [r for r in by_scope["autonomico_madrid"] if r.status == "applies"]
+    assert len(estatal_applies) >= 4, f"estatales applies={len(estatal_applies)}"
+    assert len(madrid_applies) >= 3, (
+        f"autonómicas Madrid applies={len(madrid_applies)}; "
+        f"esperaba ≥3 para que el demo tenga sentido en Madrid"
+    )
+
+
+def test_qw4_non_madrid_profile_does_not_yield_madrid_regional() -> None:
+    """Cambiar la región a una CCAA distinta debe excluir todas las autonómicas
+    Madrid (does_not_apply), sin afectar a las estatales."""
+    deductions = load_deductions()
+    sevilla_profile = TaxProfile.from_dict({
+        **_rich_madrid_profile().to_dict(),
+        "region": "Sevilla",
+    })
+    results = [evaluate_deduction(d, sevilla_profile) for d in deductions]
+    for d, r in zip(deductions, results, strict=True):
+        if d.scope.value == "autonomico" and d.region == "Madrid":
+            assert r.status == "does_not_apply", (
+                f"{d.id} aplicó con region=Sevilla: status={r.status}"
+            )
+
+
+def test_qw4_validada_accepts_regional_bulletin_without_hash() -> None:
+    """El schema relajado por QW4 acepta validation_status=validada cuando la
+    única fuente cita un boletín autonómico reconocido (BOCM-, DOGC-, ...) sin
+    content_hash. Esto solo aplica a fuentes regionales: para BOE estatal sigue
+    siendo obligatorio el hash."""
+    base = {
+        "id": "test_regional_validada",
+        "name": "Regional sin hash",
+        "description": "Sintética para QW4.",
+        "tax_year": 2024,
+        "scope": "autonomico",
+        "region": "Madrid",
+        "category": "deduccion",
+        "requirements": [],
+        "calculation": {"type": "fixed_amount", "fixed_amount": 100.0},
+        "limit": None,
+        "taxable_base_limits": {},
+        "incompatibilities": [],
+        "required_documents": [],
+        "rent_web_boxes": [],
+        "sources": [
+            {
+                "kind": "ley",
+                "title": "BOCM sin hash",
+                "url": "https://gestiona.comunidad.madrid/legislacion/x",
+                "article": "art. 1",
+                "boe_id": "BOCM-2010-258",
+                "content_hash": None,
+                "checked_at": "2026-05-16",
+            }
+        ],
+        "effective_from": "2024-01-01",
+        "effective_to": "2024-12-31",
+        "last_reviewed_at": "2026-05-16",
+        "risk_level": "bajo",
+        "validation_status": "validada",
+    }
+    # No debe lanzar.
+    Deduction.from_dict(base)
+
+
+def test_qw4_validada_rejects_state_anchor_without_hash() -> None:
+    """Asimétricamente, una cita BOE estatal sin content_hash sigue siendo
+    inválida — solo se relaja el requisito para boletines regionales."""
+    base = {
+        "id": "test_estatal_sin_hash",
+        "name": "Estatal sin hash",
+        "description": "Sintética para QW4.",
+        "tax_year": 2024,
+        "scope": "estatal",
+        "region": None,
+        "category": "deduccion",
+        "requirements": [],
+        "calculation": {"type": "fixed_amount", "fixed_amount": 100.0},
+        "limit": None,
+        "taxable_base_limits": {},
+        "incompatibilities": [],
+        "required_documents": [],
+        "rent_web_boxes": [],
+        "sources": [
+            {
+                "kind": "ley",
+                "title": "BOE estatal sin hash",
+                "article": "art. 1",
+                "boe_id": "BOE-A-2006-20764",
+                "content_hash": None,
+            }
+        ],
+        "effective_from": "2024-01-01",
+        "effective_to": "2024-12-31",
+        "last_reviewed_at": "2026-05-16",
+        "risk_level": "bajo",
+        "validation_status": "validada",
+    }
+    with pytest.raises(ValidationError, match="BOE estatal|content_hash"):
+        Deduction.from_dict(base)
 
 
 def test_qw1_legacy_ids_replaced_by_tramos():

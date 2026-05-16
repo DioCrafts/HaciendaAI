@@ -7,13 +7,16 @@ estaba viva en la fecha del devengo, no la actual). Pensado como núcleo
 auditable sobre el que añadir, en iteraciones posteriores, un RAG
 jurídico, herramientas para gestorías y conectores con AEAT.
 
-> **Estado actual** — prototipo. 32 deducciones IRPF 2024 estatales
-> ancladas a BOE (15 con importe calculado por el motor, 9 en revisión
-> manual), historia de versiones agregada de la LIRPF en 3 ventanas
-> (2007-2014 / 2015-2021 / 2022-hoy) y una API HTTP de demostración con
+> **Estado actual** — prototipo. 44 deducciones IRPF 2024 ancladas a
+> boletín oficial: 32 estatales con SHA-256 contra BOE y 12 autonómicas
+> Comunidad de Madrid (Decreto Legislativo 1/2010) con anclaje BOCM
+> pendiente de verificador SHA-256 específico. El motor calcula importe
+> en las que tienen fórmula lineal/tramificada; el resto va en revisión
+> manual. Historia de versiones agregada de la LIRPF en 3 ventanas
+> (2007-2014 / 2015-2021 / 2022-hoy) y API HTTP de demostración con
 > perfil en memoria. **No hay** RAG implementado, ni LLM integrado, ni
-> multi-tenant, ni persistencia, ni cobertura autonómica/foral. Ver
-> `docs/roadmap.md` para el plan.
+> multi-tenant, ni persistencia, ni cobertura foral, ni resto de CCAA.
+> Ver `docs/roadmap.md` para el plan.
 
 ## Qué hace
 
@@ -138,14 +141,23 @@ posterior.
 
 ## Verificación del corpus contra BOE
 
-El corpus semilla (`src/hacienda_ai/data/deductions/2024_irpf_estatal.json`)
-contiene 32 entradas estatales del IRPF 2024 con `boe_id` real, pinpoint
-de artículo y `content_hash` SHA-256 del texto normativo consolidado en BOE.
-Las entradas tramificadas (descendientes por orden, ascendientes ≥65/>75,
-discapacidad base/grado/asistencia, reducción art. 20 tramo bajo,
-maternidad por hijo, familia numerosa general/especial, tributación
-conjunta biparental/monoparental) reusan la misma cita BOE del artículo
-matriz y permiten al motor devolver importes calculados.
+El corpus se distribuye en dos archivos:
+
+- `src/hacienda_ai/data/deductions/2024_irpf_estatal.json` — 32 entradas
+  estatales del IRPF 2024 con `boe_id` BOE-A real, pinpoint de artículo
+  y `content_hash` SHA-256 del texto consolidado en BOE. Las entradas
+  tramificadas (descendientes por orden, ascendientes ≥65/>75,
+  discapacidad base/grado/asistencia, reducción art. 20 tramo bajo,
+  maternidad por hijo, familia numerosa general/especial, tributación
+  conjunta biparental/monoparental) reusan la misma cita BOE del
+  artículo matriz y permiten al motor devolver importes calculados.
+- `src/hacienda_ai/data/deductions/2024_irpf_autonomico_madrid.json` —
+  12 entradas autonómicas de la Comunidad de Madrid (Decreto Legislativo
+  1/2010, modificado por Ley 13/2023 y previas). Anclaje a BOCM con
+  `boe_id="BOCM-..."`; el `content_hash` queda `null` hasta que se
+  implemente un verificador BOCM dedicado — el motor las acepta como
+  `validation_status="validada"` por el prefijo BOCM, distinto del
+  régimen BOE estatal donde el hash es obligatorio.
 
 Para reverificar la integridad de las citas:
 
@@ -162,10 +174,14 @@ semanal (`.github/workflows/verify-seed.yml`) lo lanza los lunes.
 
 ## Limitaciones actuales
 
-- El corpus semilla actual cubre únicamente deducciones **estatales** del
-  IRPF 2024. Las autonómicas (BOCM, BOPV…) y forales no están todavía en
-  el corpus: BOE no indexa esos textos consolidados y se necesitan
-  lectores específicos por boletín oficial.
+- El corpus cubre IRPF 2024 estatal completo y una selección autonómica
+  Comunidad de Madrid (12 deducciones). Resto de CCAA y régimen foral
+  (BOPV/BON) pendientes — BOE no indexa esos textos consolidados y se
+  necesita un lector específico por boletín oficial.
+- El verificador SHA-256 contra BOE consolidado (`scripts/verify_seed.py`)
+  solo cubre fuentes con `boe_id` BOE-A-. Las citas autonómicas
+  (`BOCM-...`) se almacenan con `content_hash=null` hasta que se
+  implemente un verificador BOCM equivalente.
 - Los importes lineales o tramificados publicados por AEAT (mínimos
   personales y familiares, gasto del trabajo, reducción art. 20 tramo
   bajo, maternidad, familia numerosa, tributación conjunta) ya los

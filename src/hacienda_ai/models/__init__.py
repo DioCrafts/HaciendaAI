@@ -7,6 +7,8 @@ Reexporta los tipos para conservar los imports existentes:
 
 from ._common import (
     ValidationError,
+    is_regional_bulletin_id,
+    is_state_bulletin_id,
     parse_iso_date,
     require_iso_date,
     validate_content_hash,
@@ -54,6 +56,8 @@ __all__ = [
     "ValidationError",
     "ValidationStatus",
     "VersionNorma",
+    "is_regional_bulletin_id",
+    "is_state_bulletin_id",
     "parse_iso_date",
     "require_iso_date",
     "validate_content_hash",
