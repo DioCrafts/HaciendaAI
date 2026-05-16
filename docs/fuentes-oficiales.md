@@ -62,6 +62,16 @@
   redacción vigente desde 2022). Cubre devengos históricos a nivel de
   norma entera; la granularidad por artículo (p. ej. art. 20 según Ley
   31/2022) requiere extender el modelo con preceptos y queda pendiente.
+- `src/hacienda_ai/data/normas/bocm_madrid_irpf.json` — Sprint 1 #2.
+  Norma `BOCM-2010-258` (Decreto Legislativo 1/2010, Texto Refundido
+  de tributos cedidos al Estado de la Comunidad de Madrid) con una
+  ventana abierta `effective_from=2024-01-01` y `status=vigente` para
+  cubrir los devengos 2024+ del corpus autonómico Madrid. Es la única
+  norma autonómica que el corpus cita explícitamente hoy; con su
+  registro, todas las deducciones `validada` quedan sometidas al filtro
+  temporal por estado de norma y desaparece la WARN de QW1 sobre normas
+  no registradas. Historias pre-2024 y modificadoras intermedias quedan
+  pendientes hasta que el corpus incorpore esos devengos.
 - `src/hacienda_ai/normas.py` — `load_norma_registry()`. Construye un
   `NormaRegistry` desde uno o varios JSON; el path por defecto está en
   `data/normas/` para que `pip install -e ".[api]"` sirva el corpus sin

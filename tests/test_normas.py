@@ -107,26 +107,95 @@ def test_default_normas_dir_is_package_local() -> None:
     `pip install -e ".[api]"` sirva el corpus sin pasos adicionales."""
     assert DEFAULT_NORMAS_DIR.is_dir()
     assert (DEFAULT_NORMAS_DIR / "lirpf_versions.json").is_file()
+    assert (DEFAULT_NORMAS_DIR / "bocm_madrid_irpf.json").is_file()
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Gap conocido del Sprint 1: el NormaRegistry semilla solo contiene "
-        "LIRPF (BOE-A-2006-20764). El corpus autonómico de Madrid cita "
-        "BOCM-2010-258 y aún no hay versionado registrado para esa norma, "
-        "por lo que el filtro temporal por estado de norma no se puede "
-        "aplicar a esas deducciones. El motor lo señala en WARN; cuando se "
-        "amplíe el registry con BOCM, RIRPF y Ley 49/2002, este xfail "
-        "pasará a XPASS y debe convertirse en aserción estricta."
-    ),
-)
+# --------------------------------------------------------------------------
+# Sprint 1 #2: BOCM-2010-258 (Decreto Legislativo 1/2010 CM) entra en el
+# registry. Es la única norma autonómica que cita el corpus actual.
+# --------------------------------------------------------------------------
+
+BOCM_MADRID_TRTC = "BOCM-2010-258"
+
+
+def test_registry_knows_bocm_madrid_decreto_legislativo() -> None:
+    registry = load_norma_registry()
+    assert registry.knows(BOCM_MADRID_TRTC), (
+        f"El registry debería incluir {BOCM_MADRID_TRTC} (Decreto Legislativo "
+        "1/2010 CM, TRTC tributos cedidos) tras Sprint 1 #2"
+    )
+    norma = registry.get_norma(BOCM_MADRID_TRTC)
+    assert norma is not None
+    assert norma.enacted_at == date(2010, 10, 21)
+
+
+def test_registry_resolves_bocm_madrid_version_for_2024_and_2025() -> None:
+    """Las 12 deducciones autonómicas de Madrid tienen `effective_from=2024-01-01`
+    y el corpus 2025 las heredará: la ventana abierta del registry tiene
+    que cubrir devengos en ambos ejercicios."""
+    registry = load_norma_registry()
+    v24 = registry.version_at(BOCM_MADRID_TRTC, date(2024, 6, 1))
+    v25 = registry.version_at(BOCM_MADRID_TRTC, date(2025, 6, 1))
+    assert v24 is not None
+    assert v25 is not None
+    assert v24.status == NormaStatus.VIGENTE
+    assert v25.status == NormaStatus.VIGENTE
+    assert v24.effective_from == date(2024, 1, 1)
+    assert v24.effective_to is None  # ventana abierta hasta nueva modificación
+
+
+def test_registry_does_not_invent_history_for_bocm_madrid_pre_2024() -> None:
+    """Decisión consciente: la ventana de BOCM-2010-258 arranca en 2024-01-01
+    porque el corpus solo cubre devengos 2024+. Consultar la norma en una
+    fecha anterior devuelve `None` (no inventamos history). Cuando el
+    corpus incorpore deducciones pre-2024, este test debe actualizarse y
+    añadirse la ventana correspondiente."""
+    registry = load_norma_registry()
+    assert registry.version_at(BOCM_MADRID_TRTC, date(2023, 12, 31)) is None
+    assert registry.version_at(BOCM_MADRID_TRTC, date(2010, 12, 30)) is None
+
+
+def test_evaluating_corpus_does_not_emit_unregistered_norma_warnings(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Cruce con QW1: la WARN sobre norma no registrada solo aparece cuando
+    una cita queda fuera del registry. Tras Sprint 1 #2 con BOCM-2010-258
+    registrado, evaluar el corpus completo (estatal 2024 + 2025 + Madrid)
+    contra un perfil sintético no debe emitir esa WARN ni una sola vez."""
+    import logging
+
+    from hacienda_ai.deductions import load_deductions
+    from hacienda_ai.models import TaxProfile
+    from hacienda_ai.rules import evaluate_deductions
+
+    registry = load_norma_registry()
+    deductions = load_deductions()
+    profile = TaxProfile.from_dict({
+        "tax_year": 2024,
+        "region": "Madrid",
+        "family": {"children_count": 1},
+        "income": {"work_gross": 30000, "work_net": 27500},
+        "documents": [],
+    })
+    with caplog.at_level(logging.WARNING, logger="hacienda_ai.rules"):
+        evaluate_deductions(deductions, profile, registry)
+    unregistered_warnings = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "no registrada" in r.getMessage()
+    ]
+    assert unregistered_warnings == [], (
+        "WARN inesperadas tras Sprint 1 #2: "
+        f"{[r.getMessage() for r in unregistered_warnings]}"
+    )
+
+
 def test_every_validated_corpus_citation_is_registered() -> None:
-    """Garantía de cobertura: toda norma citada por una deducción `validada`
-    debería estar en el `NormaRegistry` para que el filtro temporal por
-    vigencia/derogación/inconstitucionalidad pueda aplicarse. Mientras este
-    test sea xfail, hay deducciones validadas cuyo filtro de norma está
-    desactivado de facto."""
+    """Garantía de cobertura cerrada en Sprint 1 #2: toda norma citada por
+    una deducción `validada` está en el `NormaRegistry`, por lo que el
+    filtro temporal por vigencia/derogación/inconstitucionalidad se
+    aplica a todas las citas (estatales y autonómicas Madrid). Si en el
+    futuro se añade una nueva deducción que cite una norma no registrada,
+    este test falla y obliga a registrar la norma antes de validarla."""
     registry = load_norma_registry()
     deductions = load_deductions()
     missing: dict[str, list[str]] = {}
