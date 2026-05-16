@@ -1,0 +1,38 @@
+{
+  "name": "Empleado individual Madrid 30 k con 1 hijo (2024)",
+  "description": "Caso canónico del demo: un asalariado individual residente en Madrid, con 30 000 € íntegros y 27 500 € netos del trabajo y un hijo a cargo. Dispara únicamente los mínimos básicos del IRPF estatal: contribuyente, primer descendiente y el gasto deducible del trabajo. La reducción del art. 20 tramo bajo (≤14 852 €) NO aplica porque el rendimiento neto supera el umbral; las maternales requieren menores de 3 años. Ninguna autonómica Madrid se dispara porque el perfil no aporta los campos específicos (alquiler joven, fianza, donativos culturales, etc.).",
+  "profile": {
+    "tax_year": 2024,
+    "region": "Madrid",
+    "filing_mode": "individual",
+    "personal": {"has_disability": false},
+    "family": {"children_count": 1, "ascendants_count": 0},
+    "income": {"work_gross": 30000, "work_net": 27500},
+    "expenses": {},
+    "documents": ["Libro de familia o certificado de convivencia"]
+  },
+  "expected": {
+    "applies": [
+      {"deduction_id": "es_minimo_contribuyente_general_2024", "amount": 5550.0, "justificacion": "art. 57 LIRPF, mínimo personal general"},
+      {"deduction_id": "es_minimo_descendientes_tramo_1_2024", "amount": 2400.0, "justificacion": "art. 58.1 LIRPF, primer descendiente"},
+      {"deduction_id": "es_gastos_deducibles_trabajo_general_2024", "amount": 2000.0, "justificacion": "art. 19.2.f LIRPF, gasto general del trabajo"}
+    ],
+    "requires_manual_calculation": [
+      "es_minimo_personal_familiar_general_2024"
+    ],
+    "missing_data_includes": [
+      "es_minimo_ascendientes_mayores_75_2024",
+      "es_deduccion_donativos_general_2024",
+      "es_deduccion_inversion_vivienda_habitual_transitoria_2024",
+      "es_deduccion_eficiencia_energetica_demanda_2024",
+      "es_reduccion_tributacion_conjunta_biparental_2024"
+    ],
+    "does_not_apply_includes": [
+      "es_minimo_descendientes_tramo_2_2024",
+      "es_minimo_ascendientes_base_2024",
+      "es_reduccion_rendimientos_trabajo_tramo_bajo_2024",
+      "es_minimo_discapacidad_contribuyente_base_2024",
+      "es_minimo_contribuyente_general_2025"
+    ]
+  }
+}

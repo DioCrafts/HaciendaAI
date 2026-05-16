@@ -1,0 +1,42 @@
+{
+  "name": "Familia numerosa especial con 4 hijos (2024)",
+  "description": "Unidad familiar biparental con 4 hijos a cargo y título vigente de familia numerosa categoría ESPECIAL. Verifica que: (a) se acumulan los cuatro tramos del mínimo por descendientes (2 400 + 2 700 + 4 000 + 4 500 = 13 600 €); (b) aplica la deducción de familia numerosa especial (2 400 €) y no la general; (c) la deducción autonómica Madrid de familias con 2+ descendientes sale como requires_manual_calculation (fórmula no lineal).",
+  "profile": {
+    "tax_year": 2024,
+    "region": "Madrid",
+    "filing_mode": "conjunta",
+    "personal": {"has_disability": false},
+    "family": {
+      "children_count": 4,
+      "ascendants_count": 0,
+      "numerous_family_category": "especial",
+      "unit_type": "biparental"
+    },
+    "income": {"work_gross": 45000, "work_net": 41000},
+    "expenses": {},
+    "documents": [
+      "Libro de familia o certificado de convivencia",
+      "Título vigente de familia numerosa especial"
+    ]
+  },
+  "expected": {
+    "applies": [
+      {"deduction_id": "es_minimo_contribuyente_general_2024", "amount": 5550.0, "justificacion": "art. 57 LIRPF"},
+      {"deduction_id": "es_minimo_descendientes_tramo_1_2024", "amount": 2400.0, "justificacion": "art. 58.1 LIRPF, 1.er hijo"},
+      {"deduction_id": "es_minimo_descendientes_tramo_2_2024", "amount": 2700.0, "justificacion": "art. 58.1 LIRPF, 2.º hijo"},
+      {"deduction_id": "es_minimo_descendientes_tramo_3_2024", "amount": 4000.0, "justificacion": "art. 58.1 LIRPF, 3.er hijo"},
+      {"deduction_id": "es_minimo_descendientes_tramo_4_y_siguientes_2024", "amount": 4500.0, "justificacion": "art. 58.1 LIRPF, 4.º hijo"},
+      {"deduction_id": "es_gastos_deducibles_trabajo_general_2024", "amount": 2000.0, "justificacion": "art. 19.2.f LIRPF"},
+      {"deduction_id": "es_deduccion_familia_numerosa_especial_2024", "amount": 2400.0, "justificacion": "art. 81 bis LIRPF, categoría especial 2 400 €/año"},
+      {"deduction_id": "es_reduccion_tributacion_conjunta_biparental_2024", "amount": 3400.0, "justificacion": "art. 84.2.3º LIRPF"}
+    ],
+    "requires_manual_calculation": [
+      "es_minimo_personal_familiar_general_2024",
+      "mad_familias_dos_o_mas_descendientes_2024"
+    ],
+    "does_not_apply_includes": [
+      "es_deduccion_familia_numerosa_general_2024",
+      "es_reduccion_tributacion_conjunta_monoparental_2024"
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "Empleado Sevilla 30 k con 1 hijo (2024)",
+  "description": "Mismo perfil que el caso 1 pero residente en Sevilla en vez de Madrid. Verifica el filtro territorial: las 12 deducciones autonómicas Madrid (region=Madrid) deben salir does_not_apply en bloque. Las estatales aplican igual (su region es null/estatal). El motor distingue Madrid/Sevilla por igualdad case-insensitive del campo `region`.",
+  "profile": {
+    "tax_year": 2024,
+    "region": "Sevilla",
+    "filing_mode": "individual",
+    "personal": {"has_disability": false},
+    "family": {"children_count": 1, "ascendants_count": 0},
+    "income": {"work_gross": 30000, "work_net": 27500},
+    "expenses": {},
+    "documents": ["Libro de familia o certificado de convivencia"]
+  },
+  "expected": {
+    "applies": [
+      {"deduction_id": "es_minimo_contribuyente_general_2024", "amount": 5550.0},
+      {"deduction_id": "es_minimo_descendientes_tramo_1_2024", "amount": 2400.0},
+      {"deduction_id": "es_gastos_deducibles_trabajo_general_2024", "amount": 2000.0}
+    ],
+    "requires_manual_calculation": [
+      "es_minimo_personal_familiar_general_2024"
+    ],
+    "does_not_apply_includes": [
+      "mad_nacimiento_adopcion_2024",
+      "mad_adopcion_internacional_2024",
+      "mad_arrendamiento_vivienda_habitual_menor_35_2024",
+      "mad_gastos_educativos_2024",
+      "mad_donativos_fundaciones_culturales_cm_2024",
+      "mad_familias_dos_o_mas_descendientes_2024"
+    ]
+  }
+}

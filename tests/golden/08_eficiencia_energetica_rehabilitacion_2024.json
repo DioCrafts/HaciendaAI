@@ -1,0 +1,31 @@
+{
+  "name": "Rehabilitación energética de edificio DA 50ª.3 (2024)",
+  "description": "Contribuyente que paga 5 000 € en obras de rehabilitación energética del edificio residencial (apartado .3 de la DA 50ª LIRPF), con certificado de eficiencia energética anterior y posterior que acredita reducción ≥30% del consumo de energía primaria no renovable. 60 % × 5 000 € = 3 000 € (cap exacto). Verifica el discriminador `personal.energy_works_type=building_rehab`: los otros dos tramos (.1 y .2) NO deben aplicar.",
+  "profile": {
+    "tax_year": 2024,
+    "region": "Madrid",
+    "filing_mode": "individual",
+    "personal": {"has_disability": false, "energy_works_type": "building_rehab"},
+    "family": {"children_count": 0, "ascendants_count": 0},
+    "income": {"work_gross": 40000, "work_net": 36000},
+    "expenses": {"energy_efficiency_works": 5000},
+    "documents": [
+      "Certificado de eficiencia energética anterior y posterior",
+      "Facturas de las obras"
+    ]
+  },
+  "expected": {
+    "applies": [
+      {"deduction_id": "es_minimo_contribuyente_general_2024", "amount": 5550.0, "justificacion": "art. 57 LIRPF"},
+      {"deduction_id": "es_gastos_deducibles_trabajo_general_2024", "amount": 2000.0, "justificacion": "art. 19.2.f LIRPF"},
+      {"deduction_id": "es_deduccion_eficiencia_energetica_rehabilitacion_2024", "amount": 3000.0, "justificacion": "DA 50ª.3 LIRPF: 5 000 × 60 % = 3 000 €"}
+    ],
+    "requires_manual_calculation": [
+      "es_minimo_personal_familiar_general_2024"
+    ],
+    "does_not_apply_includes": [
+      "es_deduccion_eficiencia_energetica_demanda_2024",
+      "es_deduccion_eficiencia_energetica_consumo_primario_2024"
+    ]
+  }
+}

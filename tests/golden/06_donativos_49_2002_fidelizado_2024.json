@@ -1,0 +1,28 @@
+{
+  "name": "Donativos Ley 49/2002 fidelizados (2024)",
+  "description": "Empleado individual Madrid que dona 1 000 € a una entidad acogida al régimen Ley 49/2002 y declara fidelización (donativo igual o superior los dos ejercicios anteriores). Tramos: 250 × 80 % = 200 € + 750 × 45 % = 337,50 € = 537,50 €. Base liquidable 30 000 € → cap 10 % = 3 000 €; el cap NO entra. Verifica el discriminador `personal.donations_fidelity_to_same_entity` y la fórmula tiered_progressive completa de QW7.",
+  "profile": {
+    "tax_year": 2024,
+    "region": "Madrid",
+    "filing_mode": "individual",
+    "personal": {"has_disability": false, "donations_fidelity_to_same_entity": true},
+    "family": {"children_count": 0, "ascendants_count": 0},
+    "income": {"work_gross": 35000, "work_net": 31000, "base_liquidable": 30000},
+    "expenses": {"donations_general": 1000},
+    "documents": ["Certificado de la entidad donataria"]
+  },
+  "expected": {
+    "applies": [
+      {"deduction_id": "es_minimo_contribuyente_general_2024", "amount": 5550.0, "justificacion": "art. 57 LIRPF"},
+      {"deduction_id": "es_gastos_deducibles_trabajo_general_2024", "amount": 2000.0, "justificacion": "art. 19.2.f LIRPF"},
+      {"deduction_id": "es_deduccion_donativos_general_2024", "amount": 537.5, "justificacion": "art. 19 Ley 49/2002: 250×80% + 750×45% (fidelización)"}
+    ],
+    "requires_manual_calculation": [
+      "es_minimo_personal_familiar_general_2024"
+    ],
+    "does_not_apply_includes": [
+      "es_minimo_descendientes_tramo_1_2024",
+      "es_reduccion_rendimientos_trabajo_tramo_bajo_2024"
+    ]
+  }
+}

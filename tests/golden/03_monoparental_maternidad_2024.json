@@ -1,0 +1,35 @@
+{
+  "name": "Monoparental Madrid con 1 hijo <3 años y maternidad (2024)",
+  "description": "Madre soltera que tributa conjunta como unidad monoparental, con 1 hijo menor de 3 años, ingresos modestos (16 000 € íntegros / 14 200 € netos). Casos relevantes: deducción por maternidad art. 81 LIRPF (1.200 €/año), reducción art. 84.2.4º LIRPF por tributación conjunta monoparental (2 150 €) y la reducción del art. 20 LIRPF tramo bajo (≤14 852 €) que rinde 7 302 € lineales. No aplica el biparental.",
+  "profile": {
+    "tax_year": 2024,
+    "region": "Madrid",
+    "filing_mode": "conjunta",
+    "personal": {"has_disability": false, "gender": "F"},
+    "family": {"children_count": 1, "children_young_count": 1, "ascendants_count": 0, "unit_type": "monoparental"},
+    "income": {"work_gross": 16000, "work_net": 14200},
+    "expenses": {},
+    "documents": ["Libro de familia o certificado de convivencia", "Libro de familia", "Justificante de alta en SS o prestación"]
+  },
+  "expected": {
+    "applies": [
+      {"deduction_id": "es_minimo_contribuyente_general_2024", "amount": 5550.0, "justificacion": "art. 57 LIRPF"},
+      {"deduction_id": "es_minimo_descendientes_tramo_1_2024", "amount": 2400.0, "justificacion": "art. 58.1 LIRPF, primer hijo"},
+      {"deduction_id": "es_gastos_deducibles_trabajo_general_2024", "amount": 2000.0, "justificacion": "art. 19.2.f LIRPF"},
+      {"deduction_id": "es_reduccion_rendimientos_trabajo_tramo_bajo_2024", "amount": 7302.0, "justificacion": "art. 20.1.a LIRPF, tramo bajo lineal"},
+      {"deduction_id": "es_deduccion_maternidad_tramo_1_2024", "amount": 1200.0, "justificacion": "art. 81 LIRPF, 1.200 €/hijo <3"},
+      {"deduction_id": "es_reduccion_tributacion_conjunta_monoparental_2024", "amount": 2150.0, "justificacion": "art. 84.2.4º LIRPF"}
+    ],
+    "requires_manual_calculation": [
+      "es_minimo_personal_familiar_general_2024"
+    ],
+    "missing_data_includes": [
+      "es_deduccion_donativos_general_2024"
+    ],
+    "does_not_apply_includes": [
+      "es_reduccion_tributacion_conjunta_biparental_2024",
+      "es_deduccion_maternidad_tramo_2_2024",
+      "es_minimo_descendientes_tramo_2_2024"
+    ]
+  }
+}

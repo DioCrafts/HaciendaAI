@@ -1,0 +1,30 @@
+{
+  "name": "DT 18ª inversión vivienda habitual pre-2013 (2024)",
+  "description": "Contribuyente con vivienda habitual adquirida antes del 1-1-2013 y que venía aplicando la deducción del régimen anterior. Satisface 9 040 € en el ejercicio (base máxima del régimen general); el motor calcula 9 040 × 15 % = 1 356 € (límite del cap declarativo). Verifica QW7: percentage_with_cap aplicado correctamente al borde superior.",
+  "profile": {
+    "tax_year": 2024,
+    "region": "Madrid",
+    "filing_mode": "individual",
+    "personal": {"has_disability": false, "dwelling_acquired_before_2013": true},
+    "family": {"children_count": 0, "ascendants_count": 0},
+    "income": {"work_gross": 30000, "work_net": 27500},
+    "expenses": {"investment_habitual_dwelling": 9040},
+    "documents": [
+      "Escritura de adquisición anterior a 2013",
+      "Justificantes de las cantidades satisfechas en el ejercicio"
+    ]
+  },
+  "expected": {
+    "applies": [
+      {"deduction_id": "es_minimo_contribuyente_general_2024", "amount": 5550.0, "justificacion": "art. 57 LIRPF"},
+      {"deduction_id": "es_gastos_deducibles_trabajo_general_2024", "amount": 2000.0, "justificacion": "art. 19.2.f LIRPF"},
+      {"deduction_id": "es_deduccion_inversion_vivienda_habitual_transitoria_2024", "amount": 1356.0, "justificacion": "DT 18ª LIRPF: 9 040 × 15 % = 1 356 € (cap exacto)"}
+    ],
+    "requires_manual_calculation": [
+      "es_minimo_personal_familiar_general_2024"
+    ],
+    "missing_data_includes": [
+      "es_deduccion_alquiler_vivienda_habitual_transitoria_2024"
+    ]
+  }
+}
