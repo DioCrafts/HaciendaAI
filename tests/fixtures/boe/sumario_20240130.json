@@ -1,0 +1,134 @@
+{
+  "data": {
+    "sumario": {
+      "metadatos": {
+        "publicacion": "BOE",
+        "fecha_publicacion": "20240130",
+        "fecha_legible": "Martes 30 de enero de 2024"
+      },
+      "diario": [
+        {
+          "sumario_diario": {
+            "identificador": "BOE-S-2024-26",
+            "numero": "26",
+            "url_pdf": {
+              "texto": "/boe/dias/2024/01/30/pdfs/BOE-S-2024-26.pdf",
+              "szBytes": "523451",
+              "szKBytes": "511"
+            }
+          },
+          "seccion": [
+            {
+              "codigo": "I",
+              "nombre": "Disposiciones generales",
+              "departamento": [
+                {
+                  "codigo": "JEF",
+                  "nombre": "JEFATURA DEL ESTADO",
+                  "epigrafe": [
+                    {
+                      "nombre": "Ley",
+                      "item": [
+                        {
+                          "identificador": "BOE-A-2024-1699",
+                          "control": "BOE-A-2024-1699",
+                          "titulo": "Ley 5/2024, de 28 de enero, por la que se modifica la Ley 35/2006, de 28 de noviembre, del Impuesto sobre la Renta de las Personas Físicas, en relación con la deducción por maternidad.",
+                          "url_pdf": {
+                            "texto": "/boe/dias/2024/01/30/pdfs/BOE-A-2024-1699.pdf",
+                            "szBytes": "184320",
+                            "szKBytes": "180"
+                          },
+                          "url_html": "/diario_boe/txt.php?id=BOE-A-2024-1699",
+                          "url_xml": "https://www.boe.es/diario_boe/xml.php?id=BOE-A-2024-1699"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "codigo": "HAC",
+                  "nombre": "MINISTERIO DE HACIENDA Y FUNCIÓN PÚBLICA",
+                  "epigrafe": [
+                    {
+                      "nombre": "Orden",
+                      "item": [
+                        {
+                          "identificador": "BOE-A-2024-1700",
+                          "control": "BOE-A-2024-1700",
+                          "titulo": "Orden HFP/115/2024, de 25 de enero, por la que se determinan los países y territorios, así como los regímenes fiscales perjudiciales, que tienen la consideración de jurisdicciones no cooperativas.",
+                          "url_pdf": {
+                            "texto": "/boe/dias/2024/01/30/pdfs/BOE-A-2024-1700.pdf",
+                            "szBytes": "245760",
+                            "szKBytes": "240"
+                          },
+                          "url_html": "/diario_boe/txt.php?id=BOE-A-2024-1700",
+                          "url_xml": "https://www.boe.es/diario_boe/xml.php?id=BOE-A-2024-1700"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "codigo": "IND",
+                  "nombre": "MINISTERIO DE INDUSTRIA Y TURISMO",
+                  "epigrafe": [
+                    {
+                      "nombre": "Real Decreto",
+                      "item": [
+                        {
+                          "identificador": "BOE-A-2024-1701",
+                          "control": "BOE-A-2024-1701",
+                          "titulo": "Real Decreto 92/2024, de 29 de enero, por el que se desarrolla la estructura orgánica básica del Ministerio de Industria y Turismo y se modifica el Real Decreto 1009/2023, de 5 de diciembre, por el que se establece la estructura orgánica básica de los departamentos ministeriales.",
+                          "url_pdf": {
+                            "texto": "/boe/dias/2024/01/30/pdfs/BOE-A-2024-1701.pdf",
+                            "szBytes": "153600",
+                            "szKBytes": "150"
+                          },
+                          "url_html": "/diario_boe/txt.php?id=BOE-A-2024-1701",
+                          "url_xml": "https://www.boe.es/diario_boe/xml.php?id=BOE-A-2024-1701"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "codigo": "II",
+              "nombre": "Autoridades y personal",
+              "departamento": [
+                {
+                  "codigo": "JUS",
+                  "nombre": "MINISTERIO DE JUSTICIA",
+                  "epigrafe": [
+                    {
+                      "nombre": "Nombramientos",
+                      "item": [
+                        {
+                          "identificador": "BOE-A-2024-1702",
+                          "control": "BOE-A-2024-1702",
+                          "titulo": "Real Decreto 95/2024, de 29 de enero, por el que se nombra Magistrado del Tribunal Supremo a don Juan Carlos Fernández de la Vega, en la Sala Tercera, de lo Contencioso-administrativo.",
+                          "url_pdf": {
+                            "texto": "/boe/dias/2024/01/30/pdfs/BOE-A-2024-1702.pdf",
+                            "szBytes": "61440",
+                            "szKBytes": "60"
+                          },
+                          "url_html": "/diario_boe/txt.php?id=BOE-A-2024-1702",
+                          "url_xml": "https://www.boe.es/diario_boe/xml.php?id=BOE-A-2024-1702"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "status": {
+      "code": "200",
+      "text": "OK"
+    }
+  }
+}

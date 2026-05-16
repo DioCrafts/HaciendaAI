@@ -1,0 +1,243 @@
+name: Ingest BOE summary
+
+on:
+  schedule:
+    # Diario 07:30 UTC. El BOE publica de madrugada (a partir de 00:00 CET),
+    # así que a las 07:30 UTC (09:30 CET) el sumario del día anterior está
+    # consolidado y estable. Lo programamos 90 min después de `verify-seed`
+    # para no solapar peticiones simultáneas al mismo dominio.
+    - cron: "30 7 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Fecha a ingerir (YYYY-MM-DD). Por defecto, ayer UTC."
+        required: false
+        type: string
+      date_from:
+        description: "Inicio de rango para backfill (YYYY-MM-DD). Requiere date_to."
+        required: false
+        type: string
+      date_to:
+        description: "Fin de rango para backfill (YYYY-MM-DD). Requiere date_from."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ingest-boe
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    name: Detectar normativa fiscal y abrir PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Necesitamos el historial completo para que el bot pueda hacer
+          # commit sobre una rama nueva basada en main.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Compute target date(s) for ingest
+        id: dates
+        run: |
+          # Tres modos:
+          #   1. workflow_dispatch con --date  → ingest una fecha concreta.
+          #   2. workflow_dispatch con --from/--to → backfill de rango.
+          #   3. schedule diario → ayer UTC.
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            echo "mode=single" >> "${GITHUB_OUTPUT}"
+            echo "date=${{ github.event.inputs.date }}" >> "${GITHUB_OUTPUT}"
+          elif [ -n "${{ github.event.inputs.date_from }}" ] && [ -n "${{ github.event.inputs.date_to }}" ]; then
+            echo "mode=range" >> "${GITHUB_OUTPUT}"
+            echo "date_from=${{ github.event.inputs.date_from }}" >> "${GITHUB_OUTPUT}"
+            echo "date_to=${{ github.event.inputs.date_to }}" >> "${GITHUB_OUTPUT}"
+          else
+            yesterday=$(date -u -d "yesterday" +%Y-%m-%d)
+            echo "mode=single" >> "${GITHUB_OUTPUT}"
+            echo "date=${yesterday}" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Run ingest
+        id: ingest
+        # Códigos de salida (ver scripts/ingest_boe.py):
+        #   0 — ejecución correcta (con o sin cambios; incluye días sin BOE).
+        #   1 — uno o más documentos fallaron al descargarse.
+        #   2 — error fatal de red o parseo del sumario.
+        # Capturamos sin abortar para poder ramificar (1 abre PR igual con
+        # los aciertos, 2 deja warning y termina).
+        run: |
+          set +e
+          if [ "${{ steps.dates.outputs.mode }}" = "range" ]; then
+            python scripts/ingest_boe.py \
+              --from "${{ steps.dates.outputs.date_from }}" \
+              --to "${{ steps.dates.outputs.date_to }}" \
+              --report ingest-report.json
+          else
+            python scripts/ingest_boe.py \
+              --date "${{ steps.dates.outputs.date }}" \
+              --report ingest-report.json
+          fi
+          code=$?
+          echo "exit_code=${code}" >> "${GITHUB_OUTPUT}"
+          exit 0
+
+      - name: Surface fatal error as warning (no PR)
+        if: steps.ingest.outputs.exit_code == '2'
+        run: |
+          echo "::warning::ingest_boe.py salió con código 2 (error fatal de red o parseo). No se abre PR; si persiste, investigar manualmente."
+          exit 1
+
+      - name: Check for working-tree changes
+        id: diff
+        run: |
+          # Si el cron no encontró normativa nueva (día sin BOE, sin
+          # materia fiscal, o todo duplicado), no hay diff que mergear.
+          # `git status --porcelain` vacío = no hay cambios.
+          if [ -z "$(git status --porcelain src/hacienda_ai/data/normas)" ]; then
+            echo "changed=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "changed=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Render PR body from ingest report
+        if: steps.diff.outputs.changed == 'true'
+        id: body
+        run: |
+          # Construimos el body del PR a partir del JSON del script.
+          # Resumen + tabla con cada norma aceptada y su clasificación.
+          python - <<'PY' > pr-body.md
+          import json
+          import pathlib
+
+          data = json.loads(pathlib.Path("ingest-report.json").read_text())
+          runs = data.get("runs", [])
+          total_added = sum(r.get("added_count", 0) for r in runs)
+          total_dupes = sum(r.get("duplicate_count", 0) for r in runs)
+          total_conflicts = sum(r.get("conflict_count", 0) for r in runs)
+          total_fetch_errors = sum(len(r.get("fetch_errors", [])) for r in runs)
+
+          lines = []
+          lines.append(
+              "## Ingesta automática BOE\n\n"
+              "Este PR ha sido abierto por el cron diario "
+              "`.github/workflows/ingest-boe.yml`. **Requiere revisión humana** "
+              "antes de mergear.\n"
+          )
+          lines.append(
+              f"- Fechas procesadas: **{len(runs)}**\n"
+              f"- Normas añadidas: **{total_added}**\n"
+              f"- Duplicadas (ya existían): {total_dupes}\n"
+              f"- Conflictos de hash: {total_conflicts}\n"
+              f"- Errores de descarga: {total_fetch_errors}\n"
+          )
+          for run in runs:
+              date = run["target_date"]
+              if run.get("no_publication"):
+                  lines.append(f"\n### {date}\n\n_BOE no publicó ese día._\n")
+                  continue
+              accepted = run.get("accepted", [])
+              if not accepted:
+                  lines.append(
+                      f"\n### {date}\n\n"
+                      f"Sumario con {run['total_summary_items']} items, "
+                      f"ninguno clasificado como fiscalmente relevante.\n"
+                  )
+                  continue
+              lines.append(f"\n### {date}\n")
+              lines.append("| BOE-ID | Tipo | Relevancia | Keywords | Título |")
+              lines.append("|---|---|---|---|---|")
+              for item in accepted:
+                  boe_id = item["boe_id"]
+                  kind = item.get("kind") or "?"
+                  rel = item.get("relevance") or "?"
+                  kws = ", ".join(item.get("matched_keywords") or [])
+                  titulo = item["titulo"].replace("|", "\\|")
+                  if len(titulo) > 160:
+                      titulo = titulo[:157] + "…"
+                  lines.append(f"| `{boe_id}` | {kind} | {rel} | {kws} | {titulo} |")
+              fetch_errors = run.get("fetch_errors", [])
+              if fetch_errors:
+                  lines.append("\n**Errores de descarga:**\n")
+                  for err in fetch_errors:
+                      lines.append(f"- `{err['boe_id']}`: {err['error']}")
+              conflicts = sum(len(r["conflicts"]) for r in run.get("persist_results", []))
+              if conflicts:
+                  lines.append(
+                      f"\n⚠ **{conflicts} conflicto(s) de hash** detectado(s): "
+                      "una norma ya registrada tiene un `content_hash` distinto al "
+                      "calculado ahora. Revisar si el BOE corrigió la publicación."
+                  )
+
+          lines.append("\n## Cómo revisar este PR\n")
+          lines.append(
+              "1. Para cada norma listada: abrir el enlace al BOE y comprobar "
+              "que la clasificación es correcta (¿es realmente materia fiscal?).\n"
+              "2. Verificar `effective_from` contra la DF de cada norma. El "
+              "valor por defecto (`fecha_publicacion + 1 día`, regla art. 2.1 "
+              "CC) es solo una aproximación.\n"
+              "3. Si una norma modifica otra ya existente, abrir un commit "
+              "complementario cerrando la versión anterior con `effective_to` "
+              "y `modified_by_boe_id`.\n"
+              "4. Si una norma no es fiscal (falso positivo), eliminarla del "
+              "JSON antes de mergear y considerar añadir el patrón al "
+              "filtro en `tax_filter.py`.\n"
+          )
+
+          print("\n".join(lines))
+          PY
+
+      - name: Upload report artifact
+        if: steps.diff.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ingest-report
+          path: |
+            ingest-report.json
+            pr-body.md
+          retention-days: 30
+
+      - name: Create Pull Request
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: bot/ingest-boe-${{ github.run_id }}
+          title: "Ingesta BOE: nuevas normas fiscales detectadas"
+          body-path: pr-body.md
+          commit-message: |
+            chore(corpus): ingesta automática del sumario BOE
+
+            Detecta nuevas normas fiscales del BOE vía cron diario y las
+            registra en data/normas/boe_ingested_YYYY.json. Cada entrada
+            incluye content_hash SHA-256 del texto publicado y notas con
+            el clasificador que la aceptó.
+
+            `effective_from` se ha fijado al día siguiente de publicación
+            como aproximación (art. 2.1 CC). Verificar contra la DF de
+            cada norma antes de mergear.
+          author: "haciendaai-bot <bot@haciendaai.local>"
+          committer: "haciendaai-bot <bot@haciendaai.local>"
+          labels: |
+            ingesta-boe
+            requiere-revision
+
+      - name: Surface partial failure as warning
+        if: steps.ingest.outputs.exit_code == '1'
+        run: |
+          echo "::warning::ingest_boe.py salió con código 1 (fallos parciales). El PR se ha abierto con las normas que sí se descargaron correctamente. Revisar los errores listados en pr-body.md."
