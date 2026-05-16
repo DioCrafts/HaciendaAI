@@ -1,0 +1,84 @@
+{
+  "_meta": {
+    "ejercicio": 2024,
+    "ambito": "autonomico",
+    "comunidad_autonoma": "Castilla y León",
+    "estado": "sembrado_estructural_qw5",
+    "fuente_primaria": "Texto refundido castellano-leonés de tributos cedidos por el Estado (consolidación vigente para 2024), accesible desde el portal tributario de la Junta de Castilla y León: https://tributos.jcyl.es/",
+    "verificador": "Pendiente. El identificador BOCYL del sumario es un placeholder hasta que un fiscalista colegiado castellano-leonés contraste el articulado y los importes. Por eso TODAS las deducciones de este archivo llevan `validation_status=\"pendiente_fuente\"` y el motor las devolverá como `pending_validation` (no se aplicarán como cifra firme).",
+    "alcance": "Semilla mínima de 2 deducciones representativas (nacimiento/adopción y alquiler joven) para validar que la infraestructura de Castilla y León carga, que el motor evalúa sin errores perfiles castellano-leoneses, y que el catálogo crece sin contaminar resultados de producción."
+  },
+  "deductions": [
+    {
+      "id": "cyl_nacimiento_adopcion_2024",
+      "name": "Castilla y León — Por nacimiento o adopción de hijos",
+      "description": "Deducción autonómica castellano-leonesa por nacimiento o adopción de hijos durante el ejercicio. Los importes exactos y los límites por base imponible están pendientes de transcribir del TR castellano-leonés por fiscalista colegiado. Sembrado estructural QW5.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Castilla y León",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "family.births_or_adoptions_this_year", "operator": ">=", "value": 1}
+      ],
+      "calculation": {"type": "manual_review", "base_field": "family.births_or_adoptions_this_year"},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Libro de familia o resolución de adopción"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Texto refundido castellano-leonés de tributos cedidos — Por nacimiento o adopción (pendiente de afinar pinpoint)",
+          "url": "https://tributos.jcyl.es/",
+          "article": "pendiente",
+          "paragraph": null,
+          "boe_id": "BOCYL-2024-1",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "alto",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "cyl_alquiler_vivienda_joven_2024",
+      "name": "Castilla y León — Por alquiler de vivienda habitual (jóvenes)",
+      "description": "Deducción autonómica castellano-leonesa por alquiler de vivienda habitual cuando el contribuyente es joven y cumple requisitos de edad y renta. Sembrado estructural QW5; los umbrales exactos están pendientes de transcribir por fiscalista colegiado.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Castilla y León",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.housing_rent", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<=", "value": 35}
+      ],
+      "calculation": {"type": "manual_review", "base_field": "expenses.housing_rent"},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento", "Justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Texto refundido castellano-leonés de tributos cedidos — Por alquiler de vivienda habitual (jóvenes, pendiente de afinar pinpoint)",
+          "url": "https://tributos.jcyl.es/",
+          "article": "pendiente",
+          "paragraph": null,
+          "boe_id": "BOCYL-2024-1",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "alto",
+      "validation_status": "pendiente_fuente"
+    }
+  ]
+}

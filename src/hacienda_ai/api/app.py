@@ -37,7 +37,17 @@ from fastapi.staticfiles import StaticFiles
 
 from hacienda_ai import __version__
 from hacienda_ai.api.pdf import render_evaluation_report_pdf
+from hacienda_ai.chat import (
+    SYSTEM_PROMPT,
+    AnthropicClient,
+    LLMClient,
+    LLMUnavailable,
+    build_default_registry,
+    run_chat,
+)
 from hacienda_ai.deductions import load_deductions
+from hacienda_ai.irpf import compute_quota, load_tax_scales
+from hacienda_ai.irpf.quota import quota_to_dict
 from hacienda_ai.models import (
     Deduction,
     NormaRegistry,
@@ -48,7 +58,13 @@ from hacienda_ai.models import (
 )
 from hacienda_ai.normas import load_norma_registry
 from hacienda_ai.rules import evaluate_deductions
-from hacienda_ai.storage import EvaluationsRepo, ProfilesRepo, init_db
+from hacienda_ai.safety import verify_citations
+from hacienda_ai.storage import (
+    ChatSessionsRepo,
+    EvaluationsRepo,
+    ProfilesRepo,
+    init_db,
+)
 
 DISCLAIMER = (
     "Esta herramienta ofrece ayuda informativa. No sustituye a un asesor "
@@ -211,7 +227,11 @@ def _corpus_fingerprint(deductions: list[Deduction]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def create_app(db_path: str | Path | None = None) -> FastAPI:
+def create_app(
+    db_path: str | Path | None = None,
+    *,
+    llm_client: LLMClient | None = None,
+) -> FastAPI:
     """Construye una instancia nueva del app, útil para tests aislados.
 
     `db_path`:
@@ -219,6 +239,11 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
       tampoco está, `~/.hacienda-ai/hacienda.db`.
     - Ruta de archivo: la DB persiste entre arranques (uso real).
     - `":memory:"`: DB en RAM, no sobrevive al proceso (uso en tests).
+
+    `llm_client`: inyectable para tests (un `FakeLLMClient` con guion
+    determinista). En producción se deja `None`: el endpoint /chat
+    intentará crear un `AnthropicClient` real con la API key del
+    entorno; si no está disponible, devuelve 503 con motivo.
     """
     app = FastAPI(
         title="HaciendaAI — Demo API",
@@ -229,8 +254,13 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
     conn = init_db(db_path)
     profiles_repo = ProfilesRepo(conn)
     evaluations_repo = EvaluationsRepo(conn)
+    chat_repo = ChatSessionsRepo(conn)
     deductions = load_deductions()
     registry = load_norma_registry()
+    tax_scales = load_tax_scales()
+    chat_tools = build_default_registry(
+        deductions=deductions, registry=registry, scales=tax_scales
+    )
     last_reviewed = max(
         (d.last_reviewed_at for d in deductions if d.last_reviewed_at),
         default=None,
@@ -283,9 +313,9 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
         devengo = profile.effective_devengo_date()
         t0 = time.perf_counter()
         evaluations = evaluate_deductions(deductions, profile, registry)
-        elapsed_ms = (time.perf_counter() - t0) * 1000
-
         ded_by_id = {d.id: d for d in deductions}
+        quota = compute_quota(profile, evaluations, ded_by_id, tax_scales, devengo)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
         items: list[dict[str, Any]] = []
         for ev in evaluations:
             ded = ded_by_id.get(ev.deduction_id)
@@ -319,6 +349,7 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
             "corpus": corpus_meta,
             "disclaimer": DISCLAIMER,
             "evaluations": items,
+            "cuota": quota_to_dict(quota),
         }
         evaluations_repo.save(evaluation_id, pid, response)
         return response
@@ -342,6 +373,161 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
             media_type="application/pdf",
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
+
+    @app.post("/citations/verify")
+    def verify_citations_endpoint(body: dict[str, Any]) -> dict[str, Any]:
+        """Verifica las citas legales contenidas en un texto.
+
+        Pensado como guard rail antes de devolver al cliente cualquier
+        respuesta generada por un LLM: si el texto cita una norma o
+        artículo que no existe (o estaba derogado en el devengo), el
+        endpoint devuelve `verdict="block"` y el llamante debe rechazar
+        la respuesta. Es independiente del flujo de evaluación: no
+        requiere un perfil ni una evaluación previa.
+
+        Body esperado:
+            {"text": "...", "devengo_date": "2024-12-31" (opcional)}
+        """
+        text = body.get("text")
+        if not isinstance(text, str):
+            raise HTTPException(
+                status_code=422, detail="text (string) requerido"
+            )
+        devengo_raw = body.get("devengo_date")
+        devengo: date | None = None
+        if isinstance(devengo_raw, str) and devengo_raw:
+            try:
+                devengo = date.fromisoformat(devengo_raw)
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail="devengo_date debe ser ISO 8601 (YYYY-MM-DD)",
+                ) from exc
+        result = verify_citations(
+            text,
+            corpus=deductions,
+            scales=tax_scales,
+            registry=registry,
+            devengo=devengo,
+        )
+        return {
+            "verdict": result.verdict,
+            "citations": [
+                {
+                    "kind": c.kind,
+                    "raw": c.raw,
+                    "span": list(c.span),
+                    "boe_id": c.boe_id,
+                    "article": c.article,
+                    "article_suffix": c.article_suffix,
+                    "paragraph": c.paragraph,
+                    "law_label": c.law_label,
+                    "juris_kind": c.juris_kind,
+                    "juris_ref": c.juris_ref,
+                }
+                for c in result.citations
+            ],
+            "issues": [
+                {
+                    "level": i.level,
+                    "code": i.code,
+                    "message": i.message,
+                    "citation_raw": i.citation.raw,
+                    "citation_span": list(i.citation.span),
+                }
+                for i in result.issues
+            ],
+        }
+
+    def _resolve_llm() -> LLMClient:
+        if llm_client is not None:
+            return llm_client
+        try:
+            return AnthropicClient()
+        except LLMUnavailable as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"Cliente LLM no disponible: {exc}. Configura "
+                    "ANTHROPIC_API_KEY o inyecta un LLMClient en create_app()."
+                ),
+            ) from exc
+
+    @app.post("/chat")
+    def chat_endpoint(body: dict[str, Any]) -> dict[str, Any]:
+        """Orquestador conversacional con tool use estricto y guard de citas.
+
+        Body:
+            {
+              "message": "...",
+              "session_id": "uuid"   (opcional: continuar conversación),
+              "devengo_date": "YYYY-MM-DD"  (opcional)
+            }
+
+        Respuesta:
+            {
+              "session_id": "...",
+              "assistant": "texto final ya verificado",
+              "blocked_text": "texto que el guard rechazó (si hubo block)",
+              "tool_invocations": [...],
+              "citation_check": {verdict, blocking_issues, warnings},
+              "iterations": N,
+              "disclaimer": "..."
+            }
+        """
+        message = body.get("message")
+        if not isinstance(message, str) or not message.strip():
+            raise HTTPException(status_code=422, detail="message (string) requerido")
+        session_id_raw = body.get("session_id")
+        if session_id_raw is not None and not isinstance(session_id_raw, str):
+            raise HTTPException(status_code=422, detail="session_id debe ser string")
+        session_id = session_id_raw or uuid.uuid4().hex
+        devengo: date | None = None
+        devengo_raw = body.get("devengo_date")
+        if isinstance(devengo_raw, str) and devengo_raw:
+            try:
+                devengo = date.fromisoformat(devengo_raw)
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail="devengo_date debe ser ISO 8601 (YYYY-MM-DD)",
+                ) from exc
+
+        history = chat_repo.get(session_id) or []
+        llm = _resolve_llm()
+
+        result = run_chat(
+            user_message=message,
+            history=history,
+            llm=llm,
+            tools=chat_tools,
+            system_prompt=SYSTEM_PROMPT,
+            devengo=devengo,
+            corpus=deductions,
+            registry=registry,
+            scales=tax_scales,
+        )
+        chat_repo.save(session_id, result.history)
+
+        return {
+            "session_id": session_id,
+            "assistant": result.assistant_text,
+            "blocked_text": result.blocked_text,
+            "tool_invocations": result.tool_invocations,
+            "citation_check": result.to_dict()["citation_check"],
+            "iterations": result.iterations,
+            "stop_reason": result.stop_reason,
+            "disclaimer": DISCLAIMER,
+        }
+
+    @app.get("/chat/sessions/{session_id}")
+    def get_chat_session(session_id: str) -> dict[str, Any]:
+        history = chat_repo.get(session_id)
+        if history is None:
+            raise HTTPException(
+                status_code=404, detail="session_id no encontrada"
+            )
+        return {"session_id": session_id, "history": history}
 
     @app.get("/")
     def root() -> FileResponse:

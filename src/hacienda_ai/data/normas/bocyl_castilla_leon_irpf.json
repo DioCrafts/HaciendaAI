@@ -1,0 +1,23 @@
+{
+  "_meta": {
+    "ambito": "autonomico",
+    "comunidad": "Castilla y León",
+    "alcance": "Norma autonómica raíz que regula los tributos cedidos en Castilla y León, citada por el catálogo IRPF autonómico castellano-leonés del corpus. Sembrado estructural por QW5: el identificador `BOCYL-2024-1` es un placeholder estable del sumario hasta que el verificador de boletines autonómicos pueda fijarlo contra el BOCYL oficial. La norma sustantiva (TR castellano-leonés de tributos cedidos) es de existencia pública y verificable manualmente; solo el `boe_id` del sumario está pendiente de afinar."
+  },
+  "normas": [
+    {
+      "boe_id": "BOCYL-2024-1",
+      "kind": "real_decreto_legislativo",
+      "title": "Texto refundido castellano-leonés sobre tributos cedidos por el Estado (consolidación administrativa, vigente para el ejercicio 2024)",
+      "enacted_at": "2024-01-01"
+    }
+  ],
+  "versions": [
+    {
+      "norma_boe_id": "BOCYL-2024-1",
+      "effective_from": "2024-01-01",
+      "status": "vigente",
+      "notes": "Versión estructural placeholder para 2024-2025. Cuando un fiscalista colegiado castellano-leonés firme el catálogo, esta `VersionNorma` debe sustituirse por la del Decreto Legislativo vigente con su `effective_from` real y, si procede, ventanas históricas con `modified_by_boe_id`."
+    }
+  ]
+}

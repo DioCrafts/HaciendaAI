@@ -353,12 +353,150 @@ def test_qw6_pdf_html_includes_manual_calculation_label_and_class() -> None:
     assert "status-requires_manual_calculation" in html
 
 
-def test_safety_module_has_been_removed() -> None:
-    """`safety.py` era teatro de cumplimiento: declarado en README y nunca
-    invocado por ningún endpoint. Se ha eliminado del paquete; cualquier
-    reintroducción debe venir acompañada de uso real en producción."""
-    with pytest.raises(ModuleNotFoundError):
-        importlib.import_module("hacienda_ai.safety")
+def test_chat_endpoint_requires_message(client: TestClient) -> None:
+    r = client.post("/chat", json={})
+    assert r.status_code == 422
+
+
+def test_chat_endpoint_without_llm_returns_503(client: TestClient) -> None:
+    """Sin ANTHROPIC_API_KEY y sin LLMClient inyectado, el endpoint debe
+    degradar limpiamente a 503 con motivo claro, no crashear."""
+    import os
+
+    saved = os.environ.pop("ANTHROPIC_API_KEY", None)
+    try:
+        r = client.post("/chat", json={"message": "Hola"})
+        assert r.status_code == 503
+        assert "ANTHROPIC_API_KEY" in r.json()["detail"]
+    finally:
+        if saved is not None:
+            os.environ["ANTHROPIC_API_KEY"] = saved
+
+
+def test_chat_endpoint_with_injected_fake_llm() -> None:
+    """Con un `FakeLLMClient` inyectado al construir la app, el endpoint
+    ejecuta el orquestador end-to-end y persiste la sesión en SQLite."""
+    from hacienda_ai.chat import FakeLLMClient, FakeTurn
+
+    fake = FakeLLMClient(
+        [
+            FakeTurn(
+                tool_calls=[
+                    (
+                        "compute_irpf_quota",
+                        {
+                            "profile": {
+                                "tax_year": 2024,
+                                "region": "Madrid",
+                                "filing_mode": "individual",
+                                "personal": {"has_disability": False},
+                                "family": {"children_count": 1, "ascendants_count": 0},
+                                "income": {"work_gross": 30000, "work_net": 27500},
+                                "expenses": {},
+                                "documents": [
+                                    "Libro de familia o certificado de convivencia"
+                                ],
+                            }
+                        },
+                    )
+                ]
+            ),
+            FakeTurn(
+                text=(
+                    "Tu cuota íntegra estatal es 2.452,50 € (art. 63 LIRPF). "
+                    "Este análisis no sustituye a un asesor fiscal colegiado."
+                )
+            ),
+        ]
+    )
+    app = create_app(db_path=":memory:", llm_client=fake)
+    with TestClient(app) as c:
+        r = c.post(
+            "/chat",
+            json={
+                "message": "Soy de Madrid, 30k brutos, 1 hijo. ¿Cuánto IRPF?",
+                "devengo_date": "2024-12-31",
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert "2.452,50" in data["assistant"]
+        assert data["citation_check"]["verdict"] == "safe"
+        assert data["tool_invocations"][0]["tool"] == "compute_irpf_quota"
+        sid = data["session_id"]
+
+        # La sesión persiste.
+        r2 = c.get(f"/chat/sessions/{sid}")
+        assert r2.status_code == 200
+        assert r2.json()["session_id"] == sid
+        assert len(r2.json()["history"]) >= 3
+
+
+def test_chat_endpoint_blocks_hallucinated_response() -> None:
+    """Si el LLM cierra con un artículo inventado, el endpoint sustituye
+    la respuesta por el mensaje seguro y devuelve verdict=block. El
+    cliente NUNCA ve el texto alucinado en `assistant` (sí en
+    `blocked_text` para auditoría)."""
+    from hacienda_ai.chat import FakeLLMClient, FakeTurn
+
+    fake = FakeLLMClient(
+        [FakeTurn(text="Aplicamos el art. 999 LIRPF: nueva deducción de 500 €.")]
+    )
+    app = create_app(db_path=":memory:", llm_client=fake)
+    with TestClient(app) as c:
+        r = c.post("/chat", json={"message": "¿Algo?"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["citation_check"]["verdict"] == "block"
+        assert "art. 999" not in data["assistant"]
+        assert "art. 999" in data["blocked_text"]
+
+
+def test_chat_endpoint_continues_existing_session() -> None:
+    """Al pasar `session_id` existente, el orquestador recibe el historial
+    previo y el LLM puede usarlo."""
+    from hacienda_ai.chat import FakeLLMClient, FakeTurn
+
+    fake = FakeLLMClient(
+        [
+            FakeTurn(text="Hola, dime tu CCAA."),
+            FakeTurn(text="Anotado. Necesito también tu salario neto."),
+        ]
+    )
+    app = create_app(db_path=":memory:", llm_client=fake)
+    with TestClient(app) as c:
+        r1 = c.post("/chat", json={"message": "Quiero calcular mi IRPF."}).json()
+        sid = r1["session_id"]
+        r2 = c.post("/chat", json={"session_id": sid, "message": "Soy de Madrid."}).json()
+        assert r2["session_id"] == sid
+        # El segundo turno debe ver el primer mensaje en su historial.
+        msgs = [m for m in fake.calls[1]["messages"] if m["role"] == "user"]
+        assert any("Quiero calcular" in (m["content"] if isinstance(m["content"], str) else "") for m in msgs)
+
+
+def test_chat_session_not_found_returns_404() -> None:
+    """El GET de una sesión inexistente debe ser 404, no crash ni 200 vacío."""
+    from hacienda_ai.chat import FakeLLMClient
+
+    app = create_app(db_path=":memory:", llm_client=FakeLLMClient([]))
+    with TestClient(app) as c:
+        r = c.get("/chat/sessions/does-not-exist")
+        assert r.status_code == 404
+
+
+def test_safety_module_is_wired_to_a_real_endpoint(client: TestClient) -> None:
+    """El paquete `safety` se eliminó en su día por ser teatro (declarado
+    en README y nunca invocado). Reintroducido en QW2 como verificador de
+    citas anti-alucinación: debe existir Y estar conectado a un endpoint
+    real. Este test cierra la garantía contra una nueva regresión.
+    """
+    importlib.import_module("hacienda_ai.safety")
+    r = client.post(
+        "/citations/verify",
+        json={"text": "El art. 999 LIRPF inventa algo."},
+    )
+    assert r.status_code == 200
+    assert r.json()["verdict"] == "block"
 
 
 def test_evaluation_response_carries_evaluation_id_and_profile_snapshot(
@@ -613,6 +751,106 @@ def test_evaluation_survives_app_restart(tmp_path: Any) -> None:
         assert recovered.status_code == 200
         # La evaluación recuperada tiene que ser bit-a-bit la guardada.
         assert recovered.json() == original
+
+
+def test_evaluation_payload_includes_quota_block(client: TestClient) -> None:
+    """El response de `/evaluations` debe llevar el bloque `cuota` con el
+    desglose IRPF completo: bases, mínimo personal y familiar, cuota
+    íntegra estatal y autonómica, cuota líquida, retenciones y diferencial.
+
+    Perfil canónico Madrid 30 k 1 hijo: la cuota íntegra estatal debe ser
+    2.452,50 € (verificada a mano contra arts. 57, 58 y 63 LIRPF). La cuota
+    autonómica debe ser `None` con nota explícita anti-alucinación: no hay
+    escala Madrid registrada todavía.
+    """
+    pid = client.post("/profiles", json=_synthetic_profile()).json()["profile_id"]
+    data = client.post("/evaluations", json={"profile_id": pid}).json()
+    cuota = data["cuota"]
+
+    assert cuota["base_imponible_general"] == 27500.0
+    assert cuota["minimo_personal_familiar"] == 7950.0
+    assert cuota["cuota_integra_estatal"] == 2452.5
+    assert cuota["cuota_liquida_estatal"] == 2452.5
+    assert cuota["cuota_integra_autonomica"] is None
+    assert cuota["cuota_liquida_total"] is None
+    assert cuota["cuota_diferencial"] is None
+    assert any("Madrid" in n for n in cuota["notes"])
+
+    # Trazabilidad: cada escala aplicada debe llevar `scale_id` + sources.
+    assert cuota["scale_applications"], "cuota sin trazabilidad de escalas"
+    state_general = next(
+        a for a in cuota["scale_applications"]
+        if a["scale_id"] == "es_irpf_estatal_general_2024"
+    )
+    assert state_general["base"] == 27500.0
+    assert state_general["sources"][0]["boe_id"] == "BOE-A-2006-20764"
+    assert state_general["sources"][0]["content_hash"]
+
+
+def test_evaluation_payload_quota_persists_in_db(client: TestClient) -> None:
+    """Una evaluación recuperada por GET debe seguir conteniendo el bloque
+    `cuota` con exactamente los mismos importes que devolvió el POST."""
+    pid = client.post("/profiles", json=_synthetic_profile()).json()["profile_id"]
+    posted = client.post("/evaluations", json={"profile_id": pid}).json()
+    eid = posted["evaluation_id"]
+    recovered = client.get(f"/evaluations/{eid}").json()
+    assert recovered["cuota"] == posted["cuota"]
+
+
+def test_citations_verify_blocks_inventado_article(client: TestClient) -> None:
+    """El endpoint `/citations/verify` es la frontera anti-alucinación: una
+    respuesta de un LLM que mencione un artículo inexistente en el corpus
+    debe ser bloqueada antes de llegar al cliente."""
+    r = client.post(
+        "/citations/verify",
+        json={
+            "text": "El art. 999 LIRPF reconoce una nueva deducción.",
+            "devengo_date": "2024-12-31",
+        },
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["verdict"] == "block"
+    codes = {i["code"] for i in data["issues"]}
+    assert "ARTICLE_NOT_IN_CORPUS" in codes
+
+
+def test_citations_verify_passes_safe_text(client: TestClient) -> None:
+    """Texto con citas verificables y vigentes en el devengo debe pasar."""
+    r = client.post(
+        "/citations/verify",
+        json={
+            "text": "El art. 57 LIRPF fija el mínimo personal del contribuyente en 5.550 €.",
+            "devengo_date": "2024-12-31",
+        },
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["verdict"] == "safe", data["issues"]
+    assert any(c["boe_id"] == "BOE-A-2006-20764" for c in data["citations"])
+
+
+def test_citations_verify_jurisprudence_warns(client: TestClient) -> None:
+    """Jurisprudencia (STS/TEAC/DGT) sin corpus indexado: warn, no safe."""
+    r = client.post(
+        "/citations/verify",
+        json={"text": "La STS 1234/2020 sentó doctrina."},
+    )
+    assert r.status_code == 200
+    assert r.json()["verdict"] == "warn"
+
+
+def test_citations_verify_requires_text_field(client: TestClient) -> None:
+    r = client.post("/citations/verify", json={"devengo_date": "2024-12-31"})
+    assert r.status_code == 422
+
+
+def test_citations_verify_rejects_bad_devengo_format(client: TestClient) -> None:
+    r = client.post(
+        "/citations/verify",
+        json={"text": "x", "devengo_date": "31/12/2024"},
+    )
+    assert r.status_code == 422
 
 
 def test_create_app_uses_in_memory_db_for_tests() -> None:

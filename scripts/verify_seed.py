@@ -11,15 +11,24 @@ Para cada `Source` con `boe_id = "BOE-A-..."` y `content_hash` declarado:
 5. Normaliza espacios y calcula SHA-256.
 6. Compara con `Source.content_hash`.
 
+Si se pasa `--report PATH`, el script escribe un JSON con la lista
+estructurada de `DriftItem`, el análisis de impacto (qué deducciones y
+escalas citan cada fuente con drift) y, si se pasa `--include-regional`,
+también los enlaces a boletines autonómicos que devuelvan 404/5xx. El
+workflow `verify-seed.yml` consume ese JSON para abrir un issue
+contextual con la sección de impacto.
+
 Uso:
     python scripts/verify_seed.py                    # verifica todo
     python scripts/verify_seed.py --update           # rellena hashes que falten
     python scripts/verify_seed.py --cache .cache/boe # cache custom
     python scripts/verify_seed.py path/to/file.json  # solo un archivo
+    python scripts/verify_seed.py --report out.json  # emite reporte JSON
+    python scripts/verify_seed.py --include-regional # añade chequeo URLs CCAA
 
 Códigos de salida:
     0 — sin drift y sin errores.
-    1 — drift detectado o hashes faltantes (sin --update).
+    1 — drift detectado, hashes faltantes o enlaces autonómicos rotos.
     2 — error de red, parsing o entrada inválida.
 """
 
@@ -38,7 +47,20 @@ from pathlib import Path
 from typing import Iterable
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+# Importes pos-sys.path para que el script funcione sin instalación previa.
+from hacienda_ai.deductions import load_deductions  # noqa: E402
+from hacienda_ai.irpf import load_tax_scales  # noqa: E402
+from hacienda_ai.rag.impact import (  # noqa: E402
+    DriftItem,
+    analyze_impact,
+    write_report_json,
+)
+from hacienda_ai.rag.sources import check_regional_urls  # noqa: E402
+
 DEFAULT_DEDUCTIONS_DIR = REPO_ROOT / "src" / "hacienda_ai" / "data" / "deductions"
+DEFAULT_SCALES_DIR = REPO_ROOT / "src" / "hacienda_ai" / "data" / "escalas"
 DEFAULT_CACHE_DIR = REPO_ROOT / ".cache" / "boe"
 BOE_API = (
     "https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/{boe_id}/texto"
@@ -196,10 +218,25 @@ def verify_file(
     path: Path,
     cache_dir: Path,
     update: bool,
+    drift_items: list[DriftItem] | None = None,
 ) -> tuple[int, int, int, int, bool]:
-    """Verifica un fichero JSON. Devuelve (ok, drift, skipped, errors, changed)."""
+    """Verifica un fichero JSON. Devuelve (ok, drift, skipped, errors, changed).
+
+    Si `drift_items` se pasa (no None), cada divergencia detectada se anota
+    como un `DriftItem` en esa lista para el reporte posterior.
+    """
     raw = json.loads(path.read_text(encoding="utf-8"))
-    entries = raw if isinstance(raw, list) else raw.get("deductions", [])
+    if isinstance(raw, list):
+        entries = raw
+    elif isinstance(raw, dict):
+        # Aceptamos los dos formatos del repo: corpus de deducciones
+        # (`{"deductions": [...]}`) y corpus de escalas progresivas
+        # (`{"scales": [...]}`). Cada entrada debe llevar su propio `sources`,
+        # con el mismo formato que las deducciones, así que el verificador
+        # las trata de forma uniforme.
+        entries = raw.get("deductions") or raw.get("scales") or []
+    else:
+        raise BoeFetchError(f"{path}: estructura JSON inesperada")
     if not isinstance(entries, list):
         raise BoeFetchError(f"{path}: estructura JSON inesperada")
 
@@ -241,11 +278,31 @@ def verify_file(
                 else:
                     print(f"  ! {ded_id} @ {block_id}: hash ausente — calculado {computed}")
                     drift += 1
+                    if drift_items is not None:
+                        drift_items.append(
+                            DriftItem(
+                                boe_id=boe_id,
+                                article=article,
+                                declared_hash=None,
+                                computed_hash=computed,
+                                deduction_id=str(ded_id),
+                            )
+                        )
             elif computed != declared:
                 print(f"  ✗ {ded_id} @ {boe_id}/{block_id}: DRIFT")
                 print(f"      declarado:  {declared}")
                 print(f"      calculado:  {computed}")
                 drift += 1
+                if drift_items is not None:
+                    drift_items.append(
+                        DriftItem(
+                            boe_id=boe_id,
+                            article=article,
+                            declared_hash=declared,
+                            computed_hash=computed,
+                            deduction_id=str(ded_id),
+                        )
+                    )
             else:
                 ok += 1
                 print(f"  ✓ {ded_id} @ {boe_id}/{block_id}")
@@ -272,6 +329,25 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="reescribe los JSON rellenando content_hash que falten",
     )
+    parser.add_argument(
+        "--report",
+        type=Path,
+        default=None,
+        help=(
+            "Si se indica, escribe un JSON con los DriftItem detectados y "
+            "el análisis de impacto (qué deducciones/escalas citan cada "
+            "fuente afectada). Lo consume el workflow para construir el "
+            "body del issue."
+        ),
+    )
+    parser.add_argument(
+        "--include-regional",
+        action="store_true",
+        help=(
+            "Verifica también las URLs de boletines autonómicos declarados "
+            "en las fuentes (BOCM, DOGC, DOG…). Reporta solo 404/5xx/timeout."
+        ),
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -285,10 +361,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     total = {"ok": 0, "drift": 0, "skipped": 0, "errors": 0}
+    drift_items: list[DriftItem] = []
     for path in targets:
         print(f"\n→ {path.relative_to(REPO_ROOT) if REPO_ROOT in path.parents else path}")
         try:
-            ok, drift, skipped, errors, _ = verify_file(path, args.cache, args.update)
+            ok, drift, skipped, errors, _ = verify_file(
+                path, args.cache, args.update, drift_items=drift_items
+            )
         except BoeFetchError as exc:
             print(f"  ERROR: {exc}", file=sys.stderr)
             total["errors"] += 1
@@ -303,9 +382,39 @@ def main(argv: list[str] | None = None) -> int:
         f"ok={total['ok']} drift={total['drift']} "
         f"skipped={total['skipped']} errors={total['errors']}"
     )
+
+    broken_urls: list = []
+    if args.include_regional:
+        try:
+            corpus = load_deductions(args.deductions_dir)
+            scales = load_tax_scales(DEFAULT_SCALES_DIR)
+        except Exception as exc:  # noqa: BLE001
+            print(f"ERROR al cargar corpus para chequeo regional: {exc}", file=sys.stderr)
+            total["errors"] += 1
+        else:
+            print("\n→ Chequeo de URLs autonómicas")
+            broken_urls = check_regional_urls(corpus, scales)
+            if broken_urls:
+                for b in broken_urls:
+                    print(f"  ✗ {b.boe_id} → {b.url} (status={b.status_code}, error={b.error})")
+            else:
+                print("  ✓ todas las URLs autonómicas responden")
+
+    if args.report is not None:
+        try:
+            corpus = load_deductions(args.deductions_dir)
+            scales = load_tax_scales(DEFAULT_SCALES_DIR)
+        except Exception as exc:  # noqa: BLE001
+            print(f"ERROR al cargar corpus para reporte: {exc}", file=sys.stderr)
+            return 2
+        report = analyze_impact(drift_items, broken_urls, corpus, scales)
+        args.report.parent.mkdir(parents=True, exist_ok=True)
+        write_report_json(report, args.report)
+        print(f"\nReporte de impacto escrito en {args.report}")
+
     if total["errors"] > 0:
         return 2
-    if total["drift"] > 0:
+    if total["drift"] > 0 or broken_urls:
         return 1
     return 0
 

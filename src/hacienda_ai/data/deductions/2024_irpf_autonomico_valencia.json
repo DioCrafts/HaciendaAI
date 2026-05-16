@@ -1,0 +1,84 @@
+{
+  "_meta": {
+    "ejercicio": 2024,
+    "ambito": "autonomico",
+    "comunidad_autonoma": "Comunitat Valenciana",
+    "estado": "sembrado_estructural_qw5",
+    "fuente_primaria": "Ley valenciana sobre tributos cedidos por el Estado (consolidación vigente para 2024), accesible desde el portal de la Generalitat Valenciana: https://hisenda.gva.es/",
+    "verificador": "Pendiente. El identificador DOCV del sumario es un placeholder hasta que un fiscalista colegiado valenciano contraste el articulado y los importes. Por eso TODAS las deducciones de este archivo llevan `validation_status=\"pendiente_fuente\"` y el motor las devolverá como `pending_validation` (no se aplicarán como cifra firme).",
+    "alcance": "Semilla mínima de 2 deducciones representativas (nacimiento/adopción y alquiler joven) para validar que la infraestructura de Valencia carga, que el motor evalúa sin errores perfiles valencianos, y que el catálogo crece sin contaminar resultados de producción."
+  },
+  "deductions": [
+    {
+      "id": "val_nacimiento_adopcion_2024",
+      "name": "Comunitat Valenciana — Por nacimiento, adopción o acogimiento",
+      "description": "Deducción autonómica valenciana por nacimiento, adopción o acogimiento de hijos durante el ejercicio. Los importes exactos y los límites por base imponible están pendientes de transcribir de la Ley autonómica por fiscalista colegiado. Sembrado estructural QW5.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Comunitat Valenciana",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "family.births_or_adoptions_this_year", "operator": ">=", "value": 1}
+      ],
+      "calculation": {"type": "manual_review", "base_field": "family.births_or_adoptions_this_year"},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Libro de familia o resolución de adopción/acogimiento"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley valenciana de tributos cedidos — Por nacimiento, adopción o acogimiento (pendiente de afinar pinpoint)",
+          "url": "https://hisenda.gva.es/",
+          "article": "pendiente",
+          "paragraph": null,
+          "boe_id": "DOCV-2024-1",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "alto",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "val_alquiler_vivienda_joven_2024",
+      "name": "Comunitat Valenciana — Por alquiler de vivienda habitual (jóvenes)",
+      "description": "Deducción autonómica valenciana por alquiler de vivienda habitual cuando el contribuyente es joven y cumple requisitos de edad y renta. Sembrado estructural QW5; los umbrales exactos están pendientes de transcribir por fiscalista colegiado.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Comunitat Valenciana",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.housing_rent", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<=", "value": 35}
+      ],
+      "calculation": {"type": "manual_review", "base_field": "expenses.housing_rent"},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento", "Justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley valenciana de tributos cedidos — Por alquiler de vivienda habitual (jóvenes, pendiente de afinar pinpoint)",
+          "url": "https://hisenda.gva.es/",
+          "article": "pendiente",
+          "paragraph": null,
+          "boe_id": "DOCV-2024-1",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "alto",
+      "validation_status": "pendiente_fuente"
+    }
+  ]
+}

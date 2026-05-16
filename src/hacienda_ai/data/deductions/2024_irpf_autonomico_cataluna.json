@@ -1,0 +1,84 @@
+{
+  "_meta": {
+    "ejercicio": 2024,
+    "ambito": "autonomico",
+    "comunidad_autonoma": "Cataluña / Catalunya",
+    "estado": "sembrado_estructural_qw5",
+    "fuente_primaria": "Normativa catalana de tributos cedidos por el Estado (TR catalán vigente para el ejercicio 2024), accesible desde el portal de la Generalitat: https://atc.gencat.cat/",
+    "verificador": "Pendiente. El identificador DOGC del sumario es un placeholder hasta que un fiscalista colegiado catalán contraste el articulado y los importes. Por eso TODAS las deducciones de este archivo llevan `validation_status=\"pendiente_fuente\"` y el motor las devolverá como `pending_validation` (no se aplicarán como cifra firme).",
+    "alcance": "Semilla mínima de 2 deducciones representativas (nacimiento/adopción y alquiler joven) para validar que la infraestructura de Cataluña carga, que el motor evalúa sin errores perfiles catalanes, y que el catálogo crece sin contaminar resultados de producción. Antes de marcar una deducción como `validada`, el reviewer debe confirmar artículo, importe, requisitos y base imponible límite contra el texto oficial vigente."
+  },
+  "deductions": [
+    {
+      "id": "cat_nacimiento_adopcion_2024",
+      "name": "Cataluña — Por nacimiento o adopción de hijos",
+      "description": "Deducción autonómica catalana por nacimiento o adopción de hijos durante el ejercicio. Los importes exactos por orden de nacimiento, parto múltiple y límites por base imponible están pendientes de transcribir del TR catalán por fiscalista colegiado. Sembrado estructural QW5: cuando se valide, cambiar `validation_status` a `validada` y sustituir `manual_review` por la fórmula tipificada.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Cataluña",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "family.births_or_adoptions_this_year", "operator": ">=", "value": 1}
+      ],
+      "calculation": {"type": "manual_review", "base_field": "family.births_or_adoptions_this_year"},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Libro de familia o resolución de adopción"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Normativa catalana de tributos cedidos — Por nacimiento o adopción de hijos (pendiente de afinar pinpoint)",
+          "url": "https://atc.gencat.cat/ca/tributs/irpf/",
+          "article": "pendiente",
+          "paragraph": null,
+          "boe_id": "DOGC-2024-1",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "alto",
+      "validation_status": "pendiente_fuente"
+    },
+    {
+      "id": "cat_alquiler_vivienda_joven_2024",
+      "name": "Cataluña — Por alquiler de vivienda habitual (jóvenes)",
+      "description": "Deducción autonómica catalana por alquiler de vivienda habitual cuando el contribuyente es joven y cumple requisitos de edad y renta. Los umbrales exactos de edad, porcentaje deducible y techo anual están pendientes de transcribir por fiscalista colegiado. Sembrado estructural QW5.",
+      "tax_year": 2024,
+      "scope": "autonomico",
+      "region": "Cataluña",
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.housing_rent", "operator": ">", "value": 0},
+        {"field": "personal.age", "operator": "<=", "value": 32}
+      ],
+      "calculation": {"type": "manual_review", "base_field": "expenses.housing_rent"},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Contrato de arrendamiento", "Justificantes de pago"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Normativa catalana de tributos cedidos — Por alquiler de vivienda habitual (jóvenes, pendiente de afinar pinpoint)",
+          "url": "https://atc.gencat.cat/ca/tributs/irpf/",
+          "article": "pendiente",
+          "paragraph": null,
+          "boe_id": "DOGC-2024-1",
+          "content_hash": null,
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "alto",
+      "validation_status": "pendiente_fuente"
+    }
+  ]
+}

@@ -14,9 +14,10 @@ necesitar el código del producto.
 """
 
 from .db import DEFAULT_DB_PATH, init_db, resolve_db_path
-from .repositories import EvaluationsRepo, ProfilesRepo
+from .repositories import ChatSessionsRepo, EvaluationsRepo, ProfilesRepo
 
 __all__ = [
+    "ChatSessionsRepo",
     "DEFAULT_DB_PATH",
     "EvaluationsRepo",
     "ProfilesRepo",
