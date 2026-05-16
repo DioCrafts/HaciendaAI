@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from typing import Any
 
@@ -360,12 +361,53 @@ def test_norma_outside_devengo_window_degrades_to_pending_validation() -> None:
     assert "No consta versión" in result.reason
 
 
-def test_unknown_norma_in_registry_does_not_block() -> None:
-    """Una norma no registrada no debe romper la evaluación: el registry es opcional."""
+def test_unknown_norma_in_registry_does_not_block_but_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Una norma citada y no registrada no rompe la evaluación, pero deja un
+    WARN en logs: el filtro de vigencia no se puede aplicar y es un agujero
+    de garantía que el operador debe ver."""
     reg = NormaRegistry()
     deduction = Deduction.from_dict(_validated_payload())
-    result = evaluate_deduction(deduction, _profile(), registry=reg)
+    with caplog.at_level(logging.WARNING, logger="hacienda_ai.rules"):
+        result = evaluate_deduction(deduction, _profile(), registry=reg)
     assert result.status == "applies"
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert any(
+        "no registrada" in r.getMessage() and "BOE-A-2006-20764" in r.getMessage()
+        for r in warnings
+    ), f"esperado WARN sobre norma no registrada; recibido: {[r.getMessage() for r in warnings]}"
+
+
+def test_source_without_boe_id_does_not_warn(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Una fuente legítimamente sin `boe_id` (p. ej. `pendiente_validacion`)
+    NO debe ensuciar logs con WARN: solo la cita que apunta a una norma con
+    `boe_id` desconocido cuenta como agujero de garantía."""
+    payload = _validated_payload()
+    payload["sources"] = [
+        {
+            "kind": "pendiente_validacion",
+            "title": "Sin fuente formal todavía",
+            "url": None,
+            "article": None,
+            "paragraph": None,
+            "boe_id": None,
+            "content_hash": None,
+            "checked_at": None,
+        }
+    ]
+    payload["validation_status"] = "pendiente_fuente"
+    deduction = Deduction.from_dict(payload)
+    reg = NormaRegistry()
+    with caplog.at_level(logging.WARNING, logger="hacienda_ai.rules"):
+        evaluate_deduction(deduction, _profile(), registry=reg)
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert warnings == [], (
+        f"no debería haber WARN para boe_id=None; recibido: "
+        f"{[r.getMessage() for r in warnings]}"
+    )
 
 
 # ----------- Vigencia con effective_to/from invertidos ----------------------

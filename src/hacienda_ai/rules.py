@@ -8,6 +8,7 @@ citadas vía `NormaRegistry`) ANTES de cualquier otra comprobación.
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from typing import Any
 
@@ -21,6 +22,8 @@ from .models import (
     TaxProfile,
     ValidationStatus,
 )
+
+_LOG = logging.getLogger(__name__)
 
 RISK_MAP: dict[str, RiskLiteral] = {"bajo": "low", "medio": "medium", "alto": "high"}
 
@@ -154,7 +157,22 @@ def _check_norma_status(
     devengo: date,
 ) -> RuleEvaluation | None:
     for source in deduction.sources:
-        if source.boe_id is None or not registry.knows(source.boe_id):
+        if source.boe_id is None:
+            continue
+        if not registry.knows(source.boe_id):
+            # La norma citada no está en el registry: el filtro de vigencia no
+            # se puede aplicar. Es un agujero de garantía, no un caso legítimo,
+            # así que lo emitimos como WARN en lugar de seguir en silencio. La
+            # evaluación continúa para no romper el flujo, pero el operador
+            # debería ver esto en logs y completar el registry.
+            _LOG.warning(
+                "norma citada no registrada en NormaRegistry: "
+                "deduction_id=%s boe_id=%s devengo=%s; "
+                "filtro de vigencia por norma omitido para esta cita",
+                deduction.id,
+                source.boe_id,
+                devengo.isoformat(),
+            )
             continue
         version = registry.version_at(source.boe_id, devengo)
         if version is None:

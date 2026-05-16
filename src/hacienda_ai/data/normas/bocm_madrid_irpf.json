@@ -1,0 +1,23 @@
+{
+  "_meta": {
+    "ambito": "autonomico",
+    "comunidad": "Madrid",
+    "alcance": "Catálogo de normas autonómicas que el corpus cita explícitamente. Hoy contiene únicamente el Decreto Legislativo 1/2010 (Texto Refundido de las Disposiciones Legales de la Comunidad de Madrid en materia de tributos cedidos por el Estado), referenciado por las 12 deducciones IRPF Madrid del corpus. La granularidad es a nivel de norma agregada (no por artículo). Modificaciones materiales más recientes: Ley 6/2023 de la Comunidad de Madrid, de 21 de diciembre, de Medidas Urgentes para el Impulso de la Actividad Económica, y Ley 13/2023 (sucesivas leyes anuales de medidas fiscales). Versiones anteriores a 2024 quedan pendientes de modelar hasta que el corpus cubra devengos pre-2024."
+  },
+  "normas": [
+    {
+      "boe_id": "BOCM-2010-258",
+      "kind": "real_decreto_legislativo",
+      "title": "Decreto Legislativo 1/2010, de 21 de octubre, del Consejo de Gobierno, por el que se aprueba el Texto Refundido de las Disposiciones Legales de la Comunidad de Madrid en materia de tributos cedidos por el Estado",
+      "enacted_at": "2010-10-21"
+    }
+  ],
+  "versions": [
+    {
+      "norma_boe_id": "BOCM-2010-258",
+      "effective_from": "2024-01-01",
+      "status": "vigente",
+      "notes": "Redacción aplicable a partir del ejercicio 2024 tras las modificaciones introducidas por la legislación tributaria autonómica más reciente (entre otras, Ley 6/2023 y leyes posteriores de medidas fiscales). Por simplicidad inicial se mantiene una única ventana abierta (`effective_to=null`) que cubre 2024 y 2025; cuando el corpus incorpore deducciones para devengos pre-2024 o se introduzcan nuevas modificaciones que cambien la cuantía o los requisitos de las deducciones citadas, deberán crearse las ventanas históricas correspondientes con sus `modified_by_boe_id`."
+    }
+  ]
+}

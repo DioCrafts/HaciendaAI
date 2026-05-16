@@ -11,9 +11,11 @@ Endpoints:
 - `GET  /evaluations/{id}`              — recupera una evaluación guardada.
 - `GET  /evaluations/{id}/pdf`          — exporta la evaluación a PDF firmable.
 
-Sin persistencia en disco: perfiles y evaluaciones viven en dicts por
-proceso. Reiniciar el servidor los pierde. Es deliberado para demo.
-Cuando aparezca Postgres, este módulo deberá inyectar repositorios.
+Persistencia: SQLite local (`hacienda_ai.storage`), inyectada en
+`create_app(db_path=...)`. Path por defecto: `~/.hacienda-ai/hacienda.db`,
+sobreescribible vía env var `HACIENDA_AI_DB_PATH` o argumento explícito.
+Los tests pasan `:memory:` para no tocar disco. Si se migra a Postgres,
+basta con sustituir los dos repos del paquete `storage`.
 """
 
 from __future__ import annotations
@@ -23,7 +25,9 @@ import json
 import re
 import time
 import uuid
+from dataclasses import asdict
 from datetime import UTC, date, datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +48,7 @@ from hacienda_ai.models import (
 )
 from hacienda_ai.normas import load_norma_registry
 from hacienda_ai.rules import evaluate_deductions
+from hacienda_ai.storage import EvaluationsRepo, ProfilesRepo, init_db
 
 DISCLAIMER = (
     "Esta herramienta ofrece ayuda informativa. No sustituye a un asesor "
@@ -152,42 +157,78 @@ def _applicable_versions(
     return out
 
 
-def _corpus_fingerprint(deductions: list[Deduction]) -> str:
-    """SHA-256 estable del corpus: id, boe_id y content_hash de cada fuente.
+def _canonical_default(value: Any) -> Any:
+    """Serializa los tipos no-JSON que pueden aparecer dentro de `Deduction`.
 
-    Sirve para que el PDF exportado lleve una firma reproducible: si el
-    corpus cambia entre la evaluación y la verificación posterior, la
-    firma cambia y el asesor puede detectarlo. Determinista para una
-    misma versión del corpus, independiente del orden interno.
+    `asdict` deja los Enum como Enum y las fechas como `date`; los convertimos
+    a sus formas estables (Enum.value, ISO 8601) para que el hash sea
+    reproducible entre versiones de Python y plataformas.
     """
-    fingerprint_input = json.dumps(
-        sorted(
-            (
-                d.id,
-                d.tax_year,
-                tuple(
-                    sorted((s.boe_id, s.article, s.content_hash) for s in d.sources)
-                ),
-            )
-            for d in deductions
-        ),
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, date):
+        return value.isoformat()
+    raise TypeError(f"no serializable en fingerprint: {type(value).__name__}")
+
+
+def _corpus_fingerprint(deductions: list[Deduction]) -> str:
+    """SHA-256 de la serialización canónica completa del corpus.
+
+    Firma la representación íntegra de cada `Deduction` —`requirements`,
+    `calculation` (tipo, importe fijo, porcentaje, cap, base_field), `limit`,
+    `validation_status`, `effective_from`/`effective_to`, `risk_level`,
+    `incompatibilities`, `required_documents`, `rent_web_boxes`,
+    `taxable_base_limits`, `foral_territory` y todas las `sources` con su
+    `content_hash`—, no solo `(id, tax_year, sources)` como hacía la primera
+    versión. Cualquier cambio semántico —incluido modificar un importe sin
+    tocar las fuentes BOE, ajustar un tope o cambiar `validation_status`—
+    mueve la firma, y el PDF firmado lo refleja.
+
+    Determinista: ordenamos las deducciones por `id` y las `sources` de cada
+    deducción por `(boe_id, article, paragraph, content_hash)` para que el
+    orden de la lista de entrada y el orden de declaración de fuentes no
+    afecten al hash.
+    """
+    canonical: list[dict[str, Any]] = []
+    for d in sorted(deductions, key=lambda d: d.id):
+        raw = asdict(d)
+        raw["sources"] = sorted(
+            raw["sources"],
+            key=lambda s: (
+                s.get("boe_id") or "",
+                s.get("article") or "",
+                s.get("paragraph") or "",
+                s.get("content_hash") or "",
+            ),
+        )
+        canonical.append(raw)
+    payload = json.dumps(
+        canonical,
         sort_keys=True,
         ensure_ascii=False,
-        default=str,
+        default=_canonical_default,
     )
-    return hashlib.sha256(fingerprint_input.encode("utf-8")).hexdigest()
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def create_app() -> FastAPI:
-    """Construye una instancia nueva del app, útil para tests aislados."""
+def create_app(db_path: str | Path | None = None) -> FastAPI:
+    """Construye una instancia nueva del app, útil para tests aislados.
+
+    `db_path`:
+    - `None` (defecto): se resuelve por env var `HACIENDA_AI_DB_PATH` y, si
+      tampoco está, `~/.hacienda-ai/hacienda.db`.
+    - Ruta de archivo: la DB persiste entre arranques (uso real).
+    - `":memory:"`: DB en RAM, no sobrevive al proceso (uso en tests).
+    """
     app = FastAPI(
         title="HaciendaAI — Demo API",
         version=__version__,
         description="API de demostración. No es producción ni asesoramiento profesional.",
     )
 
-    profiles: dict[str, TaxProfile] = {}
-    evaluations_store: dict[str, dict[str, Any]] = {}
+    conn = init_db(db_path)
+    profiles_repo = ProfilesRepo(conn)
+    evaluations_repo = EvaluationsRepo(conn)
     deductions = load_deductions()
     registry = load_norma_registry()
     last_reviewed = max(
@@ -221,12 +262,12 @@ def create_app() -> FastAPI:
         except ValidationError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         pid = uuid.uuid4().hex
-        profiles[pid] = profile
+        profiles_repo.save(pid, profile)
         return {"profile_id": pid, "profile": profile.to_dict()}
 
     @app.get("/profiles/{profile_id}")
     def get_profile(profile_id: str) -> dict[str, Any]:
-        profile = profiles.get(profile_id)
+        profile = profiles_repo.get(profile_id)
         if profile is None:
             raise HTTPException(status_code=404, detail="profile_id no encontrado")
         return {"profile_id": profile_id, "profile": profile.to_dict()}
@@ -236,7 +277,7 @@ def create_app() -> FastAPI:
         pid = body.get("profile_id")
         if not isinstance(pid, str) or not pid:
             raise HTTPException(status_code=422, detail="profile_id (string) requerido")
-        profile = profiles.get(pid)
+        profile = profiles_repo.get(pid)
         if profile is None:
             raise HTTPException(status_code=404, detail="profile_id no encontrado")
         devengo = profile.effective_devengo_date()
@@ -279,19 +320,19 @@ def create_app() -> FastAPI:
             "disclaimer": DISCLAIMER,
             "evaluations": items,
         }
-        evaluations_store[evaluation_id] = response
+        evaluations_repo.save(evaluation_id, pid, response)
         return response
 
     @app.get("/evaluations/{evaluation_id}")
     def get_evaluation(evaluation_id: str) -> dict[str, Any]:
-        stored = evaluations_store.get(evaluation_id)
+        stored = evaluations_repo.get(evaluation_id)
         if stored is None:
             raise HTTPException(status_code=404, detail="evaluation_id no encontrado")
         return stored
 
     @app.get("/evaluations/{evaluation_id}/pdf")
     def download_evaluation_pdf(evaluation_id: str) -> Response:
-        stored = evaluations_store.get(evaluation_id)
+        stored = evaluations_repo.get(evaluation_id)
         if stored is None:
             raise HTTPException(status_code=404, detail="evaluation_id no encontrado")
         pdf_bytes = render_evaluation_report_pdf(stored)

@@ -3,18 +3,23 @@
 from __future__ import annotations
 
 import importlib
+from dataclasses import replace
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
 from hacienda_ai.api import create_app
-from hacienda_ai.api.app import _qualitative_confidence
+from hacienda_ai.api.app import _corpus_fingerprint, _qualitative_confidence
+from hacienda_ai.deductions import load_deductions
+from hacienda_ai.models import Deduction, ValidationStatus
 
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(create_app())
+    # DB en memoria por test: aislado, sin tocar `~/.hacienda-ai/hacienda.db`
+    # ni dejar archivos colgando entre runs de pytest.
+    return TestClient(create_app(db_path=":memory:"))
 
 
 def _synthetic_profile() -> dict[str, Any]:
@@ -382,3 +387,163 @@ def test_evaluation_pdf_uses_madrid_profile_with_state_and_regional_sources(
     r = client.get(f"/evaluations/{eid}/pdf")
     assert r.status_code == 200
     assert r.content.startswith(b"%PDF-")
+
+
+# --------------------------------------------------------------------------
+# Tests de `_corpus_fingerprint` (QW2): la firma del PDF tiene que cubrir
+# todos los campos que determinan la recomendación, no solo `(id, tax_year,
+# sources)`. Si alguien edita un importe sin tocar las fuentes BOE, o ajusta
+# un tope, o cambia `validation_status`, la firma DEBE moverse — si no, el
+# PDF "firmado" miente.
+# --------------------------------------------------------------------------
+
+
+def _pick_calculable_deduction() -> Deduction:
+    """Devuelve la primera deducción del corpus con `calculation.type ==
+    fixed_amount` y `fixed_amount` no nulo, para poder mutar el importe."""
+    for d in load_deductions():
+        if d.calculation.type == "fixed_amount" and d.calculation.fixed_amount is not None:
+            return d
+    raise AssertionError("se esperaba al menos una deducción con fixed_amount no nulo")
+
+
+def test_fingerprint_moves_when_fixed_amount_changes() -> None:
+    """Bug original de QW2: cambiar el importe sin tocar las fuentes no
+    movía la firma. Ahora debe moverla."""
+    deductions = load_deductions()
+    base_fp = _corpus_fingerprint(deductions)
+    target = _pick_calculable_deduction()
+    bumped_calc = replace(target.calculation, fixed_amount=(target.calculation.fixed_amount or 0) + 1.0)
+    mutated = [replace(d, calculation=bumped_calc) if d.id == target.id else d for d in deductions]
+    assert _corpus_fingerprint(mutated) != base_fp
+
+
+def test_fingerprint_moves_when_limit_changes() -> None:
+    deductions = load_deductions()
+    base_fp = _corpus_fingerprint(deductions)
+    target = deductions[0]
+    new_limit = (target.limit or 0.0) + 100.0
+    mutated = [replace(d, limit=new_limit) if d.id == target.id else d for d in deductions]
+    assert _corpus_fingerprint(mutated) != base_fp
+
+
+def test_fingerprint_moves_when_effective_to_changes() -> None:
+    """Acortar la vigencia de una deducción cambia la recomendación para
+    devengos cercanos al límite. La firma debe reflejarlo."""
+    from datetime import date as _date
+    deductions = load_deductions()
+    base_fp = _corpus_fingerprint(deductions)
+    target = next(d for d in deductions if d.effective_to is not None)
+    mutated = [
+        replace(d, effective_to=_date(target.effective_to.year, 6, 30))
+        if d.id == target.id else d
+        for d in deductions
+    ]
+    assert _corpus_fingerprint(mutated) != base_fp
+
+
+def test_fingerprint_moves_when_validation_status_changes() -> None:
+    """Degradar una deducción de `validada` a `dudosa` cambia su estado en
+    cualquier evaluación. La firma debe reflejarlo."""
+    deductions = load_deductions()
+    base_fp = _corpus_fingerprint(deductions)
+    target = deductions[0]
+    mutated = [
+        replace(d, validation_status=ValidationStatus.DUDOSA) if d.id == target.id else d
+        for d in deductions
+    ]
+    assert _corpus_fingerprint(mutated) != base_fp
+
+
+def test_fingerprint_moves_when_requirements_change() -> None:
+    """Añadir un requisito estructurado cambia las condiciones de
+    aplicación. La firma debe reflejarlo."""
+    from hacienda_ai.models import Requirement
+    deductions = load_deductions()
+    base_fp = _corpus_fingerprint(deductions)
+    target = deductions[0]
+    new_reqs = (*target.requirements, Requirement(field="dummy.field", operator="exists"))
+    mutated = [replace(d, requirements=new_reqs) if d.id == target.id else d for d in deductions]
+    assert _corpus_fingerprint(mutated) != base_fp
+
+
+def test_fingerprint_stable_under_deduction_reordering() -> None:
+    """El orden de la lista de entrada no debe afectar a la firma."""
+    deductions = load_deductions()
+    reversed_list = list(reversed(deductions))
+    assert _corpus_fingerprint(deductions) == _corpus_fingerprint(reversed_list)
+
+
+def test_fingerprint_stable_across_repeated_calls() -> None:
+    """Misma entrada → mismo hash. Reproducibilidad básica."""
+    deductions = load_deductions()
+    assert _corpus_fingerprint(deductions) == _corpus_fingerprint(deductions)
+
+
+# --------------------------------------------------------------------------
+# Sprint 1 #3: persistencia SQLite. Criterio de aceptación literal:
+# crear perfil → reiniciar el server → `GET /profiles/{id}` sigue
+# devolviendo el perfil. Imitamos el reinicio cerrando el TestClient y
+# construyendo un app nuevo sobre el mismo archivo de DB.
+# --------------------------------------------------------------------------
+
+
+def test_profile_survives_app_restart(tmp_path: Any) -> None:
+    """Una vuelta al endpoint sobre un archivo SQLite real: persiste y
+    sobrevive a un `create_app()` nuevo. Si esto se rompe, hemos vuelto
+    a los `dict` en memoria sin darnos cuenta."""
+    db = tmp_path / "restart.db"
+
+    # Arranque 1: creamos un perfil y guardamos su id.
+    app_v1 = create_app(db_path=db)
+    with TestClient(app_v1) as c1:
+        resp = c1.post("/profiles", json={
+            "tax_year": 2025,
+            "region": "Madrid",
+            "family": {"children_count": 1},
+            "income": {"work_gross": 30000},
+            "documents": ["Libro de familia o certificado de convivencia"],
+        })
+        assert resp.status_code == 201
+        pid = resp.json()["profile_id"]
+
+    # Arranque 2: app nueva, mismo archivo. El perfil debe seguir ahí.
+    app_v2 = create_app(db_path=db)
+    with TestClient(app_v2) as c2:
+        recovered = c2.get(f"/profiles/{pid}")
+        assert recovered.status_code == 200
+        assert recovered.json()["profile"]["tax_year"] == 2025
+        assert recovered.json()["profile"]["region"] == "Madrid"
+
+
+def test_evaluation_survives_app_restart(tmp_path: Any) -> None:
+    """Lo mismo para evaluaciones: tras reiniciar, la evaluación se
+    recupera con su `applicable_versions` y `corpus` originales, no se
+    re-ejecuta el motor. Importante para el histórico del expediente."""
+    db = tmp_path / "restart-eval.db"
+
+    app_v1 = create_app(db_path=db)
+    with TestClient(app_v1) as c1:
+        pid = c1.post("/profiles", json=_synthetic_profile()).json()["profile_id"]
+        eid = c1.post("/evaluations", json={"profile_id": pid}).json()["evaluation_id"]
+        original = c1.get(f"/evaluations/{eid}").json()
+
+    app_v2 = create_app(db_path=db)
+    with TestClient(app_v2) as c2:
+        recovered = c2.get(f"/evaluations/{eid}")
+        assert recovered.status_code == 200
+        # La evaluación recuperada tiene que ser bit-a-bit la guardada.
+        assert recovered.json() == original
+
+
+def test_create_app_uses_in_memory_db_for_tests() -> None:
+    """Las fixtures pasan `db_path=':memory:'`; un test aislado no debe
+    contaminar el archivo por defecto en `~/.hacienda-ai/`. Validamos
+    que se construye correctamente y los endpoints básicos responden."""
+    app = create_app(db_path=":memory:")
+    with TestClient(app) as c:
+        assert c.get("/health").status_code == 200
+        assert c.post("/profiles", json={
+            "tax_year": 2025,
+            "region": "Madrid",
+        }).status_code == 201
