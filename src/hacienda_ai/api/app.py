@@ -11,9 +11,11 @@ Endpoints:
 - `GET  /evaluations/{id}`              — recupera una evaluación guardada.
 - `GET  /evaluations/{id}/pdf`          — exporta la evaluación a PDF firmable.
 
-Sin persistencia en disco: perfiles y evaluaciones viven en dicts por
-proceso. Reiniciar el servidor los pierde. Es deliberado para demo.
-Cuando aparezca Postgres, este módulo deberá inyectar repositorios.
+Persistencia: SQLite local (`hacienda_ai.storage`), inyectada en
+`create_app(db_path=...)`. Path por defecto: `~/.hacienda-ai/hacienda.db`,
+sobreescribible vía env var `HACIENDA_AI_DB_PATH` o argumento explícito.
+Los tests pasan `:memory:` para no tocar disco. Si se migra a Postgres,
+basta con sustituir los dos repos del paquete `storage`.
 """
 
 from __future__ import annotations
@@ -46,6 +48,7 @@ from hacienda_ai.models import (
 )
 from hacienda_ai.normas import load_norma_registry
 from hacienda_ai.rules import evaluate_deductions
+from hacienda_ai.storage import EvaluationsRepo, ProfilesRepo, init_db
 
 DISCLAIMER = (
     "Esta herramienta ofrece ayuda informativa. No sustituye a un asesor "
@@ -208,16 +211,24 @@ def _corpus_fingerprint(deductions: list[Deduction]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def create_app() -> FastAPI:
-    """Construye una instancia nueva del app, útil para tests aislados."""
+def create_app(db_path: str | Path | None = None) -> FastAPI:
+    """Construye una instancia nueva del app, útil para tests aislados.
+
+    `db_path`:
+    - `None` (defecto): se resuelve por env var `HACIENDA_AI_DB_PATH` y, si
+      tampoco está, `~/.hacienda-ai/hacienda.db`.
+    - Ruta de archivo: la DB persiste entre arranques (uso real).
+    - `":memory:"`: DB en RAM, no sobrevive al proceso (uso en tests).
+    """
     app = FastAPI(
         title="HaciendaAI — Demo API",
         version=__version__,
         description="API de demostración. No es producción ni asesoramiento profesional.",
     )
 
-    profiles: dict[str, TaxProfile] = {}
-    evaluations_store: dict[str, dict[str, Any]] = {}
+    conn = init_db(db_path)
+    profiles_repo = ProfilesRepo(conn)
+    evaluations_repo = EvaluationsRepo(conn)
     deductions = load_deductions()
     registry = load_norma_registry()
     last_reviewed = max(
@@ -251,12 +262,12 @@ def create_app() -> FastAPI:
         except ValidationError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         pid = uuid.uuid4().hex
-        profiles[pid] = profile
+        profiles_repo.save(pid, profile)
         return {"profile_id": pid, "profile": profile.to_dict()}
 
     @app.get("/profiles/{profile_id}")
     def get_profile(profile_id: str) -> dict[str, Any]:
-        profile = profiles.get(profile_id)
+        profile = profiles_repo.get(profile_id)
         if profile is None:
             raise HTTPException(status_code=404, detail="profile_id no encontrado")
         return {"profile_id": profile_id, "profile": profile.to_dict()}
@@ -266,7 +277,7 @@ def create_app() -> FastAPI:
         pid = body.get("profile_id")
         if not isinstance(pid, str) or not pid:
             raise HTTPException(status_code=422, detail="profile_id (string) requerido")
-        profile = profiles.get(pid)
+        profile = profiles_repo.get(pid)
         if profile is None:
             raise HTTPException(status_code=404, detail="profile_id no encontrado")
         devengo = profile.effective_devengo_date()
@@ -309,19 +320,19 @@ def create_app() -> FastAPI:
             "disclaimer": DISCLAIMER,
             "evaluations": items,
         }
-        evaluations_store[evaluation_id] = response
+        evaluations_repo.save(evaluation_id, pid, response)
         return response
 
     @app.get("/evaluations/{evaluation_id}")
     def get_evaluation(evaluation_id: str) -> dict[str, Any]:
-        stored = evaluations_store.get(evaluation_id)
+        stored = evaluations_repo.get(evaluation_id)
         if stored is None:
             raise HTTPException(status_code=404, detail="evaluation_id no encontrado")
         return stored
 
     @app.get("/evaluations/{evaluation_id}/pdf")
     def download_evaluation_pdf(evaluation_id: str) -> Response:
-        stored = evaluations_store.get(evaluation_id)
+        stored = evaluations_repo.get(evaluation_id)
         if stored is None:
             raise HTTPException(status_code=404, detail="evaluation_id no encontrado")
         pdf_bytes = render_evaluation_report_pdf(stored)

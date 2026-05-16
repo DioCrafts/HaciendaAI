@@ -17,7 +17,9 @@ from hacienda_ai.models import Deduction, ValidationStatus
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(create_app())
+    # DB en memoria por test: aislado, sin tocar `~/.hacienda-ai/hacienda.db`
+    # ni dejar archivos colgando entre runs de pytest.
+    return TestClient(create_app(db_path=":memory:"))
 
 
 def _synthetic_profile() -> dict[str, Any]:
@@ -476,3 +478,72 @@ def test_fingerprint_stable_across_repeated_calls() -> None:
     """Misma entrada → mismo hash. Reproducibilidad básica."""
     deductions = load_deductions()
     assert _corpus_fingerprint(deductions) == _corpus_fingerprint(deductions)
+
+
+# --------------------------------------------------------------------------
+# Sprint 1 #3: persistencia SQLite. Criterio de aceptación literal:
+# crear perfil → reiniciar el server → `GET /profiles/{id}` sigue
+# devolviendo el perfil. Imitamos el reinicio cerrando el TestClient y
+# construyendo un app nuevo sobre el mismo archivo de DB.
+# --------------------------------------------------------------------------
+
+
+def test_profile_survives_app_restart(tmp_path: Any) -> None:
+    """Una vuelta al endpoint sobre un archivo SQLite real: persiste y
+    sobrevive a un `create_app()` nuevo. Si esto se rompe, hemos vuelto
+    a los `dict` en memoria sin darnos cuenta."""
+    db = tmp_path / "restart.db"
+
+    # Arranque 1: creamos un perfil y guardamos su id.
+    app_v1 = create_app(db_path=db)
+    with TestClient(app_v1) as c1:
+        resp = c1.post("/profiles", json={
+            "tax_year": 2025,
+            "region": "Madrid",
+            "family": {"children_count": 1},
+            "income": {"work_gross": 30000},
+            "documents": ["Libro de familia o certificado de convivencia"],
+        })
+        assert resp.status_code == 201
+        pid = resp.json()["profile_id"]
+
+    # Arranque 2: app nueva, mismo archivo. El perfil debe seguir ahí.
+    app_v2 = create_app(db_path=db)
+    with TestClient(app_v2) as c2:
+        recovered = c2.get(f"/profiles/{pid}")
+        assert recovered.status_code == 200
+        assert recovered.json()["profile"]["tax_year"] == 2025
+        assert recovered.json()["profile"]["region"] == "Madrid"
+
+
+def test_evaluation_survives_app_restart(tmp_path: Any) -> None:
+    """Lo mismo para evaluaciones: tras reiniciar, la evaluación se
+    recupera con su `applicable_versions` y `corpus` originales, no se
+    re-ejecuta el motor. Importante para el histórico del expediente."""
+    db = tmp_path / "restart-eval.db"
+
+    app_v1 = create_app(db_path=db)
+    with TestClient(app_v1) as c1:
+        pid = c1.post("/profiles", json=_synthetic_profile()).json()["profile_id"]
+        eid = c1.post("/evaluations", json={"profile_id": pid}).json()["evaluation_id"]
+        original = c1.get(f"/evaluations/{eid}").json()
+
+    app_v2 = create_app(db_path=db)
+    with TestClient(app_v2) as c2:
+        recovered = c2.get(f"/evaluations/{eid}")
+        assert recovered.status_code == 200
+        # La evaluación recuperada tiene que ser bit-a-bit la guardada.
+        assert recovered.json() == original
+
+
+def test_create_app_uses_in_memory_db_for_tests() -> None:
+    """Las fixtures pasan `db_path=':memory:'`; un test aislado no debe
+    contaminar el archivo por defecto en `~/.hacienda-ai/`. Validamos
+    que se construye correctamente y los endpoints básicos responden."""
+    app = create_app(db_path=":memory:")
+    with TestClient(app) as c:
+        assert c.get("/health").status_code == 200
+        assert c.post("/profiles", json={
+            "tax_year": 2025,
+            "region": "Madrid",
+        }).status_code == 201

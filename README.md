@@ -17,10 +17,11 @@ jurídico, herramientas para gestorías y conectores con AEAT.
 > modificado entre ambos ejercicios. El motor calcula importe en las que
 > tienen fórmula lineal/tramificada; el resto va en revisión manual.
 > Historia de versiones agregada de la LIRPF en 3 ventanas (2007-2014 /
-> 2015-2021 / 2022-hoy) y API HTTP de demostración con perfil en memoria.
-> **No hay** RAG implementado, ni LLM integrado, ni multi-tenant, ni
-> persistencia, ni cobertura foral, ni resto de CCAA. Ver
-> `docs/roadmap.md` para el plan.
+> 2015-2021 / 2022-hoy), `NormaRegistry` que cubre también el Decreto
+> Legislativo 1/2010 de la Comunidad de Madrid y persistencia SQLite
+> local para perfiles y evaluaciones. **No hay** RAG implementado, ni
+> LLM integrado, ni multi-tenant, ni auth, ni cobertura foral, ni resto
+> de CCAA. Ver `docs/roadmap.md` para el plan.
 
 ## Qué hace
 
@@ -86,8 +87,10 @@ python -m pytest
 src/hacienda_ai/
   api/                    # FastAPI app + página estática de demo
   data/deductions/        # Corpus normalizado de deducciones (JSON)
+  data/normas/            # Catálogo de normas y versiones temporales
   rag/                    # Estructura preparada para RAG jurídico
   models/                 # Esquema fiscal, Norma/VersionNorma, NormaRegistry
+  storage/                # Repositorios SQLite (perfiles y evaluaciones)
   deductions.py           # Carga y validación del corpus
   normas.py               # Carga del catálogo de normas y versiones
   rules.py                # Motor determinista con filtro temporal
@@ -146,9 +149,12 @@ Endpoints disponibles:
   estatales clicables al texto consolidado; citas BOCM al consolidado de
   sede CM.
 
-Sin persistencia: los perfiles viven en memoria por proceso. Reiniciar el
-servidor los pierde. Es deliberado: la persistencia entra en una iteración
-posterior.
+Persistencia: SQLite local en `~/.hacienda-ai/hacienda.db` (sobrescribible
+con la env var `HACIENDA_AI_DB_PATH`). Los perfiles y evaluaciones
+sobreviven al reinicio del servidor. Para tests se usa `:memory:`. Si
+quieres una DB para un piloto, basta con apuntar `HACIENDA_AI_DB_PATH` a
+un volumen persistente; si necesitas multi-tenant real, esto exige
+todavía implementar la separación por despacho (ver `docs/roadmap.md`).
 
 ## Verificación del corpus contra BOE
 
@@ -211,6 +217,8 @@ semanal (`.github/workflows/verify-seed.yml`) lo lanza los lunes.
   Ceuta/Melilla, eficiencia energética, regímenes transitorios
   DT 15ª/DT 18ª) siguen marcadas como `manual_review` hasta validación
   por asesor colegiado.
-- No hay backend HTTP ni frontend todavía.
-- No hay persistencia de perfiles ni documentos.
+- API HTTP de demostración disponible (FastAPI + uvicorn) y persistencia
+  SQLite local; no hay frontend más allá de la página de demo estática
+  ni control de accesos por usuario o despacho (próxima iteración:
+  multi-tenant + auth).
 - El RAG jurídico está solo preparado a nivel de estructura de carpetas.
