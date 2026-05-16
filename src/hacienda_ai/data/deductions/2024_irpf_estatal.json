@@ -5,7 +5,7 @@
     "fuente_primaria": "Ley 35/2006 del IRPF (BOE-A-2006-20764), texto consolidado",
     "fecha_consolidacion_boe": "2026-04-29",
     "verificado_por": "scripts/verify_seed.py",
-    "alcance": "Identificación legal y hash del articulado. Los cálculos cuantitativos (porcentajes, escalas, prorrateos, compatibilidades) requieren revisión por asesor colegiado: la mayoría se modelan como manual_review hasta que un fiscalista firme su lógica. Las fechas de vigencia (effective_from/to) modelan el ejercicio 2024, NO la vida histórica de la norma."
+    "alcance": "Identificación legal y hash del articulado. Los importes lineales o tramificados publicados por AEAT (mínimos personales y familiares, gasto del trabajo de 2.000 €, reducción art. 20 del tramo bajo, deducción por maternidad, familia numerosa, tributación conjunta) están modelados como fixed_amount/percentage_with_cap. Las reglas no lineales que escalan por base imponible u otras condiciones (arrendamiento art. 23.2, donativos Ley 49/2002, Ceuta/Melilla, eficiencia energética, regímenes transitorios DT15ª/DT18ª) quedan en manual_review hasta que un fiscalista firme su lógica completa. Las fechas de vigencia (effective_from/to) modelan el ejercicio 2024, NO la vida histórica de la norma."
   },
   "deductions": [
     {
@@ -42,17 +42,17 @@
       "validation_status": "validada"
     },
     {
-      "id": "es_minimo_descendientes_2024",
-      "name": "Mínimo por descendientes",
-      "description": "Mínimo familiar por descendientes menores de 25 años o con discapacidad que convivan. Importes (2.400/2.700/4.000/4.500 €) y el incremento por menor de 3 años se calculan en revisión manual.",
+      "id": "es_minimo_descendientes_tramo_1_2024",
+      "name": "Mínimo por descendientes — 1.er descendiente",
+      "description": "Tramo del mínimo por descendientes correspondiente al primer descendiente (art. 58 LIRPF): 2.400 €. Aplica si hay al menos un descendiente computable. El incremento por menor de 3 años (2.800 €) y las reglas de prorrateo entre progenitores se mantienen en revisión manual.",
       "tax_year": 2024,
       "scope": "estatal",
       "region": null,
       "category": "minimo_personal_familiar",
       "requirements": [
-        {"field": "family.children_count", "operator": ">", "value": 0}
+        {"field": "family.children_count", "operator": ">=", "value": 1}
       ],
-      "calculation": {"type": "manual_review", "base_field": "family.children_count"},
+      "calculation": {"type": "fixed_amount", "fixed_amount": 2400.0},
       "limit": null,
       "taxable_base_limits": {},
       "incompatibilities": [],
@@ -64,7 +64,7 @@
           "title": "Ley 35/2006 del IRPF — art. 58. Mínimo por descendientes",
           "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a58",
           "article": "art. 58",
-          "paragraph": null,
+          "paragraph": "1",
           "boe_id": "BOE-A-2006-20764",
           "content_hash": "7da30713f0be67ec6552a1d2dd4ac19b814eb89aab34b789be1629f59433029b",
           "checked_at": "2026-05-16"
@@ -77,17 +77,122 @@
       "validation_status": "validada"
     },
     {
-      "id": "es_minimo_ascendientes_2024",
-      "name": "Mínimo por ascendientes",
-      "description": "Mínimo familiar por ascendientes mayores de 65 (o con discapacidad) que convivan y sin rentas relevantes. Importes (1.150 € + 1.400 € si >75) en revisión manual.",
+      "id": "es_minimo_descendientes_tramo_2_2024",
+      "name": "Mínimo por descendientes — 2.º descendiente",
+      "description": "Tramo del mínimo por descendientes correspondiente al segundo descendiente (art. 58 LIRPF): 2.700 €. Se acumula al 1.er tramo cuando hay dos o más descendientes computables.",
       "tax_year": 2024,
       "scope": "estatal",
       "region": null,
       "category": "minimo_personal_familiar",
       "requirements": [
-        {"field": "family.ascendants_count", "operator": ">", "value": 0}
+        {"field": "family.children_count", "operator": ">=", "value": 2}
       ],
-      "calculation": {"type": "manual_review", "base_field": "family.ascendants_count"},
+      "calculation": {"type": "fixed_amount", "fixed_amount": 2700.0},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Libro de familia o certificado de convivencia"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 58. Mínimo por descendientes",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a58",
+          "article": "art. 58",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "7da30713f0be67ec6552a1d2dd4ac19b814eb89aab34b789be1629f59433029b",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_minimo_descendientes_tramo_3_2024",
+      "name": "Mínimo por descendientes — 3.er descendiente",
+      "description": "Tramo del mínimo por descendientes correspondiente al tercer descendiente (art. 58 LIRPF): 4.000 €. Se acumula a los tramos anteriores.",
+      "tax_year": 2024,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [
+        {"field": "family.children_count", "operator": ">=", "value": 3}
+      ],
+      "calculation": {"type": "fixed_amount", "fixed_amount": 4000.0},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Libro de familia o certificado de convivencia"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 58. Mínimo por descendientes",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a58",
+          "article": "art. 58",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "7da30713f0be67ec6552a1d2dd4ac19b814eb89aab34b789be1629f59433029b",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_minimo_descendientes_tramo_4_y_siguientes_2024",
+      "name": "Mínimo por descendientes — 4.º descendiente",
+      "description": "Tramo del mínimo por descendientes correspondiente al cuarto descendiente (art. 58 LIRPF): 4.500 €. La AEAT extiende este mismo importe a los siguientes descendientes (5.º, 6.º...); en esos casos el motor subestima — los descendientes 5.º+ se mantienen en revisión manual hasta que el motor modele multiplicidad por encima de 4.",
+      "tax_year": 2024,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [
+        {"field": "family.children_count", "operator": ">=", "value": 4}
+      ],
+      "calculation": {"type": "fixed_amount", "fixed_amount": 4500.0},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Libro de familia o certificado de convivencia"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 58. Mínimo por descendientes",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a58",
+          "article": "art. 58",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "7da30713f0be67ec6552a1d2dd4ac19b814eb89aab34b789be1629f59433029b",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_minimo_ascendientes_base_2024",
+      "name": "Mínimo por ascendientes — base (≥65 años o con discapacidad)",
+      "description": "Importe base del mínimo por ascendientes (art. 59 LIRPF): 1.150 € por cada ascendiente >65 años o con discapacidad que conviva y sin rentas relevantes. El motor modela el primer ascendiente: para 2+ ascendientes, el cómputo agregado queda en revisión manual.",
+      "tax_year": 2024,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [
+        {"field": "family.ascendants_count", "operator": ">=", "value": 1}
+      ],
+      "calculation": {"type": "fixed_amount", "fixed_amount": 1150.0},
       "limit": null,
       "taxable_base_limits": {},
       "incompatibilities": [],
@@ -99,7 +204,7 @@
           "title": "Ley 35/2006 del IRPF — art. 59. Mínimo por ascendientes",
           "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a59",
           "article": "art. 59",
-          "paragraph": null,
+          "paragraph": "1",
           "boe_id": "BOE-A-2006-20764",
           "content_hash": "0b6b2250eb5a39f86a68ef60ebdf35c84955f128ed8f859293af5f26704a7072",
           "checked_at": "2026-05-16"
@@ -112,9 +217,44 @@
       "validation_status": "validada"
     },
     {
-      "id": "es_minimo_discapacidad_contribuyente_2024",
-      "name": "Mínimo por discapacidad del contribuyente",
-      "description": "Mínimo adicional por discapacidad del propio contribuyente (3.000 € general / 9.000 € si grado ≥ 65% + 3.000 € asistencia). Cálculo en revisión manual por tramos.",
+      "id": "es_minimo_ascendientes_mayores_75_2024",
+      "name": "Mínimo por ascendientes — incremento por >75 años",
+      "description": "Incremento del mínimo por ascendientes mayores de 75 años (art. 59.2 LIRPF): 1.400 € adicionales que se suman al tramo base. Modelo para un ascendiente >75; para 2+ ascendientes >75 el cómputo agregado queda en revisión manual.",
+      "tax_year": 2024,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [
+        {"field": "family.ascendants_over_75_count", "operator": ">=", "value": 1}
+      ],
+      "calculation": {"type": "fixed_amount", "fixed_amount": 1400.0},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Certificado de convivencia con el ascendiente", "Justificante de edad del ascendiente"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 59. Mínimo por ascendientes",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a59",
+          "article": "art. 59",
+          "paragraph": "2",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "0b6b2250eb5a39f86a68ef60ebdf35c84955f128ed8f859293af5f26704a7072",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_minimo_discapacidad_contribuyente_base_2024",
+      "name": "Mínimo por discapacidad del contribuyente — base",
+      "description": "Tramo base del mínimo por discapacidad del propio contribuyente (art. 60.1 LIRPF): 3.000 € cuando se acredita un grado de discapacidad reconocido inferior a 65%.",
       "tax_year": 2024,
       "scope": "estatal",
       "region": null,
@@ -122,7 +262,7 @@
       "requirements": [
         {"field": "personal.has_disability", "operator": "==", "value": true}
       ],
-      "calculation": {"type": "manual_review", "base_field": "personal.disability_degree"},
+      "calculation": {"type": "fixed_amount", "fixed_amount": 3000.0},
       "limit": null,
       "taxable_base_limits": {},
       "incompatibilities": [],
@@ -134,7 +274,79 @@
           "title": "Ley 35/2006 del IRPF — art. 60. Mínimo por discapacidad",
           "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a60",
           "article": "art. 60",
-          "paragraph": null,
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "0ebffba4beaf0db50fe3d4e1a886e74f5f66ca7b41989d4efbf6e6d587ca2160",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_minimo_discapacidad_contribuyente_grado_severo_2024",
+      "name": "Mínimo por discapacidad del contribuyente — incremento grado ≥65%",
+      "description": "Incremento sobre el tramo base por grado de discapacidad reconocido igual o superior al 65% (art. 60.1 LIRPF): 6.000 € adicionales que elevan el total a 9.000 €.",
+      "tax_year": 2024,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [
+        {"field": "personal.has_disability", "operator": "==", "value": true},
+        {"field": "personal.disability_degree", "operator": ">=", "value": 65}
+      ],
+      "calculation": {"type": "fixed_amount", "fixed_amount": 6000.0},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Certificado de discapacidad vigente con grado ≥65%"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 60. Mínimo por discapacidad",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a60",
+          "article": "art. 60",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "0ebffba4beaf0db50fe3d4e1a886e74f5f66ca7b41989d4efbf6e6d587ca2160",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_minimo_discapacidad_contribuyente_asistencia_2024",
+      "name": "Mínimo por discapacidad del contribuyente — gastos de asistencia",
+      "description": "Importe adicional por gastos de asistencia (art. 60.1 LIRPF) cuando se acredita necesidad de ayuda de terceras personas, movilidad reducida o grado ≥65%: 3.000 €.",
+      "tax_year": 2024,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [
+        {"field": "personal.has_disability", "operator": "==", "value": true},
+        {"field": "personal.needs_assistance", "operator": "==", "value": true}
+      ],
+      "calculation": {"type": "fixed_amount", "fixed_amount": 3000.0},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Certificado de discapacidad con mención de asistencia/movilidad reducida"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 60. Mínimo por discapacidad",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a60",
+          "article": "art. 60",
+          "paragraph": "1",
           "boe_id": "BOE-A-2006-20764",
           "content_hash": "0ebffba4beaf0db50fe3d4e1a886e74f5f66ca7b41989d4efbf6e6d587ca2160",
           "checked_at": "2026-05-16"
@@ -215,20 +427,21 @@
       "validation_status": "validada"
     },
     {
-      "id": "es_reduccion_rendimientos_trabajo_2024",
-      "name": "Reducción por obtención de rendimientos del trabajo",
-      "description": "Reducción escalada según rendimiento neto del trabajo y otras rentas (art. 20 LIRPF, redacción Ley 31/2022). El tramo aplicable se calcula en revisión manual por no ser lineal.",
+      "id": "es_reduccion_rendimientos_trabajo_tramo_bajo_2024",
+      "name": "Reducción rendimientos del trabajo — tramo bajo (≤14.852 €)",
+      "description": "Tramo fijo de la reducción por obtención de rendimientos del trabajo (art. 20 LIRPF, redacción vigente en 2024): cuando el rendimiento neto del trabajo es igual o inferior a 14.852 € y el contribuyente no obtiene otras rentas relevantes >6.500 €, la reducción aplicable es de 7.302 € (lineal). El umbral de 'otras rentas' y la incompatibilidad con la deducción del art. 32.2.b LIRPF quedan en revisión manual.",
       "tax_year": 2024,
       "scope": "estatal",
       "region": null,
       "category": "reduccion",
       "requirements": [
-        {"field": "income.work_net", "operator": ">", "value": 0}
+        {"field": "income.work_net", "operator": ">", "value": 0},
+        {"field": "income.work_net", "operator": "<=", "value": 14852}
       ],
-      "calculation": {"type": "manual_review", "base_field": "income.work_net"},
+      "calculation": {"type": "fixed_amount", "fixed_amount": 7302.0},
       "limit": null,
-      "taxable_base_limits": {},
-      "incompatibilities": [],
+      "taxable_base_limits": {"otras_rentas_max_eur": 6500},
+      "incompatibilities": ["es_reduccion_rendimientos_trabajo_tramo_intermedio_2024"],
       "required_documents": [],
       "rent_web_boxes": [],
       "sources": [
@@ -237,7 +450,43 @@
           "title": "Ley 35/2006 del IRPF — art. 20. Reducción por obtención de rendimientos del trabajo",
           "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a20",
           "article": "art. 20",
-          "paragraph": null,
+          "paragraph": "1.a",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "c7374ce7c72fcb0a7586b32266ad45ab6fa968d1a35ac381fc83c6fedf1cc2f0",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_reduccion_rendimientos_trabajo_tramo_intermedio_2024",
+      "name": "Reducción rendimientos del trabajo — tramo intermedio (14.852 € – 19.747,5 €)",
+      "description": "Tramo de la reducción del art. 20 LIRPF cuando el rendimiento neto del trabajo está entre 14.852 € y 19.747,5 €: la reducción decrece linealmente (7.302 − 1,75 × (rendimiento neto − 14.852)) hasta llegar a 0. La fórmula a tramo se mantiene en revisión manual hasta que el motor modele expresiones lineales por intervalo.",
+      "tax_year": 2024,
+      "scope": "estatal",
+      "region": null,
+      "category": "reduccion",
+      "requirements": [
+        {"field": "income.work_net", "operator": ">", "value": 14852},
+        {"field": "income.work_net", "operator": "<=", "value": 19747.5}
+      ],
+      "calculation": {"type": "manual_review", "base_field": "income.work_net"},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": ["es_reduccion_rendimientos_trabajo_tramo_bajo_2024"],
+      "required_documents": [],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 20. Reducción por obtención de rendimientos del trabajo",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a20",
+          "article": "art. 20",
+          "paragraph": "1.b",
           "boe_id": "BOE-A-2006-20764",
           "content_hash": "c7374ce7c72fcb0a7586b32266ad45ab6fa968d1a35ac381fc83c6fedf1cc2f0",
           "checked_at": "2026-05-16"
@@ -567,18 +816,18 @@
       "validation_status": "validada"
     },
     {
-      "id": "es_deduccion_maternidad_2024",
-      "name": "Deducción por maternidad",
-      "description": "Deducción de la cuota diferencial por hijos menores de 3 años con derecho a mínimo por descendientes, sujeta a actividad o cobro de prestación por desempleo (art. 81 LIRPF, redacción Ley 6/2023 y posteriores). Importe base 1.200 €/año/hijo, con incremento por gastos de guardería: revisión manual.",
+      "id": "es_deduccion_maternidad_tramo_1_2024",
+      "name": "Deducción por maternidad — 1.er hijo <3 años",
+      "description": "Deducción de la cuota diferencial por el primer hijo menor de 3 años con derecho a mínimo por descendientes (art. 81 LIRPF): 1.200 €/año. La condición de actividad o prestación por desempleo, así como el incremento por gastos de guardería, se mantienen en revisión manual.",
       "tax_year": 2024,
       "scope": "estatal",
       "region": null,
       "category": "deduccion",
       "requirements": [
-        {"field": "family.children_young_count", "operator": ">", "value": 0},
+        {"field": "family.children_young_count", "operator": ">=", "value": 1},
         {"field": "personal.gender", "operator": "==", "value": "F"}
       ],
-      "calculation": {"type": "manual_review", "base_field": "family.children_young_count"},
+      "calculation": {"type": "fixed_amount", "fixed_amount": 1200.0},
       "limit": null,
       "taxable_base_limits": {},
       "incompatibilities": [],
@@ -590,7 +839,7 @@
           "title": "Ley 35/2006 del IRPF — art. 81. Deducción por maternidad",
           "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a81",
           "article": "art. 81",
-          "paragraph": null,
+          "paragraph": "1",
           "boe_id": "BOE-A-2006-20764",
           "content_hash": "51a9b9b88d1b5f6dde058bcbf795eef4bb547f451fead29a418fb8d69dae4869",
           "checked_at": "2026-05-16"
@@ -603,21 +852,93 @@
       "validation_status": "validada"
     },
     {
-      "id": "es_deduccion_familia_numerosa_2024",
-      "name": "Deducción por familia numerosa o personas con discapacidad a cargo",
-      "description": "Deducción de la cuota diferencial para familias numerosas o con descendientes/ascendientes con discapacidad a cargo (art. 81 bis LIRPF). Base 1.200 €/año, duplicada en categoría especial. Compatibilidades y prorrateo entre contribuyentes: revisión manual.",
+      "id": "es_deduccion_maternidad_tramo_2_2024",
+      "name": "Deducción por maternidad — 2.º hijo <3 años",
+      "description": "Tramo adicional de la deducción por maternidad cuando hay un segundo hijo menor de 3 años (art. 81 LIRPF): 1.200 €/año extra.",
       "tax_year": 2024,
       "scope": "estatal",
       "region": null,
       "category": "deduccion",
       "requirements": [
-        {"field": "family.numerous_family_category", "operator": "in", "value": ["general", "especial"]}
+        {"field": "family.children_young_count", "operator": ">=", "value": 2},
+        {"field": "personal.gender", "operator": "==", "value": "F"}
       ],
-      "calculation": {"type": "manual_review"},
+      "calculation": {"type": "fixed_amount", "fixed_amount": 1200.0},
       "limit": null,
       "taxable_base_limits": {},
       "incompatibilities": [],
-      "required_documents": ["Título vigente de familia numerosa o certificado de discapacidad"],
+      "required_documents": ["Libro de familia", "Justificante de alta en SS o prestación"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 81. Deducción por maternidad",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a81",
+          "article": "art. 81",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "51a9b9b88d1b5f6dde058bcbf795eef4bb547f451fead29a418fb8d69dae4869",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_deduccion_maternidad_tramo_3_2024",
+      "name": "Deducción por maternidad — 3.er hijo <3 años",
+      "description": "Tramo adicional de la deducción por maternidad cuando hay un tercer hijo menor de 3 años (art. 81 LIRPF): 1.200 €/año extra. Para 4+ hijos <3 años el cómputo agregado queda en revisión manual.",
+      "tax_year": 2024,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {"field": "family.children_young_count", "operator": ">=", "value": 3},
+        {"field": "personal.gender", "operator": "==", "value": "F"}
+      ],
+      "calculation": {"type": "fixed_amount", "fixed_amount": 1200.0},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": ["Libro de familia", "Justificante de alta en SS o prestación"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 81. Deducción por maternidad",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a81",
+          "article": "art. 81",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "51a9b9b88d1b5f6dde058bcbf795eef4bb547f451fead29a418fb8d69dae4869",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_deduccion_familia_numerosa_general_2024",
+      "name": "Deducción por familia numerosa — categoría general",
+      "description": "Deducción de la cuota diferencial para familias numerosas de categoría general (art. 81 bis LIRPF): 1.200 €/año. El prorrateo entre cónyuges cuando los dos cumplen requisitos se mantiene en revisión manual.",
+      "tax_year": 2024,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {"field": "family.numerous_family_category", "operator": "==", "value": "general"}
+      ],
+      "calculation": {"type": "fixed_amount", "fixed_amount": 1200.0},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": ["es_deduccion_familia_numerosa_especial_2024"],
+      "required_documents": ["Título vigente de familia numerosa"],
       "rent_web_boxes": [],
       "sources": [
         {
@@ -625,7 +946,7 @@
           "title": "Ley 35/2006 del IRPF — art. 81 bis. Deducciones por familia numerosa/discapacidad",
           "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a81bis",
           "article": "art. 81 bis",
-          "paragraph": null,
+          "paragraph": "1",
           "boe_id": "BOE-A-2006-20764",
           "content_hash": "8483139dd93a311913cbdb0e52d7735014389b3d15f4270c643a877dbb205827",
           "checked_at": "2026-05-16"
@@ -638,20 +959,56 @@
       "validation_status": "validada"
     },
     {
-      "id": "es_reduccion_tributacion_conjunta_2024",
-      "name": "Reducción por tributación conjunta",
-      "description": "Reducción de la base imponible general en tributación conjunta: 3.400 € para unidades familiares biparentales; 2.150 € para monoparentales no integradas en una unidad biparental (art. 84.2.3º y 4º LIRPF).",
+      "id": "es_deduccion_familia_numerosa_especial_2024",
+      "name": "Deducción por familia numerosa — categoría especial",
+      "description": "Deducción de la cuota diferencial para familias numerosas de categoría especial (art. 81 bis LIRPF): 2.400 €/año (importe duplicado respecto a la categoría general). Incompatible con la deducción de familia numerosa general — solo aplica la categoría reconocida.",
+      "tax_year": 2024,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {"field": "family.numerous_family_category", "operator": "==", "value": "especial"}
+      ],
+      "calculation": {"type": "fixed_amount", "fixed_amount": 2400.0},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": ["es_deduccion_familia_numerosa_general_2024"],
+      "required_documents": ["Título vigente de familia numerosa especial"],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 81 bis. Deducciones por familia numerosa/discapacidad",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a81bis",
+          "article": "art. 81 bis",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "8483139dd93a311913cbdb0e52d7735014389b3d15f4270c643a877dbb205827",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_reduccion_tributacion_conjunta_biparental_2024",
+      "name": "Reducción por tributación conjunta — unidad familiar biparental",
+      "description": "Reducción de la base imponible general en tributación conjunta para unidades familiares biparentales del art. 82.1.1ª LIRPF (cónyuges no separados legalmente): 3.400 €/año (art. 84.2.3º LIRPF).",
       "tax_year": 2024,
       "scope": "estatal",
       "region": null,
       "category": "reduccion",
       "requirements": [
-        {"field": "filing_mode", "operator": "==", "value": "conjunta"}
+        {"field": "filing_mode", "operator": "==", "value": "conjunta"},
+        {"field": "family.unit_type", "operator": "==", "value": "biparental"}
       ],
-      "calculation": {"type": "manual_review"},
+      "calculation": {"type": "fixed_amount", "fixed_amount": 3400.0},
       "limit": null,
       "taxable_base_limits": {},
-      "incompatibilities": [],
+      "incompatibilities": ["es_reduccion_tributacion_conjunta_monoparental_2024"],
       "required_documents": [],
       "rent_web_boxes": [],
       "sources": [
@@ -660,7 +1017,43 @@
           "title": "Ley 35/2006 del IRPF — art. 84. Tributación conjunta",
           "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a84",
           "article": "art. 84",
-          "paragraph": "2",
+          "paragraph": "2.3",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "e05f0076d16562da260551ec738f60505baa3632463a9578ee36c3efc5e9543a",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_reduccion_tributacion_conjunta_monoparental_2024",
+      "name": "Reducción por tributación conjunta — unidad familiar monoparental",
+      "description": "Reducción de la base imponible general en tributación conjunta para unidades familiares monoparentales del art. 82.1.2ª LIRPF (no integradas en una unidad biparental): 2.150 €/año (art. 84.2.4º LIRPF).",
+      "tax_year": 2024,
+      "scope": "estatal",
+      "region": null,
+      "category": "reduccion",
+      "requirements": [
+        {"field": "filing_mode", "operator": "==", "value": "conjunta"},
+        {"field": "family.unit_type", "operator": "==", "value": "monoparental"}
+      ],
+      "calculation": {"type": "fixed_amount", "fixed_amount": 2150.0},
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": ["es_reduccion_tributacion_conjunta_biparental_2024"],
+      "required_documents": [],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 84. Tributación conjunta",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a84",
+          "article": "art. 84",
+          "paragraph": "2.4",
           "boe_id": "BOE-A-2006-20764",
           "content_hash": "e05f0076d16562da260551ec738f60505baa3632463a9578ee36c3efc5e9543a",
           "checked_at": "2026-05-16"

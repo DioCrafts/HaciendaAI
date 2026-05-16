@@ -116,8 +116,13 @@ posterior.
 ## Verificación del corpus contra BOE
 
 El corpus semilla (`src/hacienda_ai/data/deductions/2024_irpf_estatal.json`)
-contiene 21 deducciones estatales del IRPF 2024 con `boe_id` real, pinpoint
+contiene 32 entradas estatales del IRPF 2024 con `boe_id` real, pinpoint
 de artículo y `content_hash` SHA-256 del texto normativo consolidado en BOE.
+Las entradas tramificadas (descendientes por orden, ascendientes ≥65/>75,
+discapacidad base/grado/asistencia, reducción art. 20 tramo bajo,
+maternidad por hijo, familia numerosa general/especial, tributación
+conjunta biparental/monoparental) reusan la misma cita BOE del artículo
+matriz y permiten al motor devolver importes calculados.
 
 Para reverificar la integridad de las citas:
 
@@ -138,9 +143,14 @@ semanal (`.github/workflows/verify-seed.yml`) lo lanza los lunes.
   IRPF 2024. Las autonómicas (BOCM, BOPV…) y forales no están todavía en
   el corpus: BOE no indexa esos textos consolidados y se necesitan
   lectores específicos por boletín oficial.
-- La mayoría de los cálculos están marcados como `manual_review`. La cita
-  legal está validada contra BOE; la cuantía aplicable requiere todavía
-  revisión por asesor colegiado.
+- Los importes lineales o tramificados publicados por AEAT (mínimos
+  personales y familiares, gasto del trabajo, reducción art. 20 tramo
+  bajo, maternidad, familia numerosa, tributación conjunta) ya los
+  calcula el motor. Las reglas no lineales que escalan por base
+  imponible (arrendamiento de vivienda art. 23.2, donativos Ley 49/2002,
+  Ceuta/Melilla, eficiencia energética, regímenes transitorios
+  DT 15ª/DT 18ª) siguen marcadas como `manual_review` hasta validación
+  por asesor colegiado.
 - No hay backend HTTP ni frontend todavía.
 - No hay persistencia de perfiles ni documentos.
 - El RAG jurídico está solo preparado a nivel de estructura de carpetas.

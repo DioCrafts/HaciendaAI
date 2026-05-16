@@ -125,6 +125,129 @@ def test_synthetic_profile_yields_multiple_applies_and_missing():
     assert pending == 0, f"pending_validation={pending}; estados={statuses}"
 
 
+def _rich_profile() -> TaxProfile:
+    """Perfil sintético deliberadamente generoso: ejerce las ramas calculables
+    nuevas (descendientes tramificados, ascendientes >75, discapacidad severa
+    con asistencia, maternidad, familia numerosa general, tributación conjunta
+    biparental, pensiones, gastos del trabajo)."""
+    return TaxProfile.from_dict({
+        "tax_year": 2024,
+        "region": "Madrid",
+        "filing_mode": "conjunta",
+        "personal": {
+            "has_disability": True,
+            "disability_degree": 65,
+            "needs_assistance": True,
+            "gender": "F",
+        },
+        "family": {
+            "children_count": 4,
+            "children_young_count": 1,
+            "ascendants_count": 1,
+            "ascendants_over_75_count": 1,
+            "numerous_family_category": "general",
+            "unit_type": "biparental",
+        },
+        "income": {"work_gross": 30000.0, "work_net": 27500.0},
+        "expenses": {"pension_plan_individual": 2000.0},
+        "documents": [
+            "Libro de familia o certificado de convivencia",
+            "Libro de familia",
+            "Justificante de alta en SS o prestación",
+            "Justificante de edad del ascendiente",
+            "Certificado de convivencia con el ascendiente",
+            "Certificado de discapacidad vigente",
+            "Certificado de discapacidad vigente con grado ≥65%",
+            "Certificado de discapacidad con mención de asistencia/movilidad reducida",
+            "Certificado de la entidad gestora del plan",
+            "Título vigente de familia numerosa",
+        ],
+    })
+
+
+def test_qw1_rich_profile_yields_at_least_10_amounts_above_zero():
+    """Criterio de aceptación QW1: tras tramificar manual_review en
+    fixed_amount, un perfil sintético generoso debe producir al menos 10
+    deducciones con importe estimado > 0 €."""
+    deductions = load_deductions()
+    results = [evaluate_deduction(d, _rich_profile()) for d in deductions]
+    with_amount = [r for r in results if r.estimated_amount > 0]
+    names = [
+        (r.deduction_id, r.estimated_amount, r.status)
+        for r in with_amount
+    ]
+    assert len(with_amount) >= 10, (
+        f"Solo {len(with_amount)} deducciones con importe > 0; esperaba ≥10. "
+        f"Detalle: {names}"
+    )
+
+
+def test_qw1_descendientes_tramificacion_cumulativa():
+    """Con N hijos a cargo, la suma de los tramos 1..min(N,4) debe coincidir
+    con el cuadro AEAT: 2.400 / 5.100 / 9.100 / 13.600 €."""
+    deductions = load_deductions()
+    descendientes = [d for d in deductions if d.id.startswith("es_minimo_descendientes_tramo_")]
+    assert len(descendientes) == 4, f"Esperaba 4 tramos de descendientes, hay {len(descendientes)}"
+
+    expected_total = {1: 2400.0, 2: 5100.0, 3: 9100.0, 4: 13600.0}
+    for n_children, expected in expected_total.items():
+        profile_n = TaxProfile.from_dict({
+            "tax_year": 2024,
+            "region": "Madrid",
+            "family": {"children_count": n_children},
+            "documents": ["Libro de familia o certificado de convivencia"],
+        })
+        total = sum(
+            evaluate_deduction(d, profile_n).estimated_amount
+            for d in descendientes
+        )
+        assert total == expected, (
+            f"Con {n_children} hijos esperaba {expected} €, salió {total} €"
+        )
+
+
+def test_qw1_familia_numerosa_general_y_especial_son_excluyentes():
+    """Solo una de las dos deducciones de familia numerosa puede aplicar a la
+    vez. Y los importes oficiales son 1.200 € / 2.400 €."""
+    deductions = load_deductions()
+    fn_general = next(d for d in deductions if d.id == "es_deduccion_familia_numerosa_general_2024")
+    fn_especial = next(d for d in deductions if d.id == "es_deduccion_familia_numerosa_especial_2024")
+    assert fn_general.calculation.fixed_amount == 1200.0
+    assert fn_especial.calculation.fixed_amount == 2400.0
+
+    base = {
+        "tax_year": 2024,
+        "region": "Madrid",
+        "family": {},
+        "documents": ["Título vigente de familia numerosa", "Título vigente de familia numerosa especial"],
+    }
+    p_general = TaxProfile.from_dict({**base, "family": {"numerous_family_category": "general"}})
+    p_especial = TaxProfile.from_dict({**base, "family": {"numerous_family_category": "especial"}})
+    assert evaluate_deduction(fn_general, p_general).estimated_amount == 1200.0
+    assert evaluate_deduction(fn_especial, p_general).estimated_amount == 0.0
+    assert evaluate_deduction(fn_general, p_especial).estimated_amount == 0.0
+    assert evaluate_deduction(fn_especial, p_especial).estimated_amount == 2400.0
+
+
+def test_qw1_legacy_ids_replaced_by_tramos():
+    """Las ids monolíticas en manual_review (descendientes, ascendientes,
+    discapacidad, maternidad, familia numerosa, tributación conjunta,
+    reducción rendimientos trabajo) ya no existen en el corpus: se han
+    sustituido por entradas tramificadas calculables."""
+    ids = {d.id for d in load_deductions()}
+    legacy_removed = {
+        "es_minimo_descendientes_2024",
+        "es_minimo_ascendientes_2024",
+        "es_minimo_discapacidad_contribuyente_2024",
+        "es_deduccion_maternidad_2024",
+        "es_deduccion_familia_numerosa_2024",
+        "es_reduccion_tributacion_conjunta_2024",
+        "es_reduccion_rendimientos_trabajo_2024",
+    }
+    leftover = legacy_removed & ids
+    assert not leftover, f"Quedan ids monolíticos sin tramificar: {sorted(leftover)}"
+
+
 def test_validated_deduction_applies_with_evidence_and_caps_amount():
     result = evaluate_deduction(validated_deduction(), profile())
     assert result.status == "applies"

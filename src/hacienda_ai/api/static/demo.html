@@ -80,6 +80,9 @@
       <label>Ascendientes a cargo (>65 o discapacidad)
         <input type="number" name="ascendants_count" value="0" min="0">
       </label>
+      <label>De los anteriores, mayores de 75
+        <input type="number" name="ascendants_over_75_count" value="0" min="0">
+      </label>
       <label>Familia numerosa
         <select name="numerous_family_category">
           <option value="">No</option>
@@ -87,8 +90,24 @@
           <option value="especial">Especial</option>
         </select>
       </label>
+      <label>Unidad familiar (si tributa conjunta)
+        <select name="unit_type">
+          <option value="">N/A</option>
+          <option value="biparental">Biparental</option>
+          <option value="monoparental">Monoparental</option>
+        </select>
+      </label>
       <label>Discapacidad del contribuyente
         <select name="has_disability">
+          <option value="false">No</option>
+          <option value="true">Sí</option>
+        </select>
+      </label>
+      <label>Grado discapacidad (%)
+        <input type="number" name="disability_degree" value="0" min="0" max="100">
+      </label>
+      <label>Necesita asistencia/movilidad reducida
+        <select name="needs_assistance">
           <option value="false">No</option>
           <option value="true">Sí</option>
         </select>
@@ -113,7 +132,17 @@
         <input type="number" name="donations_general" value="0" min="0" step="0.01">
       </label>
       <label>Documentos disponibles (uno por línea)
-        <textarea name="documents" rows="2">Libro de familia o certificado de convivencia</textarea>
+        <textarea name="documents" rows="4">Libro de familia o certificado de convivencia
+Libro de familia
+Justificante de alta en SS o prestación
+Certificado de convivencia con el ascendiente
+Justificante de edad del ascendiente
+Certificado de discapacidad vigente
+Certificado de discapacidad vigente con grado ≥65%
+Certificado de discapacidad con mención de asistencia/movilidad reducida
+Certificado de la entidad gestora del plan
+Título vigente de familia numerosa
+Título vigente de familia numerosa especial</textarea>
       </label>
       <div class="actions">
         <button type="submit">Evaluar</button>
@@ -161,13 +190,17 @@
         filing_mode: str('filing_mode') || 'individual',
         personal: {
           has_disability: bool('has_disability'),
+          disability_degree: num('disability_degree') ?? 0,
+          needs_assistance: bool('needs_assistance'),
           gender: str('gender'),
         },
         family: {
           children_count: num('children_count'),
           children_young_count: num('children_young_count'),
           ascendants_count: num('ascendants_count'),
+          ascendants_over_75_count: num('ascendants_over_75_count') ?? 0,
           numerous_family_category: str('numerous_family_category'),
+          unit_type: str('unit_type'),
         },
         income: {
           work_gross: num('work_gross'),
@@ -225,7 +258,7 @@
           </thead>
           <tbody>${rows}</tbody>
         </table>
-        <p class="legend">«Aplica» no implica cuantía calculada por el motor: la mayoría de cálculos están como revisión manual hasta la validación por asesor colegiado. Las citas enlazan al texto consolidado en BOE.</p>
+        <p class="legend">Los importes lineales o tramificados publicados por AEAT (mínimos personales y familiares, gasto del trabajo, reducción art. 20 del tramo bajo, maternidad, familia numerosa, tributación conjunta) se calculan en el motor. Las reglas no lineales que escalan por base imponible (arrendamiento, donativos, Ceuta/Melilla, eficiencia energética, regímenes transitorios) se marcan en revisión manual hasta validación por asesor colegiado. Las citas enlazan al texto consolidado en BOE.</p>
       `;
     }
 
