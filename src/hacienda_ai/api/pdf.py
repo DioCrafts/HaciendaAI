@@ -109,6 +109,85 @@ def _render_row(ev: dict[str, Any]) -> str:
     )
 
 
+def _eur_or_dash(amount: float | None) -> str:
+    return _eur(amount) if amount is not None else "—"
+
+
+def _quota_row(label: str, value: str, strong: bool = False, result: bool = False) -> str:
+    cell = f"<strong>{value}</strong>" if strong else value
+    tr_class = ' class="result"' if result else ""
+    return (
+        f'<tr{tr_class}><td>{escape(label)}</td>'
+        f'<td class="amount">{cell}</td></tr>'
+    )
+
+
+def _render_quota_block(quota: dict[str, Any] | None) -> str:
+    """Bloque con el desglose de cuota IRPF.
+
+    Si la cuota total no se ha podido cerrar (p. ej. sin escala autonómica),
+    las celdas finales muestran "—" y las notas explicativas aparecen al pie
+    del bloque. No se inventa un cero que pudiera parecer un resultado.
+    """
+    if not quota:
+        return ""
+    deducciones_cuota = (
+        quota["deducciones_cuota_estatal"] + quota["deducciones_cuota_autonomica"]
+    )
+    rows = [
+        _quota_row("Base imponible general", _eur(quota["base_imponible_general"])),
+        _quota_row("Base imponible del ahorro", _eur(quota["base_imponible_ahorro"])),
+        _quota_row("Reducciones aplicadas", _eur(quota["reducciones_aplicadas"])),
+        _quota_row("Base liquidable general", _eur(quota["base_liquidable_general"])),
+        _quota_row("Base liquidable del ahorro", _eur(quota["base_liquidable_ahorro"])),
+        _quota_row("Mínimo personal y familiar", _eur(quota["minimo_personal_familiar"])),
+        _quota_row("Cuota íntegra estatal", _eur(quota["cuota_integra_estatal"])),
+        _quota_row(
+            "Cuota íntegra autonómica",
+            _eur_or_dash(quota["cuota_integra_autonomica"]),
+        ),
+        _quota_row(
+            "Cuota íntegra total",
+            _eur_or_dash(quota["cuota_integra_total"]),
+            strong=True,
+        ),
+        _quota_row(
+            "Deducciones de la cuota (estatal + autonómica)",
+            _eur(deducciones_cuota),
+        ),
+        _quota_row(
+            "Cuota líquida total",
+            _eur_or_dash(quota["cuota_liquida_total"]),
+            strong=True,
+        ),
+        _quota_row(
+            "Retenciones y pagos a cuenta",
+            _eur(quota["retenciones_y_pagos_cuenta"]),
+        ),
+        _quota_row(
+            "Deducciones cuota diferencial (maternidad, fam. numerosa…)",
+            _eur(quota["deducciones_cuota_diferencial"]),
+        ),
+        _quota_row(
+            "Cuota diferencial (positivo = a pagar)",
+            _eur_or_dash(quota["cuota_diferencial"]),
+            strong=True,
+            result=True,
+        ),
+    ]
+    notes_html = ""
+    if quota.get("notes"):
+        items = "".join(f"<li>{escape(n)}</li>" for n in quota["notes"])
+        notes_html = f'<ul class="quota-notes">{items}</ul>'
+    return (
+        '<h2>Cuota IRPF (desglose)</h2>'
+        '<table class="quota">'
+        "<thead><tr><th>Concepto</th><th>Importe</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+        f"{notes_html}"
+    )
+
+
 def _profile_summary(profile: dict[str, Any]) -> str:
     keys = [
         ("Ejercicio fiscal", profile.get("tax_year")),
@@ -166,6 +245,9 @@ td.muted, small.muted { color: #777; }
 .conf-media { background: #ffe7c6; color: #8a4d00; }
 .conf-baja { background: #ffd6d6; color: #8a1a1a; }
 .version { color: #555; font-style: italic; font-size: 7.5pt; }
+table.quota { font-size: 9pt; max-width: 480pt; }
+table.quota tr.result td { background: #f0f4ff; }
+ul.quota-notes { margin: 6pt 0 0 16pt; padding: 0; font-size: 8pt; color: #8a4d00; }
 .signature { margin-top: 10pt; padding: 6pt 10pt; border-top: 1pt solid #999;
              font-size: 7.5pt; color: #555; font-family: ui-monospace, monospace; }
 a { color: #2657c6; text-decoration: none; }
@@ -213,6 +295,8 @@ def render_evaluation_report_html(evaluation: dict[str, Any]) -> str:
 <h2>Datos del expediente</h2>
 {summary}
 {header_block}
+
+{_render_quota_block(evaluation.get("cuota"))}
 
 <h2>Deducciones, reducciones y exenciones evaluadas</h2>
 <table>

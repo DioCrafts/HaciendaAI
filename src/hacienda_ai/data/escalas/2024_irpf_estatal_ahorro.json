@@ -1,0 +1,60 @@
+{
+  "_meta": {
+    "ejercicio": 2024,
+    "ambito": "estatal",
+    "componente": "ahorro",
+    "fuente_primaria": "Ley 35/2006 del IRPF (BOE-A-2006-20764), art. 66.1",
+    "fecha_consolidacion_boe": "2026-04-29",
+    "verificado_por": "scripts/verify_seed.py",
+    "alcance": "Escala estatal del ahorro aplicable a la base liquidable del ahorro. La parte autonómica del ahorro la fija el Estado (art. 76 LIRPF) y numéricamente coincide, por lo que el motor la reutiliza al calcular la cuota autonómica del ahorro."
+  },
+  "scales": [
+    {
+      "id": "es_irpf_estatal_ahorro_2024",
+      "name": "Escala estatal del ahorro IRPF — ejercicio 2024",
+      "description": "Tipos progresivos de la parte estatal del IRPF aplicables a la base liquidable del ahorro (art. 66.1 LIRPF, redacción vigente en 2024 tras Ley 31/2022).",
+      "tax_year": 2024,
+      "scope": "estatal",
+      "component": "ahorro",
+      "region": null,
+      "brackets": [
+        {
+          "up_to": 6000.0,
+          "rate": 0.095
+        },
+        {
+          "up_to": 50000.0,
+          "rate": 0.105
+        },
+        {
+          "up_to": 200000.0,
+          "rate": 0.115
+        },
+        {
+          "up_to": 300000.0,
+          "rate": 0.135
+        },
+        {
+          "up_to": null,
+          "rate": 0.14
+        }
+      ],
+      "effective_from": "2024-01-01",
+      "effective_to": "2024-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "validation_status": "validada",
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 66. Tipos de gravamen del ahorro",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a66",
+          "article": "art. 66",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "e80ef0ad6225b8d57f27691556de7a9b2faf5282314e52a98279b07afb267b02",
+          "checked_at": "2026-05-16"
+        }
+      ]
+    }
+  ]
+}

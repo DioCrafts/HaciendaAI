@@ -199,7 +199,17 @@ def verify_file(
 ) -> tuple[int, int, int, int, bool]:
     """Verifica un fichero JSON. Devuelve (ok, drift, skipped, errors, changed)."""
     raw = json.loads(path.read_text(encoding="utf-8"))
-    entries = raw if isinstance(raw, list) else raw.get("deductions", [])
+    if isinstance(raw, list):
+        entries = raw
+    elif isinstance(raw, dict):
+        # Aceptamos los dos formatos del repo: corpus de deducciones
+        # (`{"deductions": [...]}`) y corpus de escalas progresivas
+        # (`{"scales": [...]}`). Cada entrada debe llevar su propio `sources`,
+        # con el mismo formato que las deducciones, así que el verificador
+        # las trata de forma uniforme.
+        entries = raw.get("deductions") or raw.get("scales") or []
+    else:
+        raise BoeFetchError(f"{path}: estructura JSON inesperada")
     if not isinstance(entries, list):
         raise BoeFetchError(f"{path}: estructura JSON inesperada")
 

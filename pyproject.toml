@@ -50,6 +50,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 "hacienda_ai" = [
     "data/deductions/*.json",
+    "data/escalas/*.json",
     "data/normas/*.json",
     "api/static/*.html",
 ]

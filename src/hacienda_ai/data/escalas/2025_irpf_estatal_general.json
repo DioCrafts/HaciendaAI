@@ -1,0 +1,64 @@
+{
+  "_meta": {
+    "ejercicio": 2025,
+    "ambito": "estatal",
+    "componente": "general",
+    "fuente_primaria": "Ley 35/2006 del IRPF (BOE-A-2006-20764), art. 63.1",
+    "fecha_consolidacion_boe": "2026-04-29",
+    "verificado_por": "scripts/verify_seed.py",
+    "alcance": "Escala estatal aplicable a la base liquidable general en 2025. Misma estructura que 2024 (la Ley de PGE no modificó los tramos estatales generales)."
+  },
+  "scales": [
+    {
+      "id": "es_irpf_estatal_general_2025",
+      "name": "Escala general estatal IRPF — ejercicio 2025",
+      "description": "Tipos progresivos de la parte estatal del IRPF aplicables a la base liquidable general en 2025 (art. 63.1.1.º LIRPF).",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "component": "general",
+      "region": null,
+      "brackets": [
+        {
+          "up_to": 12450.0,
+          "rate": 0.095
+        },
+        {
+          "up_to": 20200.0,
+          "rate": 0.12
+        },
+        {
+          "up_to": 35200.0,
+          "rate": 0.15
+        },
+        {
+          "up_to": 60000.0,
+          "rate": 0.185
+        },
+        {
+          "up_to": 300000.0,
+          "rate": 0.225
+        },
+        {
+          "up_to": null,
+          "rate": 0.245
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "validation_status": "validada",
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 63. Escala general del impuesto",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a63",
+          "article": "art. 63",
+          "paragraph": "1.1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "bd17ce8d9802f21f70e51d35adc8548b1df895e63e75d9b18a8105a97651fce3",
+          "checked_at": "2026-05-16"
+        }
+      ]
+    }
+  ]
+}

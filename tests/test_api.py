@@ -615,6 +615,50 @@ def test_evaluation_survives_app_restart(tmp_path: Any) -> None:
         assert recovered.json() == original
 
 
+def test_evaluation_payload_includes_quota_block(client: TestClient) -> None:
+    """El response de `/evaluations` debe llevar el bloque `cuota` con el
+    desglose IRPF completo: bases, mínimo personal y familiar, cuota
+    íntegra estatal y autonómica, cuota líquida, retenciones y diferencial.
+
+    Perfil canónico Madrid 30 k 1 hijo: la cuota íntegra estatal debe ser
+    2.452,50 € (verificada a mano contra arts. 57, 58 y 63 LIRPF). La cuota
+    autonómica debe ser `None` con nota explícita anti-alucinación: no hay
+    escala Madrid registrada todavía.
+    """
+    pid = client.post("/profiles", json=_synthetic_profile()).json()["profile_id"]
+    data = client.post("/evaluations", json={"profile_id": pid}).json()
+    cuota = data["cuota"]
+
+    assert cuota["base_imponible_general"] == 27500.0
+    assert cuota["minimo_personal_familiar"] == 7950.0
+    assert cuota["cuota_integra_estatal"] == 2452.5
+    assert cuota["cuota_liquida_estatal"] == 2452.5
+    assert cuota["cuota_integra_autonomica"] is None
+    assert cuota["cuota_liquida_total"] is None
+    assert cuota["cuota_diferencial"] is None
+    assert any("Madrid" in n for n in cuota["notes"])
+
+    # Trazabilidad: cada escala aplicada debe llevar `scale_id` + sources.
+    assert cuota["scale_applications"], "cuota sin trazabilidad de escalas"
+    state_general = next(
+        a for a in cuota["scale_applications"]
+        if a["scale_id"] == "es_irpf_estatal_general_2024"
+    )
+    assert state_general["base"] == 27500.0
+    assert state_general["sources"][0]["boe_id"] == "BOE-A-2006-20764"
+    assert state_general["sources"][0]["content_hash"]
+
+
+def test_evaluation_payload_quota_persists_in_db(client: TestClient) -> None:
+    """Una evaluación recuperada por GET debe seguir conteniendo el bloque
+    `cuota` con exactamente los mismos importes que devolvió el POST."""
+    pid = client.post("/profiles", json=_synthetic_profile()).json()["profile_id"]
+    posted = client.post("/evaluations", json={"profile_id": pid}).json()
+    eid = posted["evaluation_id"]
+    recovered = client.get(f"/evaluations/{eid}").json()
+    assert recovered["cuota"] == posted["cuota"]
+
+
 def test_create_app_uses_in_memory_db_for_tests() -> None:
     """Las fixtures pasan `db_path=':memory:'`; un test aislado no debe
     contaminar el archivo por defecto en `~/.hacienda-ai/`. Validamos

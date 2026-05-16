@@ -38,6 +38,8 @@ from fastapi.staticfiles import StaticFiles
 from hacienda_ai import __version__
 from hacienda_ai.api.pdf import render_evaluation_report_pdf
 from hacienda_ai.deductions import load_deductions
+from hacienda_ai.irpf import compute_quota, load_tax_scales
+from hacienda_ai.irpf.quota import quota_to_dict
 from hacienda_ai.models import (
     Deduction,
     NormaRegistry,
@@ -231,6 +233,7 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
     evaluations_repo = EvaluationsRepo(conn)
     deductions = load_deductions()
     registry = load_norma_registry()
+    tax_scales = load_tax_scales()
     last_reviewed = max(
         (d.last_reviewed_at for d in deductions if d.last_reviewed_at),
         default=None,
@@ -283,9 +286,9 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
         devengo = profile.effective_devengo_date()
         t0 = time.perf_counter()
         evaluations = evaluate_deductions(deductions, profile, registry)
-        elapsed_ms = (time.perf_counter() - t0) * 1000
-
         ded_by_id = {d.id: d for d in deductions}
+        quota = compute_quota(profile, evaluations, ded_by_id, tax_scales, devengo)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
         items: list[dict[str, Any]] = []
         for ev in evaluations:
             ded = ded_by_id.get(ev.deduction_id)
@@ -319,6 +322,7 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
             "corpus": corpus_meta,
             "disclaimer": DISCLAIMER,
             "evaluations": items,
+            "cuota": quota_to_dict(quota),
         }
         evaluations_repo.save(evaluation_id, pid, response)
         return response
