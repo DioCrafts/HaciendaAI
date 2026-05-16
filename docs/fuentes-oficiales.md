@@ -15,6 +15,21 @@
   donativos Ley 49/2002, Ceuta/Melilla, eficiencia energética DA 50ª,
   regímenes transitorios DT 15ª/DT 18ª, encuadre general art. 56 y el
   tramo intermedio del art. 20 (14.852 €–19.747,5 €).
+- `src/hacienda_ai/data/deductions/2025_irpf_estatal.json` — 32
+  entradas estatales IRPF 2025 (Sprint 1 #1). Clon estructural del
+  archivo 2024 con `tax_year=2025`, `effective_from=2025-01-01`,
+  `effective_to=2025-12-31` y `last_reviewed_at` refrescado; los
+  `content_hash` se conservan porque el verificador en vivo
+  (`scripts/verify_seed.py`) reporta `drift=0`: el texto BOE
+  consolidado de los preceptos LIRPF citados no se ha modificado entre
+  el corte 2024 y el corte 2025. Como la LPGE 2025 no llegó a
+  aprobarse y se ha venido prorrogando la del ejercicio anterior, los
+  importes literales (mínimos, reducción art. 20 tramo bajo, gasto del
+  trabajo, maternidad, familia numerosa, tributación conjunta)
+  coinciden con 2024. Cuando una revisión futura detecte drift, el
+  cron diario (QW3) abrirá issue automático y habrá que ajustar
+  `fixed_amount`/`percentage` antes de mantener la entrada como
+  `validada`.
 - `src/hacienda_ai/data/deductions/2024_irpf_autonomico_madrid.json` —
   12 entradas autonómicas Comunidad de Madrid (Decreto Legislativo
   1/2010 con últimas modificaciones por Ley 13/2023): nacimiento /

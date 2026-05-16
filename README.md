@@ -7,16 +7,20 @@ estaba viva en la fecha del devengo, no la actual). Pensado como núcleo
 auditable sobre el que añadir, en iteraciones posteriores, un RAG
 jurídico, herramientas para gestorías y conectores con AEAT.
 
-> **Estado actual** — prototipo. 44 deducciones IRPF 2024 ancladas a
-> boletín oficial: 32 estatales con SHA-256 contra BOE y 12 autonómicas
-> Comunidad de Madrid (Decreto Legislativo 1/2010) con anclaje BOCM
-> pendiente de verificador SHA-256 específico. El motor calcula importe
-> en las que tienen fórmula lineal/tramificada; el resto va en revisión
-> manual. Historia de versiones agregada de la LIRPF en 3 ventanas
-> (2007-2014 / 2015-2021 / 2022-hoy) y API HTTP de demostración con
-> perfil en memoria. **No hay** RAG implementado, ni LLM integrado, ni
-> multi-tenant, ni persistencia, ni cobertura foral, ni resto de CCAA.
-> Ver `docs/roadmap.md` para el plan.
+> **Estado actual** — prototipo. 76 deducciones IRPF ancladas a boletín
+> oficial: 64 estatales (32 del ejercicio 2024 + 32 del 2025, ambas con
+> SHA-256 contra BOE) y 12 autonómicas Comunidad de Madrid (Decreto
+> Legislativo 1/2010) con anclaje BOCM pendiente de verificador SHA-256
+> específico. El corpus 2025 es un clon estructural del 2024 con
+> vigencia trasladada y hashes reverificados contra el texto BOE
+> consolidado: el texto literal de los preceptos LIRPF citados no se ha
+> modificado entre ambos ejercicios. El motor calcula importe en las que
+> tienen fórmula lineal/tramificada; el resto va en revisión manual.
+> Historia de versiones agregada de la LIRPF en 3 ventanas (2007-2014 /
+> 2015-2021 / 2022-hoy) y API HTTP de demostración con perfil en memoria.
+> **No hay** RAG implementado, ni LLM integrado, ni multi-tenant, ni
+> persistencia, ni cobertura foral, ni resto de CCAA. Ver
+> `docs/roadmap.md` para el plan.
 
 ## Qué hace
 
@@ -148,7 +152,7 @@ posterior.
 
 ## Verificación del corpus contra BOE
 
-El corpus se distribuye en dos archivos:
+El corpus se distribuye en tres archivos:
 
 - `src/hacienda_ai/data/deductions/2024_irpf_estatal.json` — 32 entradas
   estatales del IRPF 2024 con `boe_id` BOE-A real, pinpoint de artículo
@@ -158,6 +162,16 @@ El corpus se distribuye en dos archivos:
   maternidad por hijo, familia numerosa general/especial, tributación
   conjunta biparental/monoparental) reusan la misma cita BOE del
   artículo matriz y permiten al motor devolver importes calculados.
+- `src/hacienda_ai/data/deductions/2025_irpf_estatal.json` — 32 entradas
+  estatales del IRPF 2025. Clon estructural del 2024 con `tax_year` y
+  vigencia trasladadas y `last_reviewed_at` refrescado; los
+  `content_hash` heredados se han reverificado contra el texto BOE
+  consolidado en vivo (`scripts/verify_seed.py` reporta drift=0). Como
+  la LPGE 2025 no llegó a aprobarse y la LIRPF no se modificó en los
+  preceptos citados, los importes literales (mínimos personales,
+  reducción art. 20 tramo bajo, gasto del trabajo de 2.000 €,
+  maternidad, familia numerosa, tributación conjunta) coinciden con los
+  del ejercicio anterior.
 - `src/hacienda_ai/data/deductions/2024_irpf_autonomico_madrid.json` —
   12 entradas autonómicas de la Comunidad de Madrid (Decreto Legislativo
   1/2010, modificado por Ley 13/2023 y previas). Anclaje a BOCM con

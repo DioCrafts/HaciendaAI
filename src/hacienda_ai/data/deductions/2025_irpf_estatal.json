@@ -1,0 +1,1499 @@
+{
+  "_meta": {
+    "ejercicio": 2025,
+    "ambito": "estatal",
+    "fuente_primaria": "Ley 35/2006 del IRPF (BOE-A-2006-20764), texto consolidado",
+    "fecha_consolidacion_boe": "2026-05-16",
+    "verificado_por": "scripts/verify_seed.py",
+    "alcance": "Clon estructural de 2024_irpf_estatal.json adaptado al ejercicio 2025. Importes literales conservados; el verificador (scripts/verify_seed.py) se encarga de comprobar contra el texto consolidado BOE vigente en 2026-05-16 si los preceptos citados (artículos LIRPF) han sido modificados entre 2024 y 2025. Cuando el hash declarado coincide con el calculado, el texto normativo es estable entre ambos ejercicios y los importes/porcentajes siguen siendo aplicables; cuando difiere, exige revisión humana y ajuste del fixed_amount/percentage en su caso. El registro de manual_review se mantiene para las mismas reglas no lineales que en 2024 (arrendamiento art. 23.2, donativos Ley 49/2002, Ceuta/Melilla, eficiencia energética DA 50ª, DT 15ª/DT 18ª, encuadre general art. 56 y tramo intermedio art. 20)."
+  },
+  "deductions": [
+    {
+      "id": "es_minimo_contribuyente_general_2025",
+      "name": "Mínimo del contribuyente (general)",
+      "description": "Mínimo personal aplicable con carácter general a todo contribuyente IRPF. Importes adicionales por edad (>65 y >75) se tratan como revisión manual hasta que el motor modele tramos.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 5550.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 57. Mínimo del contribuyente",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a57",
+          "article": "art. 57",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "cb71ce486a87363b2128a57c76215162a4929a93117b5cf587ecd4128be8755e",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_minimo_descendientes_tramo_1_2025",
+      "name": "Mínimo por descendientes — 1.er descendiente",
+      "description": "Tramo del mínimo por descendientes correspondiente al primer descendiente (art. 58 LIRPF): 2.400 €. Aplica si hay al menos un descendiente computable. El incremento por menor de 3 años (2.800 €) y las reglas de prorrateo entre progenitores se mantienen en revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [
+        {
+          "field": "family.children_count",
+          "operator": ">=",
+          "value": 1
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 2400.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Libro de familia o certificado de convivencia"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 58. Mínimo por descendientes",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a58",
+          "article": "art. 58",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "7da30713f0be67ec6552a1d2dd4ac19b814eb89aab34b789be1629f59433029b",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_minimo_descendientes_tramo_2_2025",
+      "name": "Mínimo por descendientes — 2.º descendiente",
+      "description": "Tramo del mínimo por descendientes correspondiente al segundo descendiente (art. 58 LIRPF): 2.700 €. Se acumula al 1.er tramo cuando hay dos o más descendientes computables.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [
+        {
+          "field": "family.children_count",
+          "operator": ">=",
+          "value": 2
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 2700.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Libro de familia o certificado de convivencia"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 58. Mínimo por descendientes",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a58",
+          "article": "art. 58",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "7da30713f0be67ec6552a1d2dd4ac19b814eb89aab34b789be1629f59433029b",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_minimo_descendientes_tramo_3_2025",
+      "name": "Mínimo por descendientes — 3.er descendiente",
+      "description": "Tramo del mínimo por descendientes correspondiente al tercer descendiente (art. 58 LIRPF): 4.000 €. Se acumula a los tramos anteriores.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [
+        {
+          "field": "family.children_count",
+          "operator": ">=",
+          "value": 3
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 4000.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Libro de familia o certificado de convivencia"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 58. Mínimo por descendientes",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a58",
+          "article": "art. 58",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "7da30713f0be67ec6552a1d2dd4ac19b814eb89aab34b789be1629f59433029b",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_minimo_descendientes_tramo_4_y_siguientes_2025",
+      "name": "Mínimo por descendientes — 4.º descendiente",
+      "description": "Tramo del mínimo por descendientes correspondiente al cuarto descendiente (art. 58 LIRPF): 4.500 €. La AEAT extiende este mismo importe a los siguientes descendientes (5.º, 6.º...); en esos casos el motor subestima — los descendientes 5.º+ se mantienen en revisión manual hasta que el motor modele multiplicidad por encima de 4.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [
+        {
+          "field": "family.children_count",
+          "operator": ">=",
+          "value": 4
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 4500.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Libro de familia o certificado de convivencia"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 58. Mínimo por descendientes",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a58",
+          "article": "art. 58",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "7da30713f0be67ec6552a1d2dd4ac19b814eb89aab34b789be1629f59433029b",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_minimo_ascendientes_base_2025",
+      "name": "Mínimo por ascendientes — base (≥65 años o con discapacidad)",
+      "description": "Importe base del mínimo por ascendientes (art. 59 LIRPF): 1.150 € por cada ascendiente >65 años o con discapacidad que conviva y sin rentas relevantes. El motor modela el primer ascendiente: para 2+ ascendientes, el cómputo agregado queda en revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [
+        {
+          "field": "family.ascendants_count",
+          "operator": ">=",
+          "value": 1
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 1150.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Certificado de convivencia con el ascendiente"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 59. Mínimo por ascendientes",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a59",
+          "article": "art. 59",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "0b6b2250eb5a39f86a68ef60ebdf35c84955f128ed8f859293af5f26704a7072",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_minimo_ascendientes_mayores_75_2025",
+      "name": "Mínimo por ascendientes — incremento por >75 años",
+      "description": "Incremento del mínimo por ascendientes mayores de 75 años (art. 59.2 LIRPF): 1.400 € adicionales que se suman al tramo base. Modelo para un ascendiente >75; para 2+ ascendientes >75 el cómputo agregado queda en revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [
+        {
+          "field": "family.ascendants_over_75_count",
+          "operator": ">=",
+          "value": 1
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 1400.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Certificado de convivencia con el ascendiente",
+        "Justificante de edad del ascendiente"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 59. Mínimo por ascendientes",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a59",
+          "article": "art. 59",
+          "paragraph": "2",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "0b6b2250eb5a39f86a68ef60ebdf35c84955f128ed8f859293af5f26704a7072",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_minimo_discapacidad_contribuyente_base_2025",
+      "name": "Mínimo por discapacidad del contribuyente — base",
+      "description": "Tramo base del mínimo por discapacidad del propio contribuyente (art. 60.1 LIRPF): 3.000 € cuando se acredita un grado de discapacidad reconocido inferior a 65%.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [
+        {
+          "field": "personal.has_disability",
+          "operator": "==",
+          "value": true
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 3000.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Certificado de discapacidad vigente"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 60. Mínimo por discapacidad",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a60",
+          "article": "art. 60",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "0ebffba4beaf0db50fe3d4e1a886e74f5f66ca7b41989d4efbf6e6d587ca2160",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_minimo_discapacidad_contribuyente_grado_severo_2025",
+      "name": "Mínimo por discapacidad del contribuyente — incremento grado ≥65%",
+      "description": "Incremento sobre el tramo base por grado de discapacidad reconocido igual o superior al 65% (art. 60.1 LIRPF): 6.000 € adicionales que elevan el total a 9.000 €.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [
+        {
+          "field": "personal.has_disability",
+          "operator": "==",
+          "value": true
+        },
+        {
+          "field": "personal.disability_degree",
+          "operator": ">=",
+          "value": 65
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 6000.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Certificado de discapacidad vigente con grado ≥65%"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 60. Mínimo por discapacidad",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a60",
+          "article": "art. 60",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "0ebffba4beaf0db50fe3d4e1a886e74f5f66ca7b41989d4efbf6e6d587ca2160",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_minimo_discapacidad_contribuyente_asistencia_2025",
+      "name": "Mínimo por discapacidad del contribuyente — gastos de asistencia",
+      "description": "Importe adicional por gastos de asistencia (art. 60.1 LIRPF) cuando se acredita necesidad de ayuda de terceras personas, movilidad reducida o grado ≥65%: 3.000 €.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [
+        {
+          "field": "personal.has_disability",
+          "operator": "==",
+          "value": true
+        },
+        {
+          "field": "personal.needs_assistance",
+          "operator": "==",
+          "value": true
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 3000.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Certificado de discapacidad con mención de asistencia/movilidad reducida"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 60. Mínimo por discapacidad",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a60",
+          "article": "art. 60",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "0ebffba4beaf0db50fe3d4e1a886e74f5f66ca7b41989d4efbf6e6d587ca2160",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_minimo_personal_familiar_general_2025",
+      "name": "Mínimo personal y familiar (encuadre general)",
+      "description": "Encuadre del régimen del mínimo personal y familiar como suma de los mínimos parciales (arts. 57-60). Sirve de referencia normativa, no genera cuantía propia.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "minimo_personal_familiar",
+      "requirements": [],
+      "calculation": {
+        "type": "manual_review"
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 56. Mínimo personal y familiar",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a56",
+          "article": "art. 56",
+          "paragraph": null,
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "e3f91af1a7c8f7536413957421723f0aff3312220c45b359858e41c2c2a64b8b",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_gastos_deducibles_trabajo_general_2025",
+      "name": "Gasto deducible general del trabajo (2.000 €)",
+      "description": "Gasto deducible general aplicable a todo rendimiento del trabajo. Cuantías incrementadas por movilidad geográfica, discapacidad y trabajadores activos mayores de 65 desempleados de larga duración requieren revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "gasto_deducible",
+      "requirements": [
+        {
+          "field": "income.work_gross",
+          "operator": ">",
+          "value": 0
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 2000.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 19. Rendimiento neto del trabajo",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a19",
+          "article": "art. 19",
+          "paragraph": "2.f",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "69f7c6c9747f853773d0d30268b0277531c2bff0d41c86b7eec1322bca2d812a",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_reduccion_rendimientos_trabajo_tramo_bajo_2025",
+      "name": "Reducción rendimientos del trabajo — tramo bajo (≤14.852 €)",
+      "description": "Tramo fijo de la reducción por obtención de rendimientos del trabajo (art. 20 LIRPF, redacción vigente en 2025): cuando el rendimiento neto del trabajo es igual o inferior a 14.852 € y el contribuyente no obtiene otras rentas relevantes >6.500 €, la reducción aplicable es de 7.302 € (lineal). El umbral de 'otras rentas' y la incompatibilidad con la deducción del art. 32.2.b LIRPF quedan en revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "reduccion",
+      "requirements": [
+        {
+          "field": "income.work_net",
+          "operator": ">",
+          "value": 0
+        },
+        {
+          "field": "income.work_net",
+          "operator": "<=",
+          "value": 14852
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 7302.0
+      },
+      "limit": null,
+      "taxable_base_limits": {
+        "otras_rentas_max_eur": 6500
+      },
+      "incompatibilities": [
+        "es_reduccion_rendimientos_trabajo_tramo_intermedio_2024"
+      ],
+      "required_documents": [],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 20. Reducción por obtención de rendimientos del trabajo",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a20",
+          "article": "art. 20",
+          "paragraph": "1.a",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "c7374ce7c72fcb0a7586b32266ad45ab6fa968d1a35ac381fc83c6fedf1cc2f0",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_reduccion_rendimientos_trabajo_tramo_intermedio_2025",
+      "name": "Reducción rendimientos del trabajo — tramo intermedio (14.852 € – 19.747,5 €)",
+      "description": "Tramo de la reducción del art. 20 LIRPF cuando el rendimiento neto del trabajo está entre 14.852 € y 19.747,5 €: la reducción decrece linealmente (7.302 − 1,75 × (rendimiento neto − 14.852)) hasta llegar a 0. La fórmula a tramo se mantiene en revisión manual hasta que el motor modele expresiones lineales por intervalo.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "reduccion",
+      "requirements": [
+        {
+          "field": "income.work_net",
+          "operator": ">",
+          "value": 14852
+        },
+        {
+          "field": "income.work_net",
+          "operator": "<=",
+          "value": 19747.5
+        }
+      ],
+      "calculation": {
+        "type": "manual_review",
+        "base_field": "income.work_net"
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [
+        "es_reduccion_rendimientos_trabajo_tramo_bajo_2024"
+      ],
+      "required_documents": [],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 20. Reducción por obtención de rendimientos del trabajo",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a20",
+          "article": "art. 20",
+          "paragraph": "1.b",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "c7374ce7c72fcb0a7586b32266ad45ab6fa968d1a35ac381fc83c6fedf1cc2f0",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_reduccion_irregulares_trabajo_2025",
+      "name": "Reducción 30% por rendimientos del trabajo con generación >2 años",
+      "description": "Reducción del 30% para rendimientos íntegros del trabajo con período de generación superior a dos años o notoriamente irregulares (art. 18.2 LIRPF). Límite de 300.000 € de base de la reducción.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "reduccion",
+      "requirements": [
+        {
+          "field": "income.work_irregular_base",
+          "operator": ">",
+          "value": 0
+        }
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "income.work_irregular_base",
+        "percentage": 0.3,
+        "cap": 90000.0
+      },
+      "limit": 90000.0,
+      "taxable_base_limits": {
+        "base_reduccion_max_eur": 300000
+      },
+      "incompatibilities": [],
+      "required_documents": [
+        "Justificación del período de generación o irregularidad"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 18. Porcentajes de reducción",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a18",
+          "article": "art. 18",
+          "paragraph": "2",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "0549ef6f4e94565f49a27d6dfea93ad5e0f7ae35b3832a4e594cc3faa8a8e1c5",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_reduccion_irregulares_actividad_economica_2025",
+      "name": "Reducción 30% por rendimientos de actividades económicas con generación >2 años",
+      "description": "Reducción del 30% para rendimientos netos de actividades económicas con período de generación superior a dos años o notoriamente irregulares (art. 32.1 LIRPF). Límite 300.000 €.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "reduccion",
+      "requirements": [
+        {
+          "field": "income.economic_activity_irregular_base",
+          "operator": ">",
+          "value": 0
+        }
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "income.economic_activity_irregular_base",
+        "percentage": 0.3,
+        "cap": 90000.0
+      },
+      "limit": 90000.0,
+      "taxable_base_limits": {
+        "base_reduccion_max_eur": 300000
+      },
+      "incompatibilities": [],
+      "required_documents": [
+        "Justificación del período de generación o irregularidad"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 32. Reducciones",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a32",
+          "article": "art. 32",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "830902e60be8379d517ee881a8cba5766777c343073c4f2706f009ac179ad101",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_reduccion_arrendamiento_vivienda_2025",
+      "name": "Reducción por arrendamiento de vivienda (art. 23.2 LIRPF)",
+      "description": "Reducción aplicable al rendimiento neto positivo del arrendamiento destinado a vivienda. Porcentaje aplicable (50%, 60%, 70%, 90%) depende de zona tensionada, contrato firmado tras 26-05-2023 y otras condiciones de la Ley 12/2023: revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "reduccion",
+      "requirements": [
+        {
+          "field": "income.rental_housing_net",
+          "operator": ">",
+          "value": 0
+        }
+      ],
+      "calculation": {
+        "type": "manual_review",
+        "base_field": "income.rental_housing_net"
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Contrato de arrendamiento",
+        "Acreditación de zona/tipología si se aplica % superior al 50%"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 23. Gastos deducibles y reducciones",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a23",
+          "article": "art. 23",
+          "paragraph": "2",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "e1e713038fef082fde259021271454d307d558413f5b4f909f5c14e68e5b33b6",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "alto",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_exencion_reinversion_vivienda_habitual_2025",
+      "name": "Exención por reinversión en vivienda habitual",
+      "description": "Exención de la ganancia patrimonial obtenida por la transmisión de la vivienda habitual cuando se reinvierte en otra vivienda habitual en los plazos del art. 38 LIRPF. Requisitos formales y plazo de reinversión: revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "exencion",
+      "requirements": [
+        {
+          "field": "income.habitual_dwelling_capital_gain",
+          "operator": ">",
+          "value": 0
+        }
+      ],
+      "calculation": {
+        "type": "manual_review",
+        "base_field": "income.habitual_dwelling_capital_gain"
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Escritura de transmisión",
+        "Escritura de adquisición de la nueva vivienda habitual"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 38. Ganancias excluidas de gravamen por reinversión",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a38",
+          "article": "art. 38",
+          "paragraph": null,
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "63d656a6590aceedfef5c05345916210986a1b1a28c4c7fe29f331453ec385eb",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "alto",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_reduccion_planes_pensiones_individual_2025",
+      "name": "Reducción por aportaciones a planes de pensiones (individuales)",
+      "description": "Reducción de la base imponible general por aportaciones del propio contribuyente a sistemas de previsión social. Límite individual 1.500 €/año (ampliable hasta 8.500 € por contribuciones empresariales del art. 52). Compatibilidades y proporcionalidad: revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "reduccion",
+      "requirements": [
+        {
+          "field": "expenses.pension_plan_individual",
+          "operator": ">",
+          "value": 0
+        }
+      ],
+      "calculation": {
+        "type": "amount_field",
+        "base_field": "expenses.pension_plan_individual"
+      },
+      "limit": 1500.0,
+      "taxable_base_limits": {
+        "porcentaje_max_rendimientos_neto": 0.3
+      },
+      "incompatibilities": [],
+      "required_documents": [
+        "Certificado de la entidad gestora del plan"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 51. Reducciones por sistemas de previsión social",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a51",
+          "article": "art. 51",
+          "paragraph": null,
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "e815fde989905dc34b5f50d6f774b992b2381b65f4f5e19d5ae9bf047902d0b8",
+          "checked_at": "2026-05-16"
+        },
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 52. Límite de reducción",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a52",
+          "article": "art. 52",
+          "paragraph": null,
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "946bdd2288088198419433f8ece99198134c041c89df3cdbd463b0348669ba38",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_deduccion_inversion_empresas_nueva_creacion_2025",
+      "name": "Deducción por inversión en empresas de nueva o reciente creación",
+      "description": "Deducción del 50% sobre las cantidades invertidas en suscripción de acciones/participaciones en empresas de nueva o reciente creación. Base máxima 100.000 €/año (Ley 28/2022). Requisitos sustantivos sobre la empresa y el contribuyente: revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {
+          "field": "expenses.investment_in_startups",
+          "operator": ">",
+          "value": 0
+        }
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.investment_in_startups",
+        "percentage": 0.5,
+        "cap": 50000.0
+      },
+      "limit": 50000.0,
+      "taxable_base_limits": {
+        "base_max_eur": 100000
+      },
+      "incompatibilities": [],
+      "required_documents": [
+        "Certificación de la entidad emisora",
+        "Justificante de suscripción"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 68. Deducciones",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a68",
+          "article": "art. 68",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "f8d63bc71501aceef02a164c62a8a05043da05d386075f22aa405ef58c3d3ab6",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_deduccion_donativos_general_2025",
+      "name": "Deducción por donativos a entidades de la Ley 49/2002",
+      "description": "Deducción escalada (80% primeros 250 €, 40% en exceso, ampliable a 45% por fidelización) por donativos a entidades sin ánimo de lucro acogidas a Ley 49/2002. Cálculo escalado y límite del 10% de base liquidable: revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {
+          "field": "expenses.donations_general",
+          "operator": ">",
+          "value": 0
+        }
+      ],
+      "calculation": {
+        "type": "manual_review",
+        "base_field": "expenses.donations_general"
+      },
+      "limit": null,
+      "taxable_base_limits": {
+        "porcentaje_max_base_liquidable": 0.1
+      },
+      "incompatibilities": [],
+      "required_documents": [
+        "Certificado de la entidad donataria"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 68.3 (remisión a Ley 49/2002)",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a68",
+          "article": "art. 68",
+          "paragraph": "3",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "f8d63bc71501aceef02a164c62a8a05043da05d386075f22aa405ef58c3d3ab6",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_deduccion_ceuta_melilla_2025",
+      "name": "Deducción por rentas obtenidas en Ceuta o Melilla",
+      "description": "Deducción del 60% de la parte de cuota íntegra que corresponda a rentas obtenidas en Ceuta o Melilla por residentes/no residentes en esos territorios (art. 68.4 LIRPF). Reglas de cómputo y exclusión por sectores: revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {
+          "field": "personal.location.ceuta_or_melilla",
+          "operator": "==",
+          "value": true
+        }
+      ],
+      "calculation": {
+        "type": "manual_review"
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Acreditación de residencia y de origen de las rentas"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 68.4. Deducción Ceuta y Melilla",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a68",
+          "article": "art. 68",
+          "paragraph": "4",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "f8d63bc71501aceef02a164c62a8a05043da05d386075f22aa405ef58c3d3ab6",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "alto",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_deduccion_maternidad_tramo_1_2025",
+      "name": "Deducción por maternidad — 1.er hijo <3 años",
+      "description": "Deducción de la cuota diferencial por el primer hijo menor de 3 años con derecho a mínimo por descendientes (art. 81 LIRPF): 1.200 €/año. La condición de actividad o prestación por desempleo, así como el incremento por gastos de guardería, se mantienen en revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {
+          "field": "family.children_young_count",
+          "operator": ">=",
+          "value": 1
+        },
+        {
+          "field": "personal.gender",
+          "operator": "==",
+          "value": "F"
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 1200.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Libro de familia",
+        "Justificante de alta en SS o prestación"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 81. Deducción por maternidad",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a81",
+          "article": "art. 81",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "51a9b9b88d1b5f6dde058bcbf795eef4bb547f451fead29a418fb8d69dae4869",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_deduccion_maternidad_tramo_2_2025",
+      "name": "Deducción por maternidad — 2.º hijo <3 años",
+      "description": "Tramo adicional de la deducción por maternidad cuando hay un segundo hijo menor de 3 años (art. 81 LIRPF): 1.200 €/año extra.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {
+          "field": "family.children_young_count",
+          "operator": ">=",
+          "value": 2
+        },
+        {
+          "field": "personal.gender",
+          "operator": "==",
+          "value": "F"
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 1200.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Libro de familia",
+        "Justificante de alta en SS o prestación"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 81. Deducción por maternidad",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a81",
+          "article": "art. 81",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "51a9b9b88d1b5f6dde058bcbf795eef4bb547f451fead29a418fb8d69dae4869",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_deduccion_maternidad_tramo_3_2025",
+      "name": "Deducción por maternidad — 3.er hijo <3 años",
+      "description": "Tramo adicional de la deducción por maternidad cuando hay un tercer hijo menor de 3 años (art. 81 LIRPF): 1.200 €/año extra. Para 4+ hijos <3 años el cómputo agregado queda en revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {
+          "field": "family.children_young_count",
+          "operator": ">=",
+          "value": 3
+        },
+        {
+          "field": "personal.gender",
+          "operator": "==",
+          "value": "F"
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 1200.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Libro de familia",
+        "Justificante de alta en SS o prestación"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 81. Deducción por maternidad",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a81",
+          "article": "art. 81",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "51a9b9b88d1b5f6dde058bcbf795eef4bb547f451fead29a418fb8d69dae4869",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_deduccion_familia_numerosa_general_2025",
+      "name": "Deducción por familia numerosa — categoría general",
+      "description": "Deducción de la cuota diferencial para familias numerosas de categoría general (art. 81 bis LIRPF): 1.200 €/año. El prorrateo entre cónyuges cuando los dos cumplen requisitos se mantiene en revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {
+          "field": "family.numerous_family_category",
+          "operator": "==",
+          "value": "general"
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 1200.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [
+        "es_deduccion_familia_numerosa_especial_2024"
+      ],
+      "required_documents": [
+        "Título vigente de familia numerosa"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 81 bis. Deducciones por familia numerosa/discapacidad",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a81bis",
+          "article": "art. 81 bis",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "8483139dd93a311913cbdb0e52d7735014389b3d15f4270c643a877dbb205827",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_deduccion_familia_numerosa_especial_2025",
+      "name": "Deducción por familia numerosa — categoría especial",
+      "description": "Deducción de la cuota diferencial para familias numerosas de categoría especial (art. 81 bis LIRPF): 2.400 €/año (importe duplicado respecto a la categoría general). Incompatible con la deducción de familia numerosa general — solo aplica la categoría reconocida.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {
+          "field": "family.numerous_family_category",
+          "operator": "==",
+          "value": "especial"
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 2400.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [
+        "es_deduccion_familia_numerosa_general_2024"
+      ],
+      "required_documents": [
+        "Título vigente de familia numerosa especial"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 81 bis. Deducciones por familia numerosa/discapacidad",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a81bis",
+          "article": "art. 81 bis",
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "8483139dd93a311913cbdb0e52d7735014389b3d15f4270c643a877dbb205827",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_reduccion_tributacion_conjunta_biparental_2025",
+      "name": "Reducción por tributación conjunta — unidad familiar biparental",
+      "description": "Reducción de la base imponible general en tributación conjunta para unidades familiares biparentales del art. 82.1.1ª LIRPF (cónyuges no separados legalmente): 3.400 €/año (art. 84.2.3º LIRPF).",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "reduccion",
+      "requirements": [
+        {
+          "field": "filing_mode",
+          "operator": "==",
+          "value": "conjunta"
+        },
+        {
+          "field": "family.unit_type",
+          "operator": "==",
+          "value": "biparental"
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 3400.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [
+        "es_reduccion_tributacion_conjunta_monoparental_2024"
+      ],
+      "required_documents": [],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 84. Tributación conjunta",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a84",
+          "article": "art. 84",
+          "paragraph": "2.3",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "e05f0076d16562da260551ec738f60505baa3632463a9578ee36c3efc5e9543a",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_reduccion_tributacion_conjunta_monoparental_2025",
+      "name": "Reducción por tributación conjunta — unidad familiar monoparental",
+      "description": "Reducción de la base imponible general en tributación conjunta para unidades familiares monoparentales del art. 82.1.2ª LIRPF (no integradas en una unidad biparental): 2.150 €/año (art. 84.2.4º LIRPF).",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "reduccion",
+      "requirements": [
+        {
+          "field": "filing_mode",
+          "operator": "==",
+          "value": "conjunta"
+        },
+        {
+          "field": "family.unit_type",
+          "operator": "==",
+          "value": "monoparental"
+        }
+      ],
+      "calculation": {
+        "type": "fixed_amount",
+        "fixed_amount": 2150.0
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [
+        "es_reduccion_tributacion_conjunta_biparental_2024"
+      ],
+      "required_documents": [],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — art. 84. Tributación conjunta",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#a84",
+          "article": "art. 84",
+          "paragraph": "2.4",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "e05f0076d16562da260551ec738f60505baa3632463a9578ee36c3efc5e9543a",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "bajo",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_deduccion_obras_eficiencia_energetica_2025",
+      "name": "Deducción por obras de mejora de la eficiencia energética de viviendas",
+      "description": "Deducción por obras en la vivienda habitual o arrendada que reduzcan demanda de calefacción/refrigeración o consumo de energía primaria no renovable (DA 50ª LIRPF, Ley 10/2022). Porcentajes 20%/40%/60% según tipo de obra y certificado energético: revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {
+          "field": "expenses.energy_efficiency_works",
+          "operator": ">",
+          "value": 0
+        }
+      ],
+      "calculation": {
+        "type": "manual_review",
+        "base_field": "expenses.energy_efficiency_works"
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Certificado de eficiencia energética anterior y posterior",
+        "Facturas de las obras"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — DA 50ª. Deducción obras eficiencia energética",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#da-4",
+          "article": "boe:da-4",
+          "paragraph": null,
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "084bccbe2557f9e22ee091858e96f1f5874d88882046c27e175af2cb25a9d42e",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_deduccion_alquiler_vivienda_habitual_transitoria_2025",
+      "name": "Deducción por alquiler de vivienda habitual (régimen transitorio DT 15ª)",
+      "description": "Régimen transitorio para contratos de arrendamiento de vivienda habitual celebrados antes del 1-1-2015 que dieran derecho a deducción en ese ejercicio. Porcentaje 10,05% sobre las cantidades satisfechas, con escalado por base imponible: revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {
+          "field": "expenses.rent_habitual_dwelling",
+          "operator": ">",
+          "value": 0
+        },
+        {
+          "field": "personal.rent_contract_before_2015",
+          "operator": "==",
+          "value": true
+        }
+      ],
+      "calculation": {
+        "type": "manual_review",
+        "base_field": "expenses.rent_habitual_dwelling"
+      },
+      "limit": null,
+      "taxable_base_limits": {
+        "base_imponible_max_eur": 24107.2
+      },
+      "incompatibilities": [],
+      "required_documents": [
+        "Contrato de arrendamiento anterior a 2015",
+        "Recibos de alquiler"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — DT 15ª. Alquiler vivienda habitual",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#dtdecimoquinta",
+          "article": "boe:dtdecimoquinta",
+          "paragraph": null,
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "d519e22f26f0258b4518b452030ffd7fa49c1c17f125a750af60945a5e667b86",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_deduccion_inversion_vivienda_habitual_transitoria_2025",
+      "name": "Deducción por inversión en vivienda habitual (régimen transitorio DT 18ª)",
+      "description": "Régimen transitorio para contribuyentes que adquirieron su vivienda habitual antes del 1-1-2013 y venían aplicando la deducción. Porcentajes y bases del régimen anterior; reglas de prórroga y cuentas vivienda: revisión manual.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {
+          "field": "expenses.investment_habitual_dwelling",
+          "operator": ">",
+          "value": 0
+        },
+        {
+          "field": "personal.dwelling_acquired_before_2013",
+          "operator": "==",
+          "value": true
+        }
+      ],
+      "calculation": {
+        "type": "manual_review",
+        "base_field": "expenses.investment_habitual_dwelling"
+      },
+      "limit": null,
+      "taxable_base_limits": {},
+      "incompatibilities": [],
+      "required_documents": [
+        "Escritura de adquisición anterior a 2013",
+        "Justificantes de las cantidades satisfechas en el ejercicio"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — DT 18ª. Inversión vivienda habitual",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#dtdecimoctava",
+          "article": "boe:dtdecimoctava",
+          "paragraph": null,
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "93511384ff263b014cb57d9f36926babf7c7ccf5ac3a37b62b7709ea070517ea",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    }
+  ]
+}

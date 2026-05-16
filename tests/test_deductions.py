@@ -198,8 +198,11 @@ def test_qw1_descendientes_tramificacion_cumulativa():
     """Con N hijos a cargo, la suma de los tramos 1..min(N,4) debe coincidir
     con el cuadro AEAT: 2.400 / 5.100 / 9.100 / 13.600 €."""
     deductions = load_deductions()
-    descendientes = [d for d in deductions if d.id.startswith("es_minimo_descendientes_tramo_")]
-    assert len(descendientes) == 4, f"Esperaba 4 tramos de descendientes, hay {len(descendientes)}"
+    descendientes = [
+        d for d in deductions
+        if d.id.startswith("es_minimo_descendientes_tramo_") and d.tax_year == 2024
+    ]
+    assert len(descendientes) == 4, f"Esperaba 4 tramos de descendientes (2024), hay {len(descendientes)}"
 
     expected_total = {1: 2400.0, 2: 5100.0, 3: 9100.0, 4: 13600.0}
     for n_children, expected in expected_total.items():
@@ -466,5 +469,134 @@ def test_deduction_for_other_tax_year_does_not_apply():
 def test_deduction_for_other_region_does_not_apply():
     result = evaluate_deduction(validated_deduction(scope="autonomico", region="Cataluña"), profile(region="Madrid"))
     assert result.status == "does_not_apply"
+
+
+# --------------------------------------------------------------------------
+# Sprint 1 #1: corpus IRPF 2025 estatal. Se incorpora como clon estructural
+# del corpus 2024 con vigencia trasladada a 2025, validado contra el texto
+# BOE consolidado vigente con `verify_seed.py` (ok=33 drift=0 sobre la
+# revisión del 2026-05-16). Es decir: para los preceptos LIRPF citados, el
+# texto consolidado no se ha modificado entre 2024 y 2025 y los importes
+# literales siguen siendo aplicables.
+# --------------------------------------------------------------------------
+
+
+def test_corpus_2025_loads_with_32_validated_state_entries():
+    """El corpus 2025 debe cargar el mismo número de entradas estatales
+    que 2024 (32). Si alguien suma o elimina deducciones a uno solo de los
+    dos ejercicios, este test lo detecta."""
+    deductions = load_deductions()
+    state_2025 = [
+        d for d in deductions
+        if d.tax_year == 2025 and d.scope.value == "estatal"
+    ]
+    state_2024 = [
+        d for d in deductions
+        if d.tax_year == 2024 and d.scope.value == "estatal"
+    ]
+    assert len(state_2025) == 32, (
+        f"Esperaba 32 deducciones estatales 2025; hay {len(state_2025)}"
+    )
+    assert len(state_2025) == len(state_2024), (
+        "El corpus 2025 debería tener el mismo número de entradas estatales "
+        f"que 2024 ({len(state_2024)}); hay {len(state_2025)}"
+    )
+    assert all(d.validation_status.value == "validada" for d in state_2025), (
+        "Toda entrada del corpus 2025 estatal debe quedar como `validada`"
+    )
+
+
+def test_corpus_2025_vigencia_window_is_calendar_year():
+    """Todas las entradas 2025 deben declarar vigencia [2025-01-01, 2025-12-31]
+    para que el filtro temporal del motor las descarte automáticamente para
+    devengos fuera del ejercicio."""
+    from datetime import date
+    state_2025 = [
+        d for d in load_deductions()
+        if d.tax_year == 2025 and d.scope.value == "estatal"
+    ]
+    for d in state_2025:
+        assert d.effective_from == date(2025, 1, 1), (
+            f"{d.id}: effective_from debe ser 2025-01-01, es {d.effective_from}"
+        )
+        assert d.effective_to == date(2025, 12, 31), (
+            f"{d.id}: effective_to debe ser 2025-12-31, es {d.effective_to}"
+        )
+
+
+def test_corpus_2025_id_namespace_does_not_collide_with_2024():
+    """Los ids de 2025 acaban en `_2025` y los de 2024 en `_2024`. El loader
+    rechazaría ids duplicados; este test garantiza que el split por sufijo
+    está completo (ningún id se queda sin renombrar)."""
+    deductions = load_deductions()
+    ids_2024 = {d.id for d in deductions if d.tax_year == 2024 and d.scope.value == "estatal"}
+    ids_2025 = {d.id for d in deductions if d.tax_year == 2025 and d.scope.value == "estatal"}
+    assert ids_2024 and ids_2025
+    assert ids_2024.isdisjoint(ids_2025)
+    assert all(i.endswith("_2024") for i in ids_2024)
+    assert all(i.endswith("_2025") for i in ids_2025)
+    # Cada deducción 2024 debe tener su gemela 2025
+    pairs_missing = {i.removesuffix("_2024") for i in ids_2024} - {
+        i.removesuffix("_2025") for i in ids_2025
+    }
+    assert not pairs_missing, (
+        f"Deducciones 2024 sin equivalente 2025: {sorted(pairs_missing)}"
+    )
+
+
+def test_corpus_2025_profile_yields_applicable_deductions():
+    """Un perfil 2025 razonable evaluado contra el motor debe devolver al
+    menos un puñado de deducciones `applies` con importe > 0. Si esto baja
+    a cero, algo se ha roto en la propagación de vigencia o en el filtrado
+    por `tax_year`."""
+    deductions = load_deductions()
+    p = TaxProfile.from_dict({
+        "tax_year": 2025,
+        "region": "Madrid",
+        "family": {"children_count": 2},
+        "income": {"work_gross": 30000, "work_net": 27500},
+        "expenses": {},
+        "documents": ["Libro de familia o certificado de convivencia"],
+    })
+    applies_with_amount = [
+        evaluate_deduction(d, p) for d in deductions
+        if d.tax_year == 2025 and d.scope.value == "estatal"
+    ]
+    applied = [r for r in applies_with_amount if r.status == "applies"]
+    with_amount = [r for r in applied if r.estimated_amount > 0]
+    # El perfil sintético (2 hijos, trabajo declarado) dispara el mínimo del
+    # contribuyente, dos tramos del mínimo por descendientes y el gasto del
+    # trabajo de 2.000 €. Esperar ≥4 con importe deja margen para que el
+    # corpus crezca sin volver el test frágil pero sigue verificando que
+    # la propagación de vigencia y filtrado por tax_year funcionan en 2025.
+    assert len(applied) >= 4, (
+        f"Perfil 2025 sintético: esperaba ≥4 deducciones `applies` "
+        f"sobre estatales; hay {len(applied)}"
+    )
+    assert len(with_amount) >= 4, (
+        f"Perfil 2025 sintético: esperaba ≥4 deducciones con importe > 0; "
+        f"hay {len(with_amount)}"
+    )
+
+
+def test_corpus_2025_inherits_2024_hashes_implying_stable_boe_text():
+    """Decisión documentada: el clon 2025 conserva los `content_hash` del
+    2024. Si en algún momento un artículo LIRPF cambia entre ejercicios,
+    el `verify_seed.py` los marcará como drift. Este test pinea el invariante
+    actual: misma cita → mismo hash en ambos años."""
+    deductions = load_deductions()
+    state_2024 = {d.id: d for d in load_deductions() if d.tax_year == 2024 and d.scope.value == "estatal"}
+    state_2025 = {d.id: d for d in deductions if d.tax_year == 2025 and d.scope.value == "estatal"}
+    for id_2025, d_2025 in state_2025.items():
+        twin_id = id_2025.replace("_2025", "_2024")
+        d_2024 = state_2024.get(twin_id)
+        assert d_2024 is not None, f"sin gemelo 2024 para {id_2025}"
+        hashes_2024 = sorted(s.content_hash for s in d_2024.sources if s.content_hash)
+        hashes_2025 = sorted(s.content_hash for s in d_2025.sources if s.content_hash)
+        assert hashes_2024 == hashes_2025, (
+            f"{id_2025}: content_hash divergente respecto a {twin_id}. "
+            f"Si la divergencia es legítima (norma modificada), actualizar "
+            f"este test; si no, refrescar el JSON con verify_seed.py --update."
+        )
 
 
