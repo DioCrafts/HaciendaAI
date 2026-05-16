@@ -50,6 +50,20 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 _ARTICLE_NUMERIC_RE = re.compile(r"art[íi]?\.?\s*(\d+)\s*(bis|ter|quater|quinquies)?")
 
+# Etiquetas cualitativas de confianza expuestas en el API. Los valores
+# numéricos de `RuleEvaluation.confidence` están fijados a mano por rama
+# del motor (rules.py) y no están calibrados empíricamente; exponer un
+# número con tres decimales sugiere una precisión que no tenemos. La
+# etiqueta cualitativa transmite el nivel de la rama sin sobreprometer.
+CONFIDENCE_THRESHOLDS = ((0.8, "alta"), (0.5, "media"))
+
+
+def _qualitative_confidence(score: float) -> str:
+    for threshold, label in CONFIDENCE_THRESHOLDS:
+        if score >= threshold:
+            return label
+    return "baja"
+
 
 def _anchor_from_article(article: str | None) -> str | None:
     if not article:
@@ -212,7 +226,7 @@ def create_app() -> FastAPI:
                     "missing_fields": list(ev.missing_fields),
                     "missing_documents": list(ev.missing_documents),
                     "risk_level": ev.risk_level,
-                    "confidence": ev.confidence,
+                    "confidence": _qualitative_confidence(ev.confidence),
                     "sources": [_source_payload(s) for s in ev.sources],
                     "applicable_versions": (
                         _applicable_versions(ded, registry, devengo) if ded else []

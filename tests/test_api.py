@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import importlib
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
 from hacienda_ai.api import create_app
+from hacienda_ai.api.app import _qualitative_confidence
 
 
 @pytest.fixture
@@ -203,3 +205,38 @@ def test_deductions_payload_does_not_carry_applicable_versions(
     data = client.get("/deductions").json()
     for entry in data["deductions"]:
         assert "applicable_versions" not in entry
+
+
+def test_qualitative_confidence_thresholds() -> None:
+    """Umbrales documentados en `CONFIDENCE_THRESHOLDS`. La función debe
+    transmitir el bucket sin sugerir precisión que el motor no tiene."""
+    assert _qualitative_confidence(0.95) == "alta"
+    assert _qualitative_confidence(0.85) == "alta"
+    assert _qualitative_confidence(0.80) == "alta"
+    assert _qualitative_confidence(0.799) == "media"
+    assert _qualitative_confidence(0.50) == "media"
+    assert _qualitative_confidence(0.499) == "baja"
+    assert _qualitative_confidence(0.0) == "baja"
+
+
+def test_evaluation_confidence_is_qualitative_label(client: TestClient) -> None:
+    """El payload del API no debe devolver un float pseudo-calibrado; debe
+    devolver una etiqueta cualitativa del conjunto cerrado."""
+    pid = client.post("/profiles", json=_synthetic_profile()).json()["profile_id"]
+    data = client.post("/evaluations", json={"profile_id": pid}).json()
+    allowed = {"alta", "media", "baja"}
+    for ev in data["evaluations"]:
+        assert isinstance(ev["confidence"], str), (
+            f"{ev['deduction_id']} devuelve confidence numérico: {ev['confidence']!r}"
+        )
+        assert ev["confidence"] in allowed, (
+            f"{ev['deduction_id']} devuelve etiqueta fuera de {allowed}: {ev['confidence']!r}"
+        )
+
+
+def test_safety_module_has_been_removed() -> None:
+    """`safety.py` era teatro de cumplimiento: declarado en README y nunca
+    invocado por ningún endpoint. Se ha eliminado del paquete; cualquier
+    reintroducción debe venir acompañada de uso real en producción."""
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("hacienda_ai.safety")

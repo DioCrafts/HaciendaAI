@@ -1,19 +1,38 @@
 # Copiloto Fiscal IRPF España
 
-Aplicación en construcción para ayudar a revisar oportunidades de optimización fiscal legal en la declaración de la renta española.
+Motor determinista de reglas fiscales para el IRPF, con citas pinpoint
+verificadas SHA-256 contra el BOE, filtro por vigencia temporal de las
+normas citadas y respuesta histórica (la redacción aplicada es la que
+estaba viva en la fecha del devengo, no la actual). Pensado como núcleo
+auditable sobre el que añadir, en iteraciones posteriores, un RAG
+jurídico, herramientas para gestorías y conectores con AEAT.
+
+> **Estado actual** — prototipo. 32 deducciones IRPF 2024 estatales
+> ancladas a BOE (15 con importe calculado por el motor, 9 en revisión
+> manual), historia de versiones agregada de la LIRPF en 3 ventanas
+> (2007-2014 / 2015-2021 / 2022-hoy) y una API HTTP de demostración con
+> perfil en memoria. **No hay** RAG implementado, ni LLM integrado, ni
+> multi-tenant, ni persistencia, ni cobertura autonómica/foral. Ver
+> `docs/roadmap.md` para el plan.
 
 ## Qué hace
 
 - Normaliza deducciones, reducciones, gastos deducibles y ajustes fiscales en JSON auditable.
 - Valida cada regla con un esquema estructurado.
-- Evalúa reglas de forma determinista contra un perfil fiscal.
+- Evalúa reglas de forma determinista contra un perfil fiscal y devuelve
+  importe estimado (cuando el cálculo es lineal o tramificado).
+- Cita cada regla al BOE con pinpoint (artículo + apartado) y SHA-256
+  del texto consolidado, verificado semanalmente por cron.
+- Devuelve la versión de la norma vigente en la fecha del devengo, no
+  solo la actual: bloquea aplicación si la norma está derogada o
+  inconstitucional en esa fecha y degrada a `pending_validation` si está
+  suspendida.
 - Distingue entre:
   - aplica;
   - no aplica;
   - faltan datos;
   - falta documentación;
   - pendiente de validar.
-- Rechaza solicitudes de evasión fiscal o falseamiento de datos.
 
 ## Qué no hace
 
@@ -63,8 +82,8 @@ src/hacienda_ai/
   rag/                    # Estructura preparada para RAG jurídico
   models/                 # Esquema fiscal, Norma/VersionNorma, NormaRegistry
   deductions.py           # Carga y validación del corpus
+  normas.py               # Carga del catálogo de normas y versiones
   rules.py                # Motor determinista con filtro temporal
-  safety.py               # Rechazo de solicitudes ilegales
 scripts/
   verify_seed.py          # Verificador del corpus contra BOE (SHA-256)
 docs/

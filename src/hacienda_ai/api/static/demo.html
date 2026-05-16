@@ -43,6 +43,11 @@
   .risk-low { color: var(--ok); }
   .risk-medium { color: var(--pend); }
   .risk-high { color: var(--bad); }
+  .conf { font-weight: 600; padding: 2px 7px; border-radius: 3px;
+          font-size: 0.85em; white-space: nowrap; display: inline-block; }
+  .conf-alta { background: var(--ok-bg); color: var(--ok); }
+  .conf-media { background: var(--pend-bg); color: var(--pend); }
+  .conf-baja { background: var(--bad-bg); color: var(--bad); }
   a { color: var(--primary); text-decoration: none; }
   a:hover { text-decoration: underline; }
   .legend { font-size: 0.75em; color: #777; margin: 10px 0; }
@@ -251,7 +256,7 @@ Título vigente de familia numerosa especial</textarea>
           <td><span class="status status-${e.status}">${STATUS_LABEL[e.status] ?? e.status}</span></td>
           <td>${e.estimated_amount > 0 ? eurFmt.format(e.estimated_amount) : ''}</td>
           <td class="risk-${e.risk_level}">${e.risk_level}</td>
-          <td>${(e.confidence * 100).toFixed(0)}%</td>
+          <td><span class="conf conf-${e.confidence}">${e.confidence}</span></td>
           <td>${escapeHtml(e.reason)}${
             e.missing_fields.length ? '<br><em>Falta:</em> ' + e.missing_fields.map(escapeHtml).join(', ') : ''
           }${

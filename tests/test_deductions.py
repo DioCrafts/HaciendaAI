@@ -5,7 +5,6 @@ import pytest
 from hacienda_ai.deductions import load_deductions
 from hacienda_ai.models import Deduction, TaxProfile, ValidationError
 from hacienda_ai.rules import evaluate_deduction
-from hacienda_ai.safety import screen_user_request
 
 
 def validated_deduction(**overrides):
@@ -282,14 +281,3 @@ def test_deduction_for_other_region_does_not_apply():
     assert result.status == "does_not_apply"
 
 
-def test_safety_rejects_false_invoice_request():
-    allowed, message = screen_user_request("Quiero meter facturas falsas para pagar menos")
-    assert allowed is False
-    assert "No puedo ayudar" in message
-    assert "legalidad" in message
-
-
-def test_safety_allows_legal_optimization_request():
-    allowed, message = screen_user_request("Quiero revisar deducciones legales y documentación necesaria")
-    assert allowed is True
-    assert message is None
