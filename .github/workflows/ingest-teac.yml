@@ -1,0 +1,220 @@
+name: Ingest TEAC/TEAR resoluciones
+
+on:
+  # Manual SOLO, mismo patrón que CENDOJ y DGT. DYCTEA no expone API
+  # oficial; el operador prepara una lista de números (extraídos del
+  # buscador del Ministerio) y dispara este workflow.
+  workflow_dispatch:
+    inputs:
+      numeros:
+        description: "Números separados por comas (ej. 00/12345/2023,R.G. 67890/2022,28/00345/2024)"
+        required: true
+        type: string
+      client:
+        description: "Origen: 'local' (fixtures/repo) o 'http' (experimental, contra DYCTEA)"
+        required: true
+        type: choice
+        default: local
+        options:
+          - local
+          - http
+      local_dir:
+        description: "Solo si client=local: ruta del directorio con los HTML descargados."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ingest-teac
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    name: Ingerir resoluciones TEAC y abrir PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Write input numeros to file
+        run: |
+          # Acepta comas como separador; "R.G." puede llevar puntos pero
+          # no comas dentro del propio número.
+          echo "${{ github.event.inputs.numeros }}" | tr ',' '\n' | sed 's/^[[:space:]]*//' > numeros-input.txt
+          echo "Números solicitados:"
+          cat numeros-input.txt
+
+      - name: Run ingest
+        id: ingest
+        # Códigos (ver scripts/ingest_teac.py):
+        #   0 — todas procesadas (con aciertos/errores parciales).
+        #   1 — uno o más fallaron.
+        #   2 — error fatal de configuración.
+        run: |
+          set +e
+          if [ "${{ github.event.inputs.client }}" = "local" ]; then
+            python scripts/ingest_teac.py \
+              --numero-file numeros-input.txt \
+              --client local \
+              --local-dir "${{ github.event.inputs.local_dir }}" \
+              --report ingest-report.json
+          else
+            python scripts/ingest_teac.py \
+              --numero-file numeros-input.txt \
+              --client http \
+              --report ingest-report.json
+          fi
+          code=$?
+          echo "exit_code=${code}" >> "${GITHUB_OUTPUT}"
+          exit 0
+
+      - name: Fail on fatal error
+        if: steps.ingest.outputs.exit_code == '2'
+        run: |
+          echo "::error::ingest_teac.py salió con código 2 (configuración inválida)."
+          exit 1
+
+      - name: Check for working-tree changes
+        id: diff
+        run: |
+          if [ -z "$(git status --porcelain src/hacienda_ai/data/teac_resoluciones)" ]; then
+            echo "changed=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "changed=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Render PR body
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          python - <<'PY' > pr-body.md
+          import json
+          import pathlib
+
+          data = json.loads(pathlib.Path("ingest-report.json").read_text())
+          totals = data.get("totals", {})
+          by_tipo = data.get("by_tipo", {})
+          by_imp = data.get("by_impuesto", {})
+          outcomes = data.get("outcomes", [])
+
+          lines = [
+              "## Ingesta de resoluciones TEAC/TEAR\n",
+              "Este PR ha sido abierto por el workflow manual "
+              "`ingest-teac.yml`. **Requiere revisión humana** antes de "
+              "mergear, especialmente del campo `criterio` (extraído "
+              "heurísticamente, marcado `criterio_confidence=auto`).\n",
+              "",
+              "### Peso doctrinal (¡distinguir al citar!)\n",
+              "- **Unificación de criterio** (art. 242 LGT): vincula a "
+              "AEAT y a todos los TEAR.",
+              "- **Extensión de efectos** (art. 244 LGT): vincula a AEAT "
+              "en supuestos análogos.",
+              "- **Ordinaria**: criterio del caso, no vinculante para "
+              "futuros.",
+              "- **TEAR/TEAL**: solo vinculan al caso resuelto.",
+              "",
+              f"- Aceptadas: **{totals.get('accepted', 0)}** "
+              f"(nuevas: {totals.get('newly_persisted', 0)})",
+              f"- Errores: {totals.get('errored', 0)}",
+              "",
+              "**Por tipo:** "
+              + ", ".join(f"{k}={v}" for k, v in by_tipo.items() if v > 0),
+              "",
+              "**Por impuesto:** "
+              + ", ".join(f"{k.upper()}={v}" for k, v in by_imp.items() if v > 0),
+              "",
+          ]
+
+          accepted = [o for o in outcomes if o.get("accepted")]
+          if accepted:
+              lines.append("### Resoluciones aceptadas")
+              lines.append(
+                  "| Número | Órgano | Tipo | Sentido | Impuesto | Nueva |"
+              )
+              lines.append("|---|---|---|---|---|---|")
+              for o in accepted:
+                  is_new = "✅" if o.get("newly_persisted") else "—"
+                  lines.append(
+                      f"| `{o['numero']}` | "
+                      f"{(o.get('organo') or '?').upper()} | "
+                      f"{(o.get('tipo') or '?')} | "
+                      f"{(o.get('sentido') or '?')} | "
+                      f"{(o.get('impuesto') or '?').upper()} | "
+                      f"{is_new} |"
+                  )
+
+          errored = [o for o in outcomes if o.get("error")]
+          if errored:
+              lines.append("\n### Errores")
+              for o in errored:
+                  lines.append(f"- `{o['numero']}`: {o['error']}")
+
+          lines.append("\n## Cómo revisar este PR\n")
+          lines.append(
+              "1. Abrir cada JSON y verificar que la cabecera (órgano, "
+              "fecha, materia, normativa) es coherente con el contenido.\n"
+              "2. **Validar `tipo` (UNIFICA_CRITERIO / EXTIENDE_EFECTOS / "
+              "ORDINARIA)**: el peso doctrinal de la resolución depende "
+              "de este campo. Si el detector se ha equivocado, edita el "
+              "JSON antes de mergear.\n"
+              "3. **Revisar `criterio`**: el extractor prioriza la "
+              "sección CRITERIO del DYCTEA cuando existe (gold). Si lo "
+              "valida un humano, promover `criterio_confidence` a "
+              "`manual` para que el LLM lo cite como criterio firme.\n"
+          )
+          print("\n".join(lines))
+          PY
+
+      - name: Upload report artifact
+        if: steps.diff.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ingest-teac-report
+          path: |
+            ingest-report.json
+            pr-body.md
+            numeros-input.txt
+          retention-days: 30
+
+      - name: Create Pull Request
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: bot/ingest-teac-${{ github.run_id }}
+          title: "Ingesta TEAC/TEAR: nuevas resoluciones"
+          body-path: pr-body.md
+          commit-message: |
+            chore(corpus): ingesta TEAC/TEAR de resoluciones
+
+            Procesa una lista de números de reclamación y añade las
+            resoluciones a data/teac_resoluciones/<organo>/<año>/.
+            Cada entrada incluye tipo (UNIFICA_CRITERIO/EXTIENDE_EFECTOS/
+            ORDINARIA), sentido, impuesto, criterio doctrinal extraído
+            heurísticamente y normativa citada.
+          author: "haciendaai-bot <bot@haciendaai.local>"
+          committer: "haciendaai-bot <bot@haciendaai.local>"
+          labels: |
+            ingesta-teac
+            requiere-revision
+            doctrina-administrativa
+
+      - name: Surface partial failure as warning
+        if: steps.ingest.outputs.exit_code == '1'
+        run: |
+          echo "::warning::ingest_teac.py salió con código 1 (fallos parciales)."
