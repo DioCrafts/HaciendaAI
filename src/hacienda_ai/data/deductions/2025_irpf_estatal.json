@@ -922,7 +922,7 @@
     {
       "id": "es_deduccion_donativos_general_2025",
       "name": "Deducción por donativos a entidades de la Ley 49/2002",
-      "description": "Deducción escalada (80% primeros 250 €, 40% en exceso, ampliable a 45% por fidelización) por donativos a entidades sin ánimo de lucro acogidas a Ley 49/2002. Cálculo escalado y límite del 10% de base liquidable: revisión manual.",
+      "description": "Deducción escalada del art. 19 Ley 49/2002 (remitido por art. 68.3 LIRPF): 80% sobre los primeros 250 € y 40% sobre el exceso, ampliable a 45% en el segundo tramo cuando el importe donado a la misma entidad en los dos ejercicios inmediatos anteriores fue igual o superior (regla de fidelización; campo `personal.donations_fidelity_to_same_entity=true`). Cap dinámico: 10% de la base liquidable del contribuyente — el motor exige `income.base_liquidable` para no sobreestimar.",
       "tax_year": 2025,
       "scope": "estatal",
       "region": null,
@@ -932,11 +932,27 @@
           "field": "expenses.donations_general",
           "operator": ">",
           "value": 0
+        },
+        {
+          "field": "income.base_liquidable",
+          "operator": ">",
+          "value": 0
         }
       ],
       "calculation": {
-        "type": "manual_review",
-        "base_field": "expenses.donations_general"
+        "type": "tiered_progressive",
+        "base_field": "expenses.donations_general",
+        "tiers": [
+          {"up_to": 250.0, "percentage": 0.80},
+          {
+            "up_to": null,
+            "percentage": 0.40,
+            "alternate_percentage": 0.45,
+            "alternate_when_field": "personal.donations_fidelity_to_same_entity"
+          }
+        ],
+        "cap_field": "income.base_liquidable",
+        "cap_percentage": 0.10
       },
       "limit": null,
       "taxable_base_limits": {
@@ -1349,27 +1365,29 @@
       "validation_status": "validada"
     },
     {
-      "id": "es_deduccion_obras_eficiencia_energetica_2025",
-      "name": "Deducción por obras de mejora de la eficiencia energética de viviendas",
-      "description": "Deducción por obras en la vivienda habitual o arrendada que reduzcan demanda de calefacción/refrigeración o consumo de energía primaria no renovable (DA 50ª LIRPF, Ley 10/2022). Porcentajes 20%/40%/60% según tipo de obra y certificado energético: revisión manual.",
+      "id": "es_deduccion_eficiencia_energetica_demanda_2025",
+      "name": "Deducción por obras que reducen la demanda de calefacción/refrigeración (DA 50ª.1 LIRPF)",
+      "description": "Apartado 1 de la DA 50ª LIRPF (introducida por Ley 10/2022, prorrogada por RDL 8/2023 y normas posteriores hasta 31-12-2025): 20% sobre las cantidades satisfechas por obras que reduzcan al menos un 7% la demanda de calefacción y refrigeración de la vivienda habitual o arrendada, acreditado por certificado de eficiencia energética anterior y posterior. Base máxima anual 5.000 € (cap del importe deducible: 1.000 €). Se discrimina del resto de tramos por el campo `personal.energy_works_type=\"demand_reduction\"`.",
       "tax_year": 2025,
       "scope": "estatal",
       "region": null,
       "category": "deduccion",
       "requirements": [
-        {
-          "field": "expenses.energy_efficiency_works",
-          "operator": ">",
-          "value": 0
-        }
+        {"field": "expenses.energy_efficiency_works", "operator": ">", "value": 0},
+        {"field": "personal.energy_works_type", "operator": "==", "value": "demand_reduction"}
       ],
       "calculation": {
-        "type": "manual_review",
-        "base_field": "expenses.energy_efficiency_works"
+        "type": "percentage_with_cap",
+        "base_field": "expenses.energy_efficiency_works",
+        "percentage": 0.20,
+        "cap": 1000.0
       },
       "limit": null,
-      "taxable_base_limits": {},
-      "incompatibilities": [],
+      "taxable_base_limits": {"base_anual_max_eur": 5000},
+      "incompatibilities": [
+        "es_deduccion_eficiencia_energetica_consumo_primario_2025",
+        "es_deduccion_eficiencia_energetica_rehabilitacion_2025"
+      ],
       "required_documents": [
         "Certificado de eficiencia energética anterior y posterior",
         "Facturas de las obras"
@@ -1378,10 +1396,104 @@
       "sources": [
         {
           "kind": "ley",
-          "title": "Ley 35/2006 del IRPF — DA 50ª. Deducción obras eficiencia energética",
+          "title": "Ley 35/2006 del IRPF — DA 50ª.1. Reducción demanda calefacción/refrigeración",
           "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#da-4",
           "article": "boe:da-4",
-          "paragraph": null,
+          "paragraph": "1",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "084bccbe2557f9e22ee091858e96f1f5874d88882046c27e175af2cb25a9d42e",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_deduccion_eficiencia_energetica_consumo_primario_2025",
+      "name": "Deducción por obras que reducen el consumo de energía primaria no renovable (DA 50ª.2 LIRPF)",
+      "description": "Apartado 2 de la DA 50ª LIRPF: 40% sobre las cantidades satisfechas por obras que reduzcan al menos un 30% el indicador de consumo de energía primaria no renovable o que mejoren la calificación energética hasta clase A o B, en la vivienda habitual o arrendada. Base máxima anual 7.500 € (cap del importe deducible: 3.000 €). Se discrimina del resto de tramos por el campo `personal.energy_works_type=\"primary_consumption_reduction\"`.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.energy_efficiency_works", "operator": ">", "value": 0},
+        {"field": "personal.energy_works_type", "operator": "==", "value": "primary_consumption_reduction"}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.energy_efficiency_works",
+        "percentage": 0.40,
+        "cap": 3000.0
+      },
+      "limit": null,
+      "taxable_base_limits": {"base_anual_max_eur": 7500},
+      "incompatibilities": [
+        "es_deduccion_eficiencia_energetica_demanda_2025",
+        "es_deduccion_eficiencia_energetica_rehabilitacion_2025"
+      ],
+      "required_documents": [
+        "Certificado de eficiencia energética anterior y posterior",
+        "Facturas de las obras"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — DA 50ª.2. Reducción consumo energía primaria no renovable",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#da-4",
+          "article": "boe:da-4",
+          "paragraph": "2",
+          "boe_id": "BOE-A-2006-20764",
+          "content_hash": "084bccbe2557f9e22ee091858e96f1f5874d88882046c27e175af2cb25a9d42e",
+          "checked_at": "2026-05-16"
+        }
+      ],
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "last_reviewed_at": "2026-05-16",
+      "risk_level": "medio",
+      "validation_status": "validada"
+    },
+    {
+      "id": "es_deduccion_eficiencia_energetica_rehabilitacion_2025",
+      "name": "Deducción por rehabilitación energética de edificios (DA 50ª.3 LIRPF)",
+      "description": "Apartado 3 de la DA 50ª LIRPF: 60% sobre las cantidades satisfechas por obras de rehabilitación energética en edificios de uso predominantemente residencial, acreditadas por reducción ≥30% del consumo de energía primaria no renovable o mejora a calificación A/B. Base máxima anual 5.000 € (cap del importe deducible: 3.000 €). Las cantidades no deducidas por exceder la base anual son arrastrables 4 ejercicios hasta el techo agregado de 15.000 € — el arrastre se mantiene en revisión manual hasta que el motor modele saldos plurianuales. Se discrimina del resto de tramos por el campo `personal.energy_works_type=\"building_rehab\"`.",
+      "tax_year": 2025,
+      "scope": "estatal",
+      "region": null,
+      "category": "deduccion",
+      "requirements": [
+        {"field": "expenses.energy_efficiency_works", "operator": ">", "value": 0},
+        {"field": "personal.energy_works_type", "operator": "==", "value": "building_rehab"}
+      ],
+      "calculation": {
+        "type": "percentage_with_cap",
+        "base_field": "expenses.energy_efficiency_works",
+        "percentage": 0.60,
+        "cap": 3000.0
+      },
+      "limit": null,
+      "taxable_base_limits": {"base_anual_max_eur": 5000, "base_agregada_max_eur": 15000},
+      "incompatibilities": [
+        "es_deduccion_eficiencia_energetica_demanda_2025",
+        "es_deduccion_eficiencia_energetica_consumo_primario_2025"
+      ],
+      "required_documents": [
+        "Certificado de eficiencia energética anterior y posterior",
+        "Facturas de las obras"
+      ],
+      "rent_web_boxes": [],
+      "sources": [
+        {
+          "kind": "ley",
+          "title": "Ley 35/2006 del IRPF — DA 50ª.3. Rehabilitación energética de edificios",
+          "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764#da-4",
+          "article": "boe:da-4",
+          "paragraph": "3",
           "boe_id": "BOE-A-2006-20764",
           "content_hash": "084bccbe2557f9e22ee091858e96f1f5874d88882046c27e175af2cb25a9d42e",
           "checked_at": "2026-05-16"
@@ -1448,7 +1560,7 @@
     {
       "id": "es_deduccion_inversion_vivienda_habitual_transitoria_2025",
       "name": "Deducción por inversión en vivienda habitual (régimen transitorio DT 18ª)",
-      "description": "Régimen transitorio para contribuyentes que adquirieron su vivienda habitual antes del 1-1-2013 y venían aplicando la deducción. Porcentajes y bases del régimen anterior; reglas de prórroga y cuentas vivienda: revisión manual.",
+      "description": "Régimen transitorio del art. 68.1 LIRPF según redacción 31-12-2012 (DT 18ª): 15% sobre las cantidades satisfechas en el ejercicio por adquisición o rehabilitación de la vivienda habitual, con base máxima anual de 9.040 € (cap del importe deducible: 1.356 €). Se aplica únicamente a contribuyentes que adquirieron la vivienda antes del 1-1-2013 y la habían venido aplicando. Casos especiales del régimen anterior (cuentas vivienda, discapacidad con base máxima 12.080 €, obras de adecuación) siguen requiriendo revisión por asesor sobre la fuente.",
       "tax_year": 2025,
       "scope": "estatal",
       "region": null,
@@ -1466,8 +1578,10 @@
         }
       ],
       "calculation": {
-        "type": "manual_review",
-        "base_field": "expenses.investment_habitual_dwelling"
+        "type": "percentage_with_cap",
+        "base_field": "expenses.investment_habitual_dwelling",
+        "percentage": 0.15,
+        "cap": 1356.0
       },
       "limit": null,
       "taxable_base_limits": {},

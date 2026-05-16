@@ -555,6 +555,251 @@ def test_qw6_rule_status_literal_includes_requires_manual_calculation():
 
 
 # --------------------------------------------------------------------------
+# QW7: convertir tres deducciones de manual_review a cálculo real.
+#   - Donativos Ley 49/2002 (art. 19 LF + 68.3 LIRPF): escala 80/40 (45 con
+#     fidelización) con cap dinámico 10 % base liquidable.
+#   - DT 18ª inversión vivienda habitual: 15 % sobre cantidades satisfechas
+#     con base máxima 9.040 € / año.
+#   - DA 50ª eficiencia energética: dividida en tres entradas con
+#     discriminador `personal.energy_works_type` y cap por base máxima
+#     (5.000/7.500/5.000 €).
+# Los tests anclan los importes que un asesor debería poder reproducir con
+# Manual Práctico Renta 2024 al lado.
+# --------------------------------------------------------------------------
+
+
+def _donations_profile(amount: float, base_liquidable: float | None = None,
+                       fidelity: bool = False) -> TaxProfile:
+    profile_dict: dict[str, object] = {
+        "tax_year": 2024,
+        "region": "Madrid",
+        "expenses": {"donations_general": amount},
+        "documents": ["Certificado de la entidad donataria"],
+    }
+    if base_liquidable is not None:
+        profile_dict["income"] = {"base_liquidable": base_liquidable}
+    if fidelity:
+        profile_dict["personal"] = {"donations_fidelity_to_same_entity": True}
+    return TaxProfile.from_dict(profile_dict)
+
+
+def _donativos_2024() -> Deduction:
+    return next(
+        d for d in load_deductions() if d.id == "es_deduccion_donativos_general_2024"
+    )
+
+
+def test_qw7_donativos_below_250_eur_at_80pct():
+    """100 € donados, BL 30.000 €: 100 € × 80 % = 80 €. Tier 2 no activa."""
+    result = evaluate_deduction(_donativos_2024(),
+                                _donations_profile(100, base_liquidable=30_000))
+    assert result.status == "applies"
+    assert result.estimated_amount == 80.0
+
+
+def test_qw7_donativos_exactly_250_eur_at_80pct():
+    """250 € donados: 250 × 80 % = 200 € (umbral exacto sin desbordamiento)."""
+    result = evaluate_deduction(_donativos_2024(),
+                                _donations_profile(250, base_liquidable=30_000))
+    assert result.status == "applies"
+    assert result.estimated_amount == 200.0
+
+
+def test_qw7_donativos_crossing_250_applies_both_tiers():
+    """500 € donados: 250×80 % + 250×40 % = 200 + 100 = 300 € (sin fidelización)."""
+    result = evaluate_deduction(_donativos_2024(),
+                                _donations_profile(500, base_liquidable=30_000))
+    assert result.status == "applies"
+    assert result.estimated_amount == 300.0
+
+
+def test_qw7_donativos_fidelity_boosts_second_tier_to_45pct():
+    """500 € donados con fidelización: 250×80 % + 250×45 % = 200 + 112.50 = 312.50 €."""
+    result = evaluate_deduction(_donativos_2024(),
+                                _donations_profile(500, base_liquidable=30_000,
+                                                   fidelity=True))
+    assert result.status == "applies"
+    assert result.estimated_amount == 312.5
+
+
+def test_qw7_donativos_cap_10pct_base_liquidable_kicks_in():
+    """10.000 € donados con BL 20.000 €: bruto = 200 + 9.750×40 % = 4.100;
+    cap 10 % BL = 2.000 €. Sale 2.000 €, no 4.100 €. Sin este cap dinámico
+    el motor sobreestimaría a un asesor real."""
+    result = evaluate_deduction(_donativos_2024(),
+                                _donations_profile(10_000, base_liquidable=20_000))
+    assert result.status == "applies"
+    assert result.estimated_amount == 2_000.0
+
+
+def test_qw7_donativos_without_base_liquidable_blocks_with_missing_data():
+    """Sin `income.base_liquidable` el motor no puede aplicar el cap y por
+    tanto no debe inventar un importe: marca `missing_data`. Es la rama
+    que protege al asesor de un demo que sobreestima en silencio."""
+    result = evaluate_deduction(_donativos_2024(), _donations_profile(500))
+    assert result.status == "missing_data"
+    assert "income.base_liquidable" in result.missing_fields
+
+
+def test_qw7_donativos_corpus_2025_mirrors_2024_calculation():
+    """El clon 2025 debe llevar la misma fórmula tiered_progressive que
+    2024 (la Ley 49/2002 no cambió entre ejercicios). Detecta regresión
+    si alguien actualiza 2024 pero olvida sincronizar 2025."""
+    pair = {
+        d.id: d for d in load_deductions()
+        if d.id.startswith("es_deduccion_donativos_general_")
+    }
+    a, b = pair["es_deduccion_donativos_general_2024"], pair["es_deduccion_donativos_general_2025"]
+    assert a.calculation.type == b.calculation.type == "tiered_progressive"
+    assert [(t.up_to, t.percentage, t.alternate_percentage) for t in a.calculation.tiers] == \
+           [(t.up_to, t.percentage, t.alternate_percentage) for t in b.calculation.tiers]
+    assert a.calculation.cap_field == b.calculation.cap_field == "income.base_liquidable"
+    assert a.calculation.cap_percentage == b.calculation.cap_percentage == 0.10
+
+
+# ---- DT 18ª inversión vivienda habitual ----
+
+def _dt18_profile(amount: float) -> TaxProfile:
+    return TaxProfile.from_dict({
+        "tax_year": 2024,
+        "region": "Madrid",
+        "personal": {"dwelling_acquired_before_2013": True},
+        "expenses": {"investment_habitual_dwelling": amount},
+        "documents": [
+            "Escritura de adquisición anterior a 2013",
+            "Justificantes de las cantidades satisfechas en el ejercicio",
+        ],
+    })
+
+
+def _dt18_2024() -> Deduction:
+    return next(
+        d for d in load_deductions()
+        if d.id == "es_deduccion_inversion_vivienda_habitual_transitoria_2024"
+    )
+
+
+def test_qw7_dt18_below_max_base():
+    """5.000 € invertidos: 5.000 × 15 % = 750 €."""
+    result = evaluate_deduction(_dt18_2024(), _dt18_profile(5_000))
+    assert result.status == "applies"
+    assert result.estimated_amount == 750.0
+
+
+def test_qw7_dt18_at_max_base_9040():
+    """9.040 € invertidos (base máxima): 9.040 × 15 % = 1.356 € exactos."""
+    result = evaluate_deduction(_dt18_2024(), _dt18_profile(9_040))
+    assert result.status == "applies"
+    assert result.estimated_amount == 1356.0
+
+
+def test_qw7_dt18_above_max_base_is_capped():
+    """12.000 € invertidos: cap 1.356 € (no 1.800 €). El cap es del importe
+    deducido, no de la base, y los dos rinden el mismo número aquí."""
+    result = evaluate_deduction(_dt18_2024(), _dt18_profile(12_000))
+    assert result.status == "applies"
+    assert result.estimated_amount == 1356.0
+
+
+def test_qw7_dt18_requires_dwelling_acquired_before_2013():
+    """Si `personal.dwelling_acquired_before_2013` no es True, la deducción
+    no aplica — el régimen transitorio solo cubre adquirentes pre-2013."""
+    profile_post_2013 = TaxProfile.from_dict({
+        "tax_year": 2024,
+        "region": "Madrid",
+        "personal": {"dwelling_acquired_before_2013": False},
+        "expenses": {"investment_habitual_dwelling": 5_000},
+        "documents": [
+            "Escritura de adquisición anterior a 2013",
+            "Justificantes de las cantidades satisfechas en el ejercicio",
+        ],
+    })
+    result = evaluate_deduction(_dt18_2024(), profile_post_2013)
+    assert result.status == "does_not_apply"
+
+
+# ---- DA 50ª eficiencia energética (3 tramos) ----
+
+def _energy_profile(amount: float, works_type: str) -> TaxProfile:
+    return TaxProfile.from_dict({
+        "tax_year": 2024,
+        "region": "Madrid",
+        "personal": {"energy_works_type": works_type},
+        "expenses": {"energy_efficiency_works": amount},
+        "documents": [
+            "Certificado de eficiencia energética anterior y posterior",
+            "Facturas de las obras",
+        ],
+    })
+
+
+def _energy_deduction(suffix: str) -> Deduction:
+    return next(
+        d for d in load_deductions()
+        if d.id == f"es_deduccion_eficiencia_energetica_{suffix}_2024"
+    )
+
+
+def test_qw7_energy_demand_reduction_20pct_cap_1000():
+    """Tramo .1 (DA 50ª.1): 20 % sobre base máxima 5.000 € → cap 1.000 €."""
+    assert evaluate_deduction(_energy_deduction("demanda"),
+                              _energy_profile(3_000, "demand_reduction")).estimated_amount == 600.0
+    assert evaluate_deduction(_energy_deduction("demanda"),
+                              _energy_profile(5_000, "demand_reduction")).estimated_amount == 1000.0
+    # Excede la base máxima: capeado a 1.000 €, no 1.600 €.
+    assert evaluate_deduction(_energy_deduction("demanda"),
+                              _energy_profile(8_000, "demand_reduction")).estimated_amount == 1000.0
+
+
+def test_qw7_energy_primary_consumption_40pct_cap_3000():
+    """Tramo .2 (DA 50ª.2): 40 % sobre base máxima 7.500 € → cap 3.000 €."""
+    assert evaluate_deduction(_energy_deduction("consumo_primario"),
+                              _energy_profile(5_000, "primary_consumption_reduction")).estimated_amount == 2000.0
+    assert evaluate_deduction(_energy_deduction("consumo_primario"),
+                              _energy_profile(7_500, "primary_consumption_reduction")).estimated_amount == 3000.0
+    assert evaluate_deduction(_energy_deduction("consumo_primario"),
+                              _energy_profile(10_000, "primary_consumption_reduction")).estimated_amount == 3000.0
+
+
+def test_qw7_energy_building_rehab_60pct_cap_3000():
+    """Tramo .3 (DA 50ª.3): 60 % sobre base máxima anual 5.000 € → cap
+    3.000 € por ejercicio. El arrastre plurianual hasta 15.000 € agregados
+    no lo modela el motor todavía y se anota en la descripción."""
+    assert evaluate_deduction(_energy_deduction("rehabilitacion"),
+                              _energy_profile(3_000, "building_rehab")).estimated_amount == 1800.0
+    assert evaluate_deduction(_energy_deduction("rehabilitacion"),
+                              _energy_profile(5_000, "building_rehab")).estimated_amount == 3000.0
+    assert evaluate_deduction(_energy_deduction("rehabilitacion"),
+                              _energy_profile(8_000, "building_rehab")).estimated_amount == 3000.0
+
+
+def test_qw7_energy_works_type_acts_as_discriminator():
+    """Cada uno de los tres tramos solo aplica para su tipo de obra. Un
+    perfil con `energy_works_type=demand_reduction` no debe activar el
+    tramo .2 ni el .3 (does_not_apply)."""
+    profile = _energy_profile(5_000, "demand_reduction")
+    assert evaluate_deduction(_energy_deduction("demanda"), profile).status == "applies"
+    assert evaluate_deduction(_energy_deduction("consumo_primario"), profile).status == "does_not_apply"
+    assert evaluate_deduction(_energy_deduction("rehabilitacion"), profile).status == "does_not_apply"
+
+
+def test_qw7_corpus_drops_manual_review_count_by_six():
+    """Invariante de cierre de QW7: el corpus pierde 6 entradas
+    manual_review respecto al estado pre-QW7 (3 deducciones × 2 ejercicios
+    estatales). Si esta cuenta sube de nuevo, alguien revertió un cálculo
+    a manual_review sin migrar a calculable, y debe justificarlo."""
+    manual_review = [
+        d for d in load_deductions()
+        if d.calculation.type == "manual_review" and d.scope.value == "estatal"
+    ]
+    # 2024: 9 → 6, 2025: 9 → 6. Total estatal manual_review = 12.
+    assert len(manual_review) == 12, (
+        f"manual_review estatales = {len(manual_review)}; "
+        "se esperaba 12 tras QW7 (donativos, DT 18ª y DA 50ª calculables)"
+    )
+
+
+# --------------------------------------------------------------------------
 # Sprint 1 #1: corpus IRPF 2025 estatal. Se incorpora como clon estructural
 # del corpus 2024 con vigencia trasladada a 2025, validado contra el texto
 # BOE consolidado vigente con `verify_seed.py` (ok=33 drift=0 sobre la
@@ -564,10 +809,12 @@ def test_qw6_rule_status_literal_includes_requires_manual_calculation():
 # --------------------------------------------------------------------------
 
 
-def test_corpus_2025_loads_with_32_validated_state_entries():
+def test_corpus_2025_loads_with_34_validated_state_entries():
     """El corpus 2025 debe cargar el mismo número de entradas estatales
-    que 2024 (32). Si alguien suma o elimina deducciones a uno solo de los
-    dos ejercicios, este test lo detecta."""
+    que 2024 (34 tras QW7: se sustituyó la entrada única `obras_eficiencia
+    _energetica` por 3 tramos calculables DA 50ª.1/.2/.3, +2 entradas
+    netas por año). Si alguien suma o elimina deducciones a uno solo de
+    los dos ejercicios, este test lo detecta."""
     deductions = load_deductions()
     state_2025 = [
         d for d in deductions
@@ -577,8 +824,8 @@ def test_corpus_2025_loads_with_32_validated_state_entries():
         d for d in deductions
         if d.tax_year == 2024 and d.scope.value == "estatal"
     ]
-    assert len(state_2025) == 32, (
-        f"Esperaba 32 deducciones estatales 2025; hay {len(state_2025)}"
+    assert len(state_2025) == 34, (
+        f"Esperaba 34 deducciones estatales 2025; hay {len(state_2025)}"
     )
     assert len(state_2025) == len(state_2024), (
         "El corpus 2025 debería tener el mismo número de entradas estatales "

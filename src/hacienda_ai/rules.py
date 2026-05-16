@@ -248,7 +248,67 @@ def calculate_amount(deduction: Deduction, facts: dict[str, Any]) -> float:
         amount = base * calculation.percentage
         caps = [cap for cap in [calculation.cap, deduction.limit] if cap is not None]
         return min([amount, *caps]) if caps else amount
+    if calculation.type == "tiered_progressive":
+        return _calculate_tiered_progressive(deduction, facts)
     return 0.0
+
+
+def _calculate_tiered_progressive(deduction: Deduction, facts: dict[str, Any]) -> float:
+    """Aplica una escala progresiva por tramos sobre `base_field`.
+
+    Cada tramo cubre la porción de la base entre el `up_to` anterior y el
+    suyo; se le aplica `percentage` (o `alternate_percentage` si el campo
+    declarado en `alternate_when_field` existe y es `True`). Tras sumar
+    todos los tramos, se aplica:
+
+    1. `cap` y `limit` declarados (techo absoluto), si existen.
+    2. `cap_field` + `cap_percentage` (techo dinámico relativo a un campo
+       del perfil, p. ej. 10 % de la base liquidable para donativos
+       Ley 49/2002). Si `cap_field` está pero el valor no aparece en el
+       perfil, la garantía `requirement: cap_field exists` declarada en
+       el JSON debería haber atajado antes con `missing_data`; si por la
+       razón que sea no está, devolvemos sin cap dinámico —es la rama
+       conservadora (no infraestima, no sobreestima sin evidencia).
+    """
+    calculation = deduction.calculation
+    if calculation.base_field is None or not calculation.tiers:
+        return 0.0
+    found, raw = get_path(facts, calculation.base_field)
+    if not found or not isinstance(raw, (int, float)) or isinstance(raw, bool):
+        return 0.0
+    base = float(raw)
+    if base <= 0:
+        return 0.0
+
+    amount = 0.0
+    previous_threshold = 0.0
+    for tier in calculation.tiers:
+        if tier.up_to is None:
+            tier_base = max(0.0, base - previous_threshold)
+        else:
+            tier_base = max(0.0, min(base, tier.up_to) - previous_threshold)
+            previous_threshold = tier.up_to
+        if tier_base <= 0:
+            continue
+        percentage = tier.percentage
+        if tier.alternate_when_field is not None:
+            alt_found, alt_value = get_path(facts, tier.alternate_when_field)
+            if alt_found and alt_value is True and tier.alternate_percentage is not None:
+                percentage = tier.alternate_percentage
+        amount += tier_base * percentage
+
+    fixed_caps = [c for c in [calculation.cap, deduction.limit] if c is not None]
+    if fixed_caps:
+        amount = min(amount, *fixed_caps)
+
+    if calculation.cap_field is not None and calculation.cap_percentage is not None:
+        cap_found, cap_value = get_path(facts, calculation.cap_field)
+        if cap_found and isinstance(cap_value, (int, float)) and not isinstance(
+            cap_value, bool
+        ):
+            amount = min(amount, float(cap_value) * calculation.cap_percentage)
+
+    return amount
 
 
 def get_path(data: dict[str, Any], path: str) -> tuple[bool, Any]:
