@@ -13,6 +13,11 @@ from ._common import (
     require_iso_date,
     validate_content_hash,
 )
+from .consulta_dgt import (
+    ConsultaDGT,
+    CriterioConfidence,
+    Impuesto,
+)
 from .norma import (
     Norma,
     NormaRegistry,
@@ -45,10 +50,13 @@ from .sentencia import (
 
 __all__ = [
     "Calculation",
+    "ConsultaDGT",
+    "CriterioConfidence",
     "Deduction",
     "DeductionCategory",
     "FalloSentido",
     "ForalTerritory",
+    "Impuesto",
     "Norma",
     "NormaRegistry",
     "NormaStatus",
