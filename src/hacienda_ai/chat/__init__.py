@@ -33,10 +33,10 @@ from .orchestrator import (
     RAG_DEFAULT_TOP_K,
     SAFE_FALLBACK_MESSAGE,
     ChatResult,
-    LegalContextRetriever,
     run_chat,
 )
 from .prompts import SYSTEM_PROMPT
+from .retriever import LegalContextRetriever
 from .tools import ToolRegistry, build_default_registry
 
 __all__ = [

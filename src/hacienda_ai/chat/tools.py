@@ -26,8 +26,11 @@ from ..irpf.quota import quota_to_dict
 from ..irpf.scales import TaxScale
 from ..models import Deduction, NormaRegistry, TaxProfile, ValidationError
 from ..normas import load_norma_registry
+from ..rag.grounding import build_llm_context
+from ..rag.vector import SourceType, VectorMatch, VectorQuery
 from ..rules import evaluate_deductions
 from ..safety import verify_citations
+from .retriever import LegalContextRetriever
 
 ToolHandler = Callable[[dict[str, Any]], dict[str, Any]]
 
@@ -263,6 +266,198 @@ def _make_verify_citation(
     return handler
 
 
+def _citation_hint(match: VectorMatch) -> str:
+    """Genera la cita pinpoint sugerida para que el LLM la copie verbatim.
+
+    Cada familia de fuente tiene su formato canónico distinto:
+
+    - Norma: `art. 19.2.e) (BOE-A-2006-20764)`
+    - Sentencia: `STS ECLI:ES:TS:2024:1234`
+    - Consulta DGT: `Consulta DGT V0123-24 (30/01/2024)`
+    - Resolución TEAC: `TEAC 00/12345/2023`
+    - Manual AEAT: `Manual AEAT manual_irpf 2024`
+
+    Vivir aquí —y no en `context_builder.py`— mantiene la responsabilidad
+    en la capa que lo expone al LLM como tool result; el grounding sigue
+    siendo agnóstico del formato de cita textual.
+    """
+    meta = match.chunk.metadata
+    st = match.chunk.source_type
+    if st == SourceType.NORMA:
+        boe_id = meta.get("boe_id")
+        articulo = meta.get("articulo")
+        apartado = meta.get("apartado")
+        pin = ""
+        if articulo:
+            pin = str(articulo)
+            if apartado:
+                pin = f"{pin}.{apartado}" if pin and not pin.endswith(".") else f"{pin}{apartado}"
+        if boe_id and pin:
+            return f"{pin} ({boe_id})"
+        if boe_id:
+            return str(boe_id)
+        return pin
+    if st == SourceType.SENTENCIA:
+        ecli = meta.get("ecli")
+        tribunal = meta.get("tribunal_codigo")
+        if ecli and tribunal:
+            return f"{tribunal} {ecli}"
+        return str(ecli or tribunal or "")
+    if st == SourceType.CONSULTA_DGT:
+        numero = meta.get("numero")
+        fecha = meta.get("fecha")
+        if numero and fecha:
+            return f"Consulta DGT {numero} ({fecha})"
+        if numero:
+            return f"Consulta DGT {numero}"
+        return "Consulta DGT"
+    if st == SourceType.RESOLUCION_TEAC:
+        numero = meta.get("numero")
+        organo = meta.get("organo")
+        if numero and organo:
+            return f"{str(organo).upper()} {numero}"
+        return str(numero or organo or "")
+    if st == SourceType.MANUAL:
+        fuente = meta.get("fuente")
+        ejercicio = meta.get("ejercicio")
+        if fuente and ejercicio:
+            return f"Manual AEAT {fuente} {ejercicio}"
+        if fuente:
+            return f"Manual AEAT {fuente}"
+        return "Manual AEAT"
+    return ""
+
+
+_RETRIEVE_MIN_TOP_K = 1
+_RETRIEVE_MAX_TOP_K = 25
+_RETRIEVE_DEFAULT_TOP_K = 6
+_SOURCE_TYPE_VALUES = tuple(st.value for st in SourceType)
+
+
+def _make_retrieve_legal_context(retriever: LegalContextRetriever) -> ToolHandler:
+    def handler(args: dict[str, Any]) -> dict[str, Any]:
+        query_text = args.get("query")
+        if not isinstance(query_text, str) or not query_text.strip():
+            return {"error": "'query' (string no vacía) es obligatorio"}
+
+        impuesto = args.get("impuesto")
+        if impuesto is not None and (
+            not isinstance(impuesto, str) or not impuesto.strip()
+        ):
+            return {"error": "'impuesto' debe ser string no vacío o estar ausente"}
+        impuesto_eff: str | None = impuesto.strip().lower() if impuesto else None
+
+        devengo_raw = args.get("devengo_date")
+        devengo: date | None = None
+        if devengo_raw is not None:
+            if not isinstance(devengo_raw, str) or not devengo_raw:
+                return {
+                    "error": "'devengo_date' debe ser string ISO 8601 (YYYY-MM-DD)"
+                }
+            try:
+                devengo = date.fromisoformat(devengo_raw)
+            except ValueError:
+                return {
+                    "error": "'devengo_date' inválida; usa formato ISO 8601 (YYYY-MM-DD)"
+                }
+
+        source_types_raw = args.get("source_types")
+        source_types: tuple[SourceType, ...] | None = None
+        if source_types_raw is not None:
+            if not isinstance(source_types_raw, list) or not source_types_raw:
+                return {
+                    "error": (
+                        "'source_types' debe ser una lista no vacía con valores en "
+                        f"{list(_SOURCE_TYPE_VALUES)}"
+                    )
+                }
+            collected: list[SourceType] = []
+            for raw in source_types_raw:
+                if not isinstance(raw, str) or raw not in _SOURCE_TYPE_VALUES:
+                    return {
+                        "error": (
+                            f"'source_types' contiene un valor inválido: {raw!r}. "
+                            f"Permitidos: {list(_SOURCE_TYPE_VALUES)}"
+                        )
+                    }
+                collected.append(SourceType(raw))
+            source_types = tuple(collected)
+
+        top_k_raw = args.get("top_k", _RETRIEVE_DEFAULT_TOP_K)
+        if (
+            not isinstance(top_k_raw, int)
+            or isinstance(top_k_raw, bool)
+            or top_k_raw < _RETRIEVE_MIN_TOP_K
+            or top_k_raw > _RETRIEVE_MAX_TOP_K
+        ):
+            return {
+                "error": (
+                    f"'top_k' debe ser entero entre {_RETRIEVE_MIN_TOP_K} y "
+                    f"{_RETRIEVE_MAX_TOP_K}"
+                )
+            }
+
+        query = VectorQuery(
+            text=query_text.strip(),
+            top_k=top_k_raw,
+            source_types=source_types,
+            impuesto=impuesto_eff,
+            fecha_devengo=devengo,
+            min_score=0.0,
+        )
+        try:
+            matches = retriever.search(query)
+        except Exception as exc:  # noqa: BLE001 — superficie hacia el LLM
+            return {"error": f"Fallo del retriever: {exc}"}
+
+        if not matches:
+            return {
+                "count": 0,
+                "sources": [],
+                "rendered_context": "",
+                "filters": {
+                    "impuesto": impuesto_eff,
+                    "devengo_date": devengo.isoformat() if devengo else None,
+                    "source_types": (
+                        [st.value for st in source_types] if source_types else None
+                    ),
+                    "top_k": top_k_raw,
+                },
+            }
+
+        context = build_llm_context(matches, max_sources=top_k_raw)
+        sources_payload: list[dict[str, Any]] = []
+        for source, match in zip(context.sources, matches, strict=False):
+            sources_payload.append(
+                {
+                    "index": source.index,
+                    "chunk_id": source.chunk_id,
+                    "source_type": source.source_type.value,
+                    "header": source.header,
+                    "metadata_lines": list(source.metadata_lines),
+                    "body": source.body,
+                    "rendered": source.render(),
+                    "score": match.score,
+                    "citation_hint": _citation_hint(match),
+                }
+            )
+        return {
+            "count": len(sources_payload),
+            "sources": sources_payload,
+            "rendered_context": context.rendered,
+            "filters": {
+                "impuesto": impuesto_eff,
+                "devengo_date": devengo.isoformat() if devengo else None,
+                "source_types": (
+                    [st.value for st in source_types] if source_types else None
+                ),
+                "top_k": top_k_raw,
+            },
+        }
+
+    return handler
+
+
 # ---------- Builder ----------
 
 
@@ -283,8 +478,17 @@ def build_default_registry(
     deductions: list[Deduction] | None = None,
     registry: NormaRegistry | None = None,
     scales: list[TaxScale] | None = None,
+    retriever: LegalContextRetriever | None = None,
 ) -> ToolRegistry:
-    """Construye el set de tools por defecto, cargando del disco si no se inyectan."""
+    """Construye el set de tools por defecto, cargando del disco si no se inyectan.
+
+    Si se pasa `retriever`, se añade la tool `retrieve_legal_context`
+    sobre las cinco deterministas: el LLM podrá pedir contexto RAG
+    reactivo (con `[FUENTE N]` y `citation_hint`) durante el loop,
+    complementando el pre-fetch que hace `run_chat` antes del primer
+    turno. Sin retriever, la registry queda como hasta Fase 0 (cinco
+    tools puramente locales sobre corpus + registry + escalas).
+    """
     deductions = deductions if deductions is not None else load_deductions()
     registry = registry if registry is not None else load_norma_registry()
     scales = scales if scales is not None else load_tax_scales()
@@ -401,6 +605,88 @@ def build_default_registry(
             handler=_make_verify_citation(deductions, registry, scales),
         )
     )
+    if retriever is not None:
+        reg.register(
+            Tool(
+                name="retrieve_legal_context",
+                description=(
+                    "Busca semánticamente en el corpus auditable (normativa BOE "
+                    "consolidada, consultas DGT vinculantes, resoluciones TEAC, "
+                    "jurisprudencia TS/AN/TSJ, manuales AEAT) y devuelve hasta "
+                    "`top_k` FUENTES con sus pinpoints. ÚSALA SIEMPRE que vayas "
+                    "a afirmar algo legal cuyo texto exacto no figura ya en el "
+                    "contexto: no debes citar normativa, consultas ni "
+                    "jurisprudencia sin haberlas recuperado antes con esta tool. "
+                    "Cada FUENTE incluye `citation_hint` con la cita pinpoint "
+                    "lista para copiar verbatim al cerrar la respuesta."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": (
+                                "Consulta libre en español. Reformúlala para "
+                                "optimizar el retrieval: añade términos legales "
+                                "clave (ej. 'gastos defensa jurídica trabajo "
+                                "rendimientos netos IRPF art 19') en lugar del "
+                                "lenguaje coloquial del usuario."
+                            ),
+                        },
+                        "impuesto": {
+                            "type": "string",
+                            "enum": [
+                                "irpf",
+                                "iva",
+                                "is",
+                                "irnr",
+                                "isd",
+                                "itp",
+                                "ip",
+                            ],
+                            "description": (
+                                "Filtra por figura tributaria. Omítelo si la "
+                                "pregunta es transversal."
+                            ),
+                        },
+                        "devengo_date": {
+                            "type": "string",
+                            "description": (
+                                "Fecha ISO 8601 (YYYY-MM-DD) del hecho "
+                                "imponible. Solo se devolverán fuentes "
+                                "vigentes en esa fecha — pásala SIEMPRE que "
+                                "exista, evita citar normativa derogada."
+                            ),
+                        },
+                        "source_types": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": list(_SOURCE_TYPE_VALUES),
+                            },
+                            "description": (
+                                "Restringe a familias concretas (ej. solo "
+                                "'consulta_dgt' para doctrina vinculante). "
+                                "Omítelo para buscar en todo el corpus."
+                            ),
+                        },
+                        "top_k": {
+                            "type": "integer",
+                            "minimum": _RETRIEVE_MIN_TOP_K,
+                            "maximum": _RETRIEVE_MAX_TOP_K,
+                            "default": _RETRIEVE_DEFAULT_TOP_K,
+                            "description": (
+                                "Número máximo de fuentes a devolver "
+                                f"(entre {_RETRIEVE_MIN_TOP_K} y "
+                                f"{_RETRIEVE_MAX_TOP_K})."
+                            ),
+                        },
+                    },
+                    "required": ["query"],
+                },
+                handler=_make_retrieve_legal_context(retriever),
+            )
+        )
     return reg
 
 

@@ -9,6 +9,7 @@ loop del orquestador).
 from __future__ import annotations
 
 import json
+from datetime import date
 
 import pytest
 
@@ -16,6 +17,12 @@ from hacienda_ai.chat.tools import build_default_registry, serialize_tool_result
 from hacienda_ai.deductions import load_deductions
 from hacienda_ai.irpf import load_tax_scales
 from hacienda_ai.normas import load_norma_registry
+from hacienda_ai.rag.vector import (
+    EmbeddedChunk,
+    SourceType,
+    VectorMatch,
+    VectorQuery,
+)
 
 
 @pytest.fixture(scope="module")
@@ -159,3 +166,246 @@ def test_serialize_tool_result_is_json_round_trippable(registry) -> None:
     r = registry.dispatch("get_deduction_catalog", {"tax_year": 2024})
     serialized = serialize_tool_result(r)
     assert json.loads(serialized)["count"] == r["count"]
+
+
+# ---------- retrieve_legal_context ----------
+
+
+class _RecordingRetriever:
+    """Stub retriever determinista que registra las queries que recibe."""
+
+    def __init__(self, matches: list[VectorMatch]) -> None:
+        self._matches = list(matches)
+        self.calls: list[VectorQuery] = []
+
+    def search(self, query: VectorQuery) -> list[VectorMatch]:
+        self.calls.append(query)
+        return list(self._matches)
+
+
+def _norma_match(
+    chunk_id: str = "norma::BOE-A-2006-20764::art-19",
+    boe_id: str = "BOE-A-2006-20764",
+    articulo: str = "art. 19",
+    apartado: str | None = "2.e)",
+    impuesto: str = "irpf",
+    score: float = 0.91,
+) -> VectorMatch:
+    metadata = {
+        "boe_id": boe_id,
+        "articulo": articulo,
+        "impuesto": impuesto,
+        "effective_from": "2015-01-01",
+    }
+    if apartado is not None:
+        metadata["apartado"] = apartado
+    chunk = EmbeddedChunk(
+        chunk_id=chunk_id,
+        source_type=SourceType.NORMA,
+        text=(
+            "Articulo 19. Rendimientos netos del trabajo. Gastos de defensa "
+            "juridica deducibles con limite 300 €."
+        ),
+        embedding=(0.0,),
+        embedding_model="stub",
+        metadata=metadata,
+    )
+    return VectorMatch(chunk=chunk, score=score)
+
+
+def _dgt_match(
+    chunk_id: str = "consulta_dgt::V0123-24",
+    numero: str = "V0123-24",
+    fecha: str = "2024-01-30",
+) -> VectorMatch:
+    chunk = EmbeddedChunk(
+        chunk_id=chunk_id,
+        source_type=SourceType.CONSULTA_DGT,
+        text="Criterio DGT sobre gastos de defensa jurídica…",
+        embedding=(0.0,),
+        embedding_model="stub",
+        metadata={
+            "numero": numero,
+            "fecha": fecha,
+            "impuesto": "irpf",
+        },
+    )
+    return VectorMatch(chunk=chunk, score=0.83)
+
+
+@pytest.fixture
+def rag_registry():
+    """Registry construida con un stub retriever (6 tools en lugar de 5)."""
+    corpus = load_deductions()
+    norma_registry = load_norma_registry()
+    scales = load_tax_scales()
+    retriever = _RecordingRetriever([_norma_match(), _dgt_match()])
+    reg = build_default_registry(
+        deductions=corpus,
+        registry=norma_registry,
+        scales=scales,
+        retriever=retriever,
+    )
+    return reg, retriever
+
+
+def test_retrieve_tool_is_only_registered_when_retriever_is_injected(
+    registry, rag_registry
+) -> None:
+    """Sin retriever → 5 tools. Con retriever → 6 tools (la sexta es la nueva)."""
+    base_names = {spec["name"] for spec in registry.specs}
+    assert "retrieve_legal_context" not in base_names
+    reg, _ = rag_registry
+    extended_names = {spec["name"] for spec in reg.specs}
+    assert "retrieve_legal_context" in extended_names
+    assert extended_names == base_names | {"retrieve_legal_context"}
+
+
+def test_retrieve_tool_returns_numbered_sources_with_citation_hints(
+    rag_registry,
+) -> None:
+    reg, retriever = rag_registry
+    r = reg.dispatch(
+        "retrieve_legal_context",
+        {
+            "query": "gastos defensa jurídica IRPF",
+            "impuesto": "irpf",
+            "devengo_date": "2024-12-31",
+            "top_k": 5,
+        },
+    )
+
+    # El retriever recibió un VectorQuery con los filtros traducidos.
+    assert len(retriever.calls) == 1
+    query = retriever.calls[0]
+    assert query.text == "gastos defensa jurídica IRPF"
+    assert query.impuesto == "irpf"
+    assert query.fecha_devengo == date(2024, 12, 31)
+    assert query.top_k == 5
+    assert query.source_types is None
+
+    # Payload bien formado para el LLM.
+    assert r["count"] == 2
+    assert len(r["sources"]) == 2
+    assert [s["index"] for s in r["sources"]] == [1, 2]
+    assert r["filters"]["impuesto"] == "irpf"
+    assert r["filters"]["devengo_date"] == "2024-12-31"
+    assert r["filters"]["source_types"] is None
+
+    # Cada fuente trae rendered con [FUENTE N] y un citation_hint útil.
+    norma = next(s for s in r["sources"] if s["source_type"] == "norma")
+    assert norma["rendered"].startswith("[FUENTE")
+    assert "BOE-A-2006-20764" in norma["rendered"]
+    assert norma["citation_hint"] == "art. 19.2.e) (BOE-A-2006-20764)"
+
+    dgt = next(s for s in r["sources"] if s["source_type"] == "consulta_dgt")
+    assert dgt["citation_hint"] == "Consulta DGT V0123-24 (2024-01-30)"
+
+    # `rendered_context` es la concatenación pronta para inyectar.
+    assert "[FUENTE 1]" in r["rendered_context"]
+    assert "[FUENTE 2]" in r["rendered_context"]
+
+
+def test_retrieve_tool_filters_source_types(rag_registry) -> None:
+    reg, retriever = rag_registry
+    reg.dispatch(
+        "retrieve_legal_context",
+        {
+            "query": "deducción autonómica",
+            "source_types": ["norma", "consulta_dgt"],
+        },
+    )
+    assert retriever.calls[-1].source_types == (
+        SourceType.NORMA,
+        SourceType.CONSULTA_DGT,
+    )
+
+
+def test_retrieve_tool_requires_query(rag_registry) -> None:
+    reg, _ = rag_registry
+    assert "error" in reg.dispatch("retrieve_legal_context", {})
+    assert "error" in reg.dispatch("retrieve_legal_context", {"query": "   "})
+
+
+def test_retrieve_tool_rejects_invalid_devengo_date(rag_registry) -> None:
+    reg, _ = rag_registry
+    r = reg.dispatch(
+        "retrieve_legal_context",
+        {"query": "x", "devengo_date": "31-12-2024"},
+    )
+    assert "error" in r and "devengo_date" in r["error"].lower()
+
+
+def test_retrieve_tool_rejects_unknown_source_type(rag_registry) -> None:
+    reg, _ = rag_registry
+    r = reg.dispatch(
+        "retrieve_legal_context",
+        {"query": "x", "source_types": ["norma", "circular_aeat"]},
+    )
+    assert "error" in r and "source_types" in r["error"].lower()
+
+
+def test_retrieve_tool_rejects_top_k_out_of_range(rag_registry) -> None:
+    reg, _ = rag_registry
+    assert "error" in reg.dispatch(
+        "retrieve_legal_context", {"query": "x", "top_k": 0}
+    )
+    assert "error" in reg.dispatch(
+        "retrieve_legal_context", {"query": "x", "top_k": 100}
+    )
+    assert "error" in reg.dispatch(
+        "retrieve_legal_context", {"query": "x", "top_k": "5"}
+    )
+
+
+def test_retrieve_tool_returns_empty_when_no_matches() -> None:
+    corpus = load_deductions()
+    norma_registry = load_norma_registry()
+    scales = load_tax_scales()
+    retriever = _RecordingRetriever([])
+    reg = build_default_registry(
+        deductions=corpus,
+        registry=norma_registry,
+        scales=scales,
+        retriever=retriever,
+    )
+    r = reg.dispatch("retrieve_legal_context", {"query": "pregunta esotérica"})
+    assert r == {
+        "count": 0,
+        "sources": [],
+        "rendered_context": "",
+        "filters": {
+            "impuesto": None,
+            "devengo_date": None,
+            "source_types": None,
+            "top_k": 6,
+        },
+    }
+
+
+def test_retrieve_tool_handles_retriever_exception_gracefully() -> None:
+    class _Boom:
+        def search(self, query: VectorQuery) -> list[VectorMatch]:
+            raise RuntimeError("Qdrant unreachable")
+
+    corpus = load_deductions()
+    norma_registry = load_norma_registry()
+    scales = load_tax_scales()
+    reg = build_default_registry(
+        deductions=corpus,
+        registry=norma_registry,
+        scales=scales,
+        retriever=_Boom(),
+    )
+    r = reg.dispatch("retrieve_legal_context", {"query": "x"})
+    assert "error" in r and "Qdrant unreachable" in r["error"]
+
+
+def test_retrieve_tool_payload_is_json_serializable(rag_registry) -> None:
+    reg, _ = rag_registry
+    r = reg.dispatch("retrieve_legal_context", {"query": "test"})
+    # `serialize_tool_result` es lo que el orquestador usa para mandar el
+    # tool_result de vuelta al LLM: debe sobrevivir el round-trip JSON.
+    decoded = json.loads(serialize_tool_result(r))
+    assert decoded["count"] == r["count"]
+    assert decoded["sources"][0]["index"] == 1

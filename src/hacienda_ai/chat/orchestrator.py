@@ -28,33 +28,21 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any, Protocol
+from typing import Any
 
 from ..irpf.scales import TaxScale
 from ..models import Deduction, NormaRegistry
 from ..rag.grounding import build_llm_context
-from ..rag.vector import VectorMatch, VectorQuery
+from ..rag.vector import VectorQuery
 from ..safety import CitationCheckResult, verify_citations
 from .client import LLMClient
+from .retriever import LegalContextRetriever
 from .tools import ToolRegistry, serialize_tool_result
 
 logger = logging.getLogger(__name__)
 
 MAX_ITERATIONS = 6
 RAG_DEFAULT_TOP_K = 8
-
-
-class LegalContextRetriever(Protocol):
-    """Contrato mínimo del retriever híbrido para el orquestador.
-
-    Cumplido por `rag.hybrid.HybridRetriever`. En tests se inyecta un
-    stub determinista. Mantener este Protocol aquí (y no importar
-    `HybridRetriever` directamente) desacopla la capa de chat del
-    backend de retrieval y permite stubs sin construir BM25/Qdrant/
-    embeddings reales.
-    """
-
-    def search(self, query: VectorQuery) -> list[VectorMatch]: ...
 
 
 SAFE_FALLBACK_MESSAGE = (

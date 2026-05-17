@@ -40,6 +40,7 @@ from hacienda_ai.api.pdf import render_evaluation_report_pdf
 from hacienda_ai.chat import (
     SYSTEM_PROMPT,
     AnthropicClient,
+    LegalContextRetriever,
     LLMClient,
     LLMUnavailable,
     build_default_registry,
@@ -231,6 +232,7 @@ def create_app(
     db_path: str | Path | None = None,
     *,
     llm_client: LLMClient | None = None,
+    retriever: LegalContextRetriever | None = None,
 ) -> FastAPI:
     """Construye una instancia nueva del app, útil para tests aislados.
 
@@ -244,6 +246,12 @@ def create_app(
     determinista). En producción se deja `None`: el endpoint /chat
     intentará crear un `AnthropicClient` real con la API key del
     entorno; si no está disponible, devuelve 503 con motivo.
+
+    `retriever`: si se inyecta, activa el cableado RAG en /chat. La
+    tool `retrieve_legal_context` queda disponible para el LLM y el
+    orquestador hace pre-fetch antes del primer turno. Sin retriever
+    (defecto actual), /chat sigue funcionando solo con las cinco
+    tools deterministas — no hay regresión.
     """
     app = FastAPI(
         title="HaciendaAI — Demo API",
@@ -259,7 +267,10 @@ def create_app(
     registry = load_norma_registry()
     tax_scales = load_tax_scales()
     chat_tools = build_default_registry(
-        deductions=deductions, registry=registry, scales=tax_scales
+        deductions=deductions,
+        registry=registry,
+        scales=tax_scales,
+        retriever=retriever,
     )
     last_reviewed = max(
         (d.last_reviewed_at for d in deductions if d.last_reviewed_at),
@@ -506,6 +517,7 @@ def create_app(
             corpus=deductions,
             registry=registry,
             scales=tax_scales,
+            retriever=retriever,
         )
         chat_repo.save(session_id, result.history)
 
