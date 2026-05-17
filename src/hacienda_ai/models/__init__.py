@@ -13,12 +13,27 @@ from ._common import (
     require_iso_date,
     validate_content_hash,
 )
+from .consulta_dgt import (
+    ConsultaDGT,
+    CriterioConfidence,
+    Impuesto,
+)
+from .manual_aeat import (
+    ManualChunk,
+    ManualFuente,
+)
 from .norma import (
     Norma,
     NormaRegistry,
     NormaStatus,
     SourceKind,
     VersionNorma,
+)
+from .resolucion_teac import (
+    OrganoTEA,
+    ResolucionTEAC,
+    SentidoResolucion,
+    TipoResolucion,
 )
 from .schema import (
     Calculation,
@@ -36,24 +51,43 @@ from .schema import (
     Tier,
     ValidationStatus,
 )
+from .sentencia import (
+    FalloSentido,
+    Organo,
+    RatioConfidence,
+    Sentencia,
+)
 
 __all__ = [
     "Calculation",
+    "ConsultaDGT",
+    "CriterioConfidence",
     "Deduction",
     "DeductionCategory",
+    "FalloSentido",
     "ForalTerritory",
+    "Impuesto",
+    "ManualChunk",
+    "ManualFuente",
     "Norma",
     "NormaRegistry",
     "NormaStatus",
+    "Organo",
+    "OrganoTEA",
+    "RatioConfidence",
     "Requirement",
+    "ResolucionTEAC",
     "RiskLevel",
     "RiskLiteral",
     "RuleEvaluation",
     "RuleStatus",
     "Scope",
+    "Sentencia",
+    "SentidoResolucion",
     "Source",
     "SourceKind",
     "TaxProfile",
+    "TipoResolucion",
     "Tier",
     "ValidationError",
     "ValidationStatus",

@@ -12,6 +12,12 @@ api = [
     "weasyprint>=60",
     "anthropic>=0.40",
 ]
+manuals = [
+    # PDF backend para `rag/manuals/`. pypdf es pura Python (sin
+    # dependencias C) y suficiente para texto plano. Para extracción
+    # de tablas o layouts complejos puede sustituirse por pdfplumber.
+    "pypdf>=4.0",
+]
 dev = [
     "pytest>=7.0",
     "ruff>=0.5",
@@ -21,6 +27,7 @@ dev = [
     "weasyprint>=60",
     "httpx>=0.27",
     "anthropic>=0.40",
+    "pypdf>=4.0",
 ]
 
 [tool.pytest.ini_options]

@@ -1,0 +1,19 @@
+{
+  "normas": [
+    {
+      "boe_id": "BOE-A-2006-20764",
+      "kind": "ley",
+      "title": "Ley 35/2006 IRPF",
+      "enacted_at": "2006-11-28"
+    }
+  ],
+  "versions": [
+    {
+      "norma_boe_id": "BOE-A-2006-20764",
+      "effective_from": "2007-01-01",
+      "status": "vigente",
+      "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "notes": "Redaccion original vigente desde 2007-01-01."
+    }
+  ]
+}

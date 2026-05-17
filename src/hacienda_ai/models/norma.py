@@ -39,8 +39,10 @@ class SourceKind(str, Enum):
     LEY_ORGANICA = "ley_organica"
     LEY = "ley"
     REAL_DECRETO_LEGISLATIVO = "real_decreto_legislativo"
+    REAL_DECRETO_LEY = "real_decreto_ley"
     REAL_DECRETO = "real_decreto"
     ORDEN_MINISTERIAL = "orden_ministerial"
+    RESOLUCION = "resolucion"
     DGT_VINCULANTE = "dgt_vinculante"
     TEAC = "teac"
     TS = "ts"
@@ -208,6 +210,14 @@ class NormaRegistry:
 
     def knows(self, boe_id: str) -> bool:
         return boe_id in self._normas
+
+    def all_boe_ids(self) -> tuple[str, ...]:
+        """Devuelve los `boe_id` de todas las normas registradas, ordenados.
+
+        Pensado para iteradores externos (cron de drift consolidado, dumps
+        diagnósticos) sin acceder al `_normas` interno.
+        """
+        return tuple(sorted(self._normas.keys()))
 
     @staticmethod
     def _overlap(a: VersionNorma, b: VersionNorma) -> bool:

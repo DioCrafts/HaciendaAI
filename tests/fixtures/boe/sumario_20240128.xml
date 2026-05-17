@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FIXTURE SINTETICO PARA TESTS - NO ES UN SUMARIO REAL DEL BOE -->
+<sumario>
+  <meta>
+    <pub>BOE</pub>
+    <anno>2024</anno>
+    <fecha>28/01/2024</fecha>
+    <fechaInv>20240128</fechaInv>
+  </meta>
+  <diario nbo="25">
+    <sumario_nbo id="BOE-S-2024-25">
+      <urlPdf szBytes="421000" szKBytes="411">/boe/dias/2024/01/28/pdfs/BOE-S-2024-25.pdf</urlPdf>
+    </sumario_nbo>
+    <seccion num="1" nombre="Disposiciones generales">
+      <departamento nombre="MINISTERIO DE HACIENDA Y FUNCIÓN PÚBLICA" etq="HAC">
+        <epigrafe nombre="Resolución">
+          <item id="BOE-A-2024-1500">
+            <titulo>Resolución de 22 de enero de 2024, de la Dirección General de la Agencia Estatal de Administración Tributaria, por la que se aprueba el modelo 720 de declaración informativa sobre bienes y derechos situados en el extranjero, y se establecen las condiciones y el procedimiento para su presentación.</titulo>
+            <urlPdf szBytes="102400" szKBytes="100">/boe/dias/2024/01/28/pdfs/BOE-A-2024-1500.pdf</urlPdf>
+            <urlHtm>/diario_boe/txt.php?id=BOE-A-2024-1500</urlHtm>
+            <urlXml>/diario_boe/xml.php?id=BOE-A-2024-1500</urlXml>
+          </item>
+        </epigrafe>
+      </departamento>
+    </seccion>
+  </diario>
+</sumario>

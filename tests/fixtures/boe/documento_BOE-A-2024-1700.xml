@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FIXTURE SINTETICO PARA TESTS - NO ES TEXTO LEGAL REAL -->
+<documento>
+  <metadatos>
+    <identificador>BOE-A-2024-1700</identificador>
+    <diario_numero>26</diario_numero>
+    <departamento codigo="7723">MINISTERIO DE HACIENDA Y FUNCIÓN PÚBLICA</departamento>
+    <rango codigo="1300">Orden</rango>
+    <titulo>Orden HFP/115/2024, de 25 de enero, por la que se determinan los países y territorios, así como los regímenes fiscales perjudiciales, que tienen la consideración de jurisdicciones no cooperativas.</titulo>
+    <numero_oficial>HFP/115/2024</numero_oficial>
+    <fecha_publicacion>20240130</fecha_publicacion>
+    <fecha_disposicion>20240125</fecha_disposicion>
+    <fecha_vigencia>20240131</fecha_vigencia>
+    <url_pdf szBytes="245760" szKBytes="240">/boe/dias/2024/01/30/pdfs/BOE-A-2024-1700.pdf</url_pdf>
+    <url_html>/diario_boe/txt.php?id=BOE-A-2024-1700</url_html>
+    <url_eli>https://www.boe.es/eli/es/o/2024/01/25/hfp115</url_eli>
+  </metadatos>
+  <analisis>
+    <materias>
+      <materia codigo="0570" titulo="Agencia Estatal de Administración Tributaria"/>
+      <materia codigo="2940" titulo="Impuesto sobre la Renta de no Residentes"/>
+      <materia codigo="2950" titulo="Impuesto sobre Sociedades"/>
+      <materia codigo="6310" titulo="Paraísos fiscales"/>
+    </materias>
+    <notas>
+      <nota>De conformidad con la disposición adicional primera de la Ley 36/2006, de 29 de noviembre.</nota>
+    </notas>
+    <referencias>
+      <anteriores>
+        <anterior referencia="BOE-A-2006-20882" palabra="MODIFICA">
+          <texto>la relación contenida en el Real Decreto 1080/1991, de 5 de julio.</texto>
+        </anterior>
+      </anteriores>
+      <posteriores/>
+    </referencias>
+  </analisis>
+  <texto>
+    <p class="parrafo_2">El artículo 13 de la Ley 58/2003, de 17 de diciembre, General Tributaria, establece el principio de calificación de las obligaciones tributarias atendiendo a su verdadera naturaleza jurídica. En este marco, la lucha contra el fraude fiscal internacional y la planificación fiscal agresiva exige actualizar, conforme a los estándares internacionales más recientes, la lista de jurisdicciones consideradas como no cooperativas a efectos tributarios.</p>
+    <p class="parrafo_2">La disposición adicional primera de la Ley 36/2006, de 29 de noviembre, de medidas para la prevención del fraude fiscal, en la redacción dada por la Ley 11/2021, de 9 de julio, establece que la determinación de los países y territorios que tienen la consideración de jurisdicciones no cooperativas se hará por Orden de la persona titular del Ministerio de Hacienda y Función Pública, previo informe del Ministerio de Asuntos Exteriores, Unión Europea y Cooperación.</p>
+    <p class="parrafo_2">En su virtud, previo informe del Ministerio de Asuntos Exteriores, Unión Europea y Cooperación, y de acuerdo con el Consejo de Estado, dispongo:</p>
+    <p class="articulo">Artículo único. Jurisdicciones no cooperativas.</p>
+    <p class="parrafo">1. A los efectos previstos en el apartado 2 de la disposición adicional primera de la Ley 36/2006, de 29 de noviembre, de medidas para la prevención del fraude fiscal, tendrán la consideración de jurisdicciones no cooperativas los siguientes países y territorios:</p>
+    <p class="parrafo">Anguila, Bahréin, Barbados, Bermudas, Dominica, Fiyi, Gibraltar, Guam, Guernsey, Isla de Man, Islas Caimán, Islas Malvinas, Islas Marianas, Islas Salomón, Islas Turcas y Caicos, Islas Vírgenes Británicas, Islas Vírgenes de Estados Unidos, Jersey, Palaos, Samoa, Samoa Americana, Seychelles, Trinidad y Tobago, Vanuatu.</p>
+    <p class="parrafo">2. Asimismo, tendrán la consideración de regímenes fiscales perjudiciales aquellos regímenes preferenciales que faciliten la elusión fiscal, identificados como tales por el Foro sobre Prácticas Fiscales Perjudiciales de la OCDE o por el Grupo «Código de Conducta sobre la Fiscalidad de las Empresas» de la Unión Europea, conforme al listado que se mantendrá actualizado por la Dirección General de Tributos.</p>
+    <p class="parrafo">3. La inclusión en esta relación determinará la aplicación de las medidas previstas en la normativa tributaria española respecto de las operaciones realizadas con personas o entidades residentes en dichas jurisdicciones, en particular las relativas a la documentación de operaciones vinculadas, a la presunción de residencia y a las medidas antielusión específicas.</p>
+    <p class="parrafo">4. La presente relación será objeto de actualización periódica, al menos cada dos años, atendiendo a los criterios de transparencia fiscal, existencia de intercambio efectivo de información tributaria, facilitación de la celebración o aplicación de acuerdos de intercambio de información en materia tributaria, y resultados de las evaluaciones inter pares del Foro Global sobre Transparencia e Intercambio de Información con Fines Fiscales.</p>
+    <p class="parrafo_2">Disposición derogatoria única. Derogación normativa.</p>
+    <p class="parrafo">Quedan derogadas cuantas disposiciones de igual o inferior rango se opongan a lo establecido en la presente orden, y en particular el Real Decreto 1080/1991, de 5 de julio, por el que se determinan los países o territorios a que se refieren los artículos 2.º, apartado 3, número 4, de la Ley 17/1991, de 27 de mayo, de Medidas Fiscales Urgentes, y 62 de la Ley 31/1990, de 27 de diciembre, de Presupuestos Generales del Estado para 1991, en lo que se oponga a la presente orden.</p>
+    <p class="parrafo_2">Disposición final única. Entrada en vigor.</p>
+    <p class="parrafo">La presente orden entrará en vigor el día siguiente al de su publicación en el «Boletín Oficial del Estado», sin perjuicio de los efectos que respecto de cada tributo se establecen en sus respectivas normas reguladoras.</p>
+    <p class="firma_ministro">Madrid, 25 de enero de 2024.—La Ministra de Hacienda y Función Pública, María Jesús Montero Cuadrado.</p>
+  </texto>
+</documento>
