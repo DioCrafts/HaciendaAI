@@ -1,0 +1,332 @@
+name: Corpus freshness monitor
+
+on:
+  schedule:
+    # Diario 09:30 UTC: una hora después de check-norma-drift (08:30) y
+    # dos después de ingest-boe (07:30), para auditar el estado del
+    # corpus tras la ventana de ingesta diaria. Si el cron de BOE
+    # falló en silencio, esto lo detecta dentro de las 24h.
+    - cron: "30 9 * * *"
+  workflow_dispatch:
+    inputs:
+      max_boe_age_days:
+        description: "Edad máxima (días) de la norma BOE-A más reciente."
+        required: false
+        type: string
+        default: "30"
+      max_deduction_review_age_days:
+        description: "Edad máxima (días) de la última deducción revisada."
+        required: false
+        type: string
+        default: "180"
+      max_jurisprudence_age_days:
+        description: "Edad máxima (días) del item de jurisprudencia/DGT/TEAC más reciente."
+        required: false
+        type: string
+        default: "90"
+
+permissions:
+  # Necesarios para abrir/actualizar/cerrar issues con el reporte. No
+  # commiteamos nada: el monitor es solo de lectura.
+  contents: read
+  issues: write
+  # Acceso a GitHub API para consultar runs históricos de los workflows
+  # de ingesta (segunda red de seguridad ortogonal al estado en disco).
+  actions: read
+
+concurrency:
+  group: corpus-freshness
+  cancel-in-progress: false
+
+jobs:
+  freshness:
+    name: Verificar freshness del corpus
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run corpus freshness check
+        id: check
+        # Códigos de salida (ver scripts/check_corpus_freshness.py):
+        #   0 — corpus fresco según todos los criterios aplicables.
+        #   1 — al menos un criterio falla (stale).
+        #   2 — error fatal (registro corrupto, --max-* inválido).
+        # Capturamos sin abortar para poder ramificar después.
+        run: |
+          set +e
+          MAX_BOE="${{ github.event.inputs.max_boe_age_days || '30' }}"
+          MAX_DED="${{ github.event.inputs.max_deduction_review_age_days || '180' }}"
+          MAX_JUR="${{ github.event.inputs.max_jurisprudence_age_days || '90' }}"
+          python scripts/check_corpus_freshness.py \
+            --max-boe-age-days "${MAX_BOE}" \
+            --max-deduction-review-age-days "${MAX_DED}" \
+            --max-jurisprudence-age-days "${MAX_JUR}" \
+            --report freshness-report.json
+          code=$?
+          echo "exit_code=${code}" >> "${GITHUB_OUTPUT}"
+          exit 0
+
+      - name: Surface fatal error as warning (no issue)
+        if: steps.check.outputs.exit_code == '2'
+        run: |
+          echo "::warning::check_corpus_freshness.py salió con código 2 (registro corrupto o argumentos inválidos). Investigar; el monitor no abre issue porque el estado real es desconocido."
+          exit 1
+
+      - name: Check ingest-boe workflow recency via gh API
+        # Segunda red de seguridad ortogonal a check_corpus_freshness:
+        # consulta la API de runs de GitHub para saber si ingest-boe
+        # ha ejecutado con éxito en las últimas 48h. Si el workflow ni
+        # siquiera arrancó (cron deshabilitado, runners caídos, secret
+        # faltante), check_corpus_freshness por sí solo no lo detecta —
+        # solo ve el corpus en disco, no el historial de ejecución.
+        if: steps.check.outputs.exit_code != '2'
+        id: workflow_check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          # Listamos los últimos 5 runs del workflow ingest-boe.yml.
+          # El JSON tiene `conclusion` (success/failure/cancelled) y
+          # `created_at` (ISO 8601). Buscamos el último `success`.
+          runs=$(gh api \
+            "/repos/${{ github.repository }}/actions/workflows/ingest-boe.yml/runs?per_page=5" \
+            --jq '.workflow_runs[] | select(.conclusion=="success") | .created_at' \
+            2>/dev/null)
+          if [ -z "${runs}" ]; then
+            echo "ingest_boe_status=never_ran" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          latest=$(echo "${runs}" | head -1)
+          # Convertir a epoch para comparar (BSD/GNU date difieren; usamos Python).
+          age_hours=$(python -c "
+          import sys
+          from datetime import datetime, timezone
+          dt = datetime.fromisoformat('${latest}'.replace('Z','+00:00'))
+          age = (datetime.now(timezone.utc) - dt).total_seconds() / 3600
+          print(int(age))
+          ")
+          echo "ingest_boe_latest=${latest}" >> "${GITHUB_OUTPUT}"
+          echo "ingest_boe_age_hours=${age_hours}" >> "${GITHUB_OUTPUT}"
+          # 48h = 2 días. Si el último éxito es más antiguo, hay sospecha.
+          if [ "${age_hours}" -gt 48 ]; then
+            echo "ingest_boe_status=stale" >> "${GITHUB_OUTPUT}"
+          else
+            echo "ingest_boe_status=ok" >> "${GITHUB_OUTPUT}"
+          fi
+          exit 0
+
+      - name: Render issue body
+        if: steps.check.outputs.exit_code == '1' || steps.workflow_check.outputs.ingest_boe_status != 'ok'
+        run: |
+          python - <<'PY' > freshness-body.md
+          import json, os, pathlib
+
+          # Reporte del script (puede no existir si exit_code=2; lo
+          # gestionamos arriba para que no llegue aquí).
+          report_path = pathlib.Path("freshness-report.json")
+          if report_path.exists():
+              data = json.loads(report_path.read_text())
+          else:
+              data = {"today": "?", "is_fresh": False, "checks": []}
+
+          ingest_status = os.environ.get("INGEST_BOE_STATUS", "unknown")
+          ingest_age = os.environ.get("INGEST_BOE_AGE_HOURS", "?")
+          ingest_latest = os.environ.get("INGEST_BOE_LATEST", "?")
+
+          lines = [
+              "## Corpus freshness alert",
+              "",
+              "El monitor diario `corpus-freshness.yml` ha detectado que "
+              "el corpus auditable no se está refrescando dentro de los "
+              "umbrales configurados. **El asesor sigue funcionando** "
+              "(citation_guard verifica contra el último estado conocido), "
+              "pero las respuestas pueden estar basadas en normativa "
+              "desactualizada.",
+              "",
+              f"- Fecha de ejecución: `{data['today']}`",
+              f"- Veredicto global del checker: **{'FRESH' if data.get('is_fresh') else 'STALE'}**",
+              "",
+              "## Checks de corpus en disco",
+              "",
+              "| Check | Veredicto | Edad | Umbral | Último item |",
+              "|---|---|---|---|---|",
+          ]
+          for c in data.get("checks", []):
+              if c.get("skipped"):
+                  verdict = "SKIPPED"
+                  age = "—"
+                  threshold = f"{c['max_age_days']}d"
+                  item = c.get("skip_reason", "")[:80]
+              else:
+                  verdict = "✅ OK" if c.get("is_fresh") else "❌ STALE"
+                  age = (
+                      f"{c['latest_age_days']}d"
+                      if c.get("latest_age_days") is not None
+                      else "(ninguno)"
+                  )
+                  threshold = f"{c['max_age_days']}d"
+                  item_id = c.get("latest_item_id") or "—"
+                  item_date = c.get("latest_item_date") or "—"
+                  item = f"`{item_id}` ({item_date})"
+              lines.append(
+                  f"| `{c['name']}` | {verdict} | {age} | {threshold} | {item} |"
+              )
+
+          lines.extend([
+              "",
+              "## Historial de ejecuciones del workflow `ingest-boe`",
+              "",
+          ])
+          if ingest_status == "ok":
+              lines.append(
+                  f"✅ Última ejecución exitosa hace **{ingest_age}h** "
+                  f"(`{ingest_latest}`)."
+              )
+          elif ingest_status == "stale":
+              lines.append(
+                  f"⚠ Última ejecución exitosa hace **{ingest_age}h** "
+                  f"(`{ingest_latest}`). El cron debería correr cada 24h; "
+                  "más de 48h sin éxito sugiere fallo recurrente."
+              )
+          elif ingest_status == "never_ran":
+              lines.append(
+                  "⚠ **No hay ninguna ejecución exitosa registrada** del "
+                  "workflow `ingest-boe.yml`. El cron diario no está "
+                  "produciendo runs verdes."
+              )
+          else:
+              lines.append(
+                  f"_(Estado del workflow ingest-boe no disponible: {ingest_status})_"
+              )
+
+          lines.extend([
+              "",
+              "## Cómo proceder",
+              "",
+              "1. **Si `norma_registry` está STALE**: revisar los runs "
+              "recientes de [`ingest-boe.yml`]"
+              f"({os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/workflows/ingest-boe.yml). "
+              "Buscar errores de descarga BOE, parsing, o filtro fiscal "
+              "demasiado restrictivo. Si el filtro está descartando todo, "
+              "ajustar `tax_filter.py`.",
+              "2. **Si `deductions_review` está STALE**: refrescar `last_reviewed_at` "
+              "en las deducciones tras la revisión manual del corpus. "
+              "El check pretende garantizar que la curaduría humana sigue activa.",
+              "3. **Si `jurisprudence_corpus` está STALE**: lanzar manualmente "
+              f"`ingest-cendoj.yml`, `ingest-dgt.yml`, `ingest-teac.yml` con la siguiente tanda "
+              "de ECLIs/numeros desde `docs/seeds/*.txt`.",
+              "4. **Si `ingest-boe` no ha tenido success**: comprobar permisos "
+              "del bot (necesita `contents: write` y `pull-requests: write`), "
+              "el límite mensual de runs, y los logs del último fallo.",
+              "",
+              "Cuando todos los checks vuelvan a estar OK, el cron diario "
+              "del monitor cerrará automáticamente este issue.",
+              "",
+              "---",
+              "_Reporte JSON estructurado disponible como artefacto del run._",
+          ])
+          print("\n".join(lines))
+          PY
+        env:
+          INGEST_BOE_STATUS: ${{ steps.workflow_check.outputs.ingest_boe_status }}
+          INGEST_BOE_AGE_HOURS: ${{ steps.workflow_check.outputs.ingest_boe_age_hours }}
+          INGEST_BOE_LATEST: ${{ steps.workflow_check.outputs.ingest_boe_latest }}
+
+      - name: Upload report artifact
+        if: always() && steps.check.outputs.exit_code != '2'
+        uses: actions/upload-artifact@v4
+        with:
+          name: freshness-report
+          path: |
+            freshness-report.json
+            freshness-body.md
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Ensure 'corpus-freshness' label exists
+        if: steps.check.outputs.exit_code == '1' || steps.workflow_check.outputs.ingest_boe_status != 'ok'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create corpus-freshness \
+            --color D93F0B \
+            --description "El monitor de freshness ha detectado corpus envejecido" \
+            2>/dev/null || true
+
+      - name: Open or update freshness issue
+        if: steps.check.outputs.exit_code == '1' || steps.workflow_check.outputs.ingest_boe_status != 'ok'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -e
+          now_utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          title="Corpus freshness: ingesta del corpus envejecida"
+          body=$(cat <<EOF
+          - Ejecución: ${RUN_URL}
+          - Fecha (UTC): ${now_utc}
+          - Commit auditado: \`${{ github.sha }}\`
+
+          $(cat freshness-body.md)
+          EOF
+          )
+
+          existing=$(gh issue list \
+            --label corpus-freshness \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+          if [ -z "${existing}" ]; then
+            gh issue create \
+              --title "${title}" \
+              --body "${body}" \
+              --label corpus-freshness
+          else
+            gh issue comment "${existing}" --body "Stale detectado de nuevo en ejecución [#${{ github.run_id }}](${RUN_URL}) — ${now_utc}.
+
+          $(cat freshness-body.md)"
+          fi
+
+      - name: Auto-close freshness issue when fresh again
+        # Cuando el monitor vuelve a estar OK (script exit_code=0 Y
+        # ingest-boe en plazo), cerramos cualquier issue abierto con la
+        # label corpus-freshness. Esto da feedback positivo automático:
+        # "el cron ha recuperado la cadencia, ya no hace falta seguir
+        # mirando este issue".
+        if: steps.check.outputs.exit_code == '0' && steps.workflow_check.outputs.ingest_boe_status == 'ok'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -e
+          open_issues=$(gh issue list \
+            --label corpus-freshness \
+            --state open \
+            --json number \
+            --jq '.[].number')
+          for n in ${open_issues}; do
+            gh issue comment "${n}" --body "✅ Corpus freshness recuperado en ejecución [#${{ github.run_id }}](${RUN_URL}). Cerrando issue automáticamente."
+            gh issue close "${n}"
+          done
+
+      - name: Fail job if stale
+        # El monitor "falla" deliberadamente cuando detecta stale, para
+        # que el badge del workflow se ponga rojo y sirva de señal
+        # visual además del issue. Errores fatales (exit 2) también
+        # fallan (paso previo).
+        if: steps.check.outputs.exit_code == '1' || steps.workflow_check.outputs.ingest_boe_status != 'ok'
+        run: |
+          echo "::error::Corpus freshness STALE. Ver issue abierto con la label 'corpus-freshness'."
+          exit 1
