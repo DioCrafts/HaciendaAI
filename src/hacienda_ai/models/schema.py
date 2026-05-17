@@ -72,6 +72,7 @@ RuleStatus = Literal[
     "missing_evidence",
     "pending_validation",
     "requires_manual_calculation",
+    "requires_user_choice",
 ]
 
 

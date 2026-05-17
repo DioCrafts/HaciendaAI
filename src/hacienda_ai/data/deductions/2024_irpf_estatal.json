@@ -1236,7 +1236,7 @@
       "calculation": {"type": "manual_review", "base_field": "expenses.rent_habitual_dwelling"},
       "limit": null,
       "taxable_base_limits": {"base_imponible_max_eur": 24107.20},
-      "incompatibilities": [],
+      "incompatibilities": ["es_deduccion_inversion_vivienda_habitual_transitoria_2024"],
       "required_documents": ["Contrato de arrendamiento anterior a 2015", "Recibos de alquiler"],
       "rent_web_boxes": [],
       "sources": [
@@ -1277,7 +1277,7 @@
       },
       "limit": null,
       "taxable_base_limits": {},
-      "incompatibilities": [],
+      "incompatibilities": ["es_deduccion_alquiler_vivienda_habitual_transitoria_2024"],
       "required_documents": [
         "Escritura de adquisición anterior a 2013",
         "Justificantes de las cantidades satisfechas en el ejercicio"

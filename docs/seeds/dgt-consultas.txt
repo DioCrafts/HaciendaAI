@@ -1,0 +1,154 @@
+# =============================================================================
+#  DGT — Consultas vinculantes
+# =============================================================================
+#
+#  Cada línea no comentada es un número de consulta a ingerir vía
+#  ingest-dgt.yml. Formato: V<NNNN>-<AA> (p.ej. V1234-24 = consulta nº 1234
+#  resuelta en 2024).
+#
+#  IMPORTANTE: Los números de consulta se localizan en Petete:
+#     https://petete.tributos.hacienda.gob.es/consultas/
+#  Antes de activar una línea, VERIFICA el número en Petete. Los temas
+#  marcados como "BÚSQUEDA SUGERIDA" describen el supuesto a buscar; el
+#  operador localiza el número exacto y lo añade descomentado.
+#
+#  Recordatorio doctrinal (art. 89 LGT): las consultas vinculantes obligan
+#  a la AEAT para el consultante y para terceros en supuestos idénticos,
+#  pero NO vinculan a los tribunales. El LLM debe distinguir al citar.
+# =============================================================================
+
+
+# =============================================================================
+#  REFERENCIAS VERIFICADAS — LISTAS PARA DISPATCH
+# =============================================================================
+#  Cada número activo ha sido verificado el 2026-05-17 contra fuente
+#  pública (Petete devolvió 503 puntualmente; cada referencia se respalda
+#  con la URL de Petete + una segunda fuente que cita el número exacto).
+#
+#  Antes del primer dispatch:
+#    - Confirmar que HttpDgtClient resuelve Petete (puede estar caído).
+#    - Probar con UNA consulta en dry-run para validar el parser.
+# =============================================================================
+
+# V0089-20 — Teletrabajo (asalariado): la LIRPF NO permite al trabajador
+# por cuenta ajena deducir gastos de suministros ni alquiler. Criterio
+# vigente para teletrabajo COVID y post-COVID en ausencia de reforma.
+# https://petete.tributos.hacienda.gob.es/consultas/?num_consulta=V0089-20
+V0089-20
+
+# V0009-24, de 12 feb 2024 — Régimen impatriados (art. 93 LIRPF, "Ley
+# Beckham"): cese voluntario seguido de cargo de administrador en sociedad
+# propia no implica exclusión si el periodo de inactividad es breve.
+# https://www.iberley.es/resoluciones/resolucion-vinculante-direccion-general-tributos-v0009-24-12-02-2024-11652117
+V0009-24
+
+# V1336-24, de 7 jun 2024 — Mínimo por descendientes en custodia compartida:
+# prorrateo entre cónyuges; incompatibilidad con especialidades de arts.
+# 64 y 75 LIRPF cuando se satisfacen alimentos por decisión judicial.
+# https://petete.tributos.hacienda.gob.es/consultas/?num_consulta=V1336-24
+V1336-24
+
+# V2567-24, de 11 dic 2024 — Servicios de gestión de alquileres turísticos:
+# intermediación SUJETA Y NO EXENTA de IVA al 21%.
+# https://www.e-consulting.org/comunicacion/sala-de-prensa/la-tributacion-de-los-servicios-de-gestion-de-alquiler-turistico-esta-sujeta-al-iva-del-21-descubre-sus-implicaciones-fiscales-y-legales
+V2567-24
+
+
+# =============================================================================
+#  BÚSQUEDAS PENDIENTES — el operador localiza el número exacto antes de activar
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# IRPF — RENDIMIENTOS DEL TRABAJO
+# -----------------------------------------------------------------------------
+# BÚSQUEDA: "retribuciones en especie + vehículo de empresa + uso particular"
+# BÚSQUEDA: "indemnización por despido + exención + art. 7.e LIRPF"
+# BÚSQUEDA: "rendimientos del trabajo + dietas + exceso sobre límite reglamentario"
+# BÚSQUEDA: "stock options + opciones sobre acciones + reducción 30%"
+# BÚSQUEDA: "trabajadores desplazados + régimen impatriados + Ley Beckham + 2024"
+# BÚSQUEDA: "teletrabajo + gastos deducibles + suministros + porcentaje"
+
+
+# -----------------------------------------------------------------------------
+# IRPF — ACTIVIDADES ECONÓMICAS Y AUTÓNOMOS
+# -----------------------------------------------------------------------------
+# BÚSQUEDA: "autónomo + módulos + estimación objetiva + 2024"
+# BÚSQUEDA: "actividad económica + afectación elementos patrimoniales + vehículo"
+# BÚSQUEDA: "autónomo + cuotas de autónomo deducibles + colegiado"
+# BÚSQUEDA: "actividad económica + amortización + libertad para nuevos"
+# BÚSQUEDA: "actividad económica + obras en local arrendado + amortización"
+
+
+# -----------------------------------------------------------------------------
+# IRPF — GANANCIAS Y PÉRDIDAS PATRIMONIALES
+# -----------------------------------------------------------------------------
+# BÚSQUEDA: "transmisión vivienda habitual + exención mayores 65 años"
+# BÚSQUEDA: "reinversión vivienda habitual + plazo + cómputo"
+# BÚSQUEDA: "ganancia patrimonial + donación + valor de mercado + ajuar"
+# BÚSQUEDA: "ganancia patrimonial + criptomonedas + transmisión + año 2024"
+# BÚSQUEDA: "ganancia patrimonial + cesión derechos imagen + deportistas"
+
+
+# -----------------------------------------------------------------------------
+# IRPF — DEDUCCIONES Y MÍNIMOS
+# -----------------------------------------------------------------------------
+# BÚSQUEDA: "mínimo por descendientes + custodia compartida + guardia y custodia"
+# BÚSQUEDA: "deducción maternidad + gastos guardería + límite 2024"
+# BÚSQUEDA: "deducción por inversión en empresa de nueva creación + requisitos"
+# BÚSQUEDA: "donaciones a entidades sin ánimo de lucro + Ley 49/2002 + porcentaje"
+
+
+# -----------------------------------------------------------------------------
+# IVA — OPERACIONES INTERIORES Y EXENCIONES
+# -----------------------------------------------------------------------------
+# BÚSQUEDA: "tipo reducido + alimentos + 2023-2024 + RDL ayudas inflación"
+# BÚSQUEDA: "exención + arrendamiento vivienda + uso turístico"
+# BÚSQUEDA: "exención + servicios sanitarios + odontólogos + reposiciones dentales"
+# BÚSQUEDA: "exención + servicios educativos + actividades extraescolares"
+
+
+# -----------------------------------------------------------------------------
+# IVA — OPERACIONES TRANSFRONTERIZAS
+# -----------------------------------------------------------------------------
+# BÚSQUEDA: "operaciones intracomunitarias + ROI + alta + obligaciones"
+# BÚSQUEDA: "ventas a distancia intracomunitarias + OSS + umbral"
+# BÚSQUEDA: "prestación servicios + regla general + B2B + intracomunitario"
+# BÚSQUEDA: "prestación servicios electrónicos + B2C + lugar de realización"
+# BÚSQUEDA: "exportaciones + prueba del transporte + DUA + EUR.1"
+
+
+# -----------------------------------------------------------------------------
+# IVA — DEDUCCIÓN Y PRORRATA
+# -----------------------------------------------------------------------------
+# BÚSQUEDA: "prorrata general + sectores diferenciados + cómputo"
+# BÚSQUEDA: "bienes de inversión + regularización + cambio de afectación"
+
+
+# -----------------------------------------------------------------------------
+# IS — OPERACIONES VINCULADAS Y PRECIOS DE TRANSFERENCIA
+# -----------------------------------------------------------------------------
+# BÚSQUEDA: "operaciones vinculadas + art. 18 LIS + documentación + grupo PYME"
+# BÚSQUEDA: "documentación operaciones vinculadas + país por país + umbral 750M"
+
+
+# -----------------------------------------------------------------------------
+# IS — RÉGIMEN GENERAL
+# -----------------------------------------------------------------------------
+# BÚSQUEDA: "BINs + compensación + límite 70% + entidades grandes 2024"
+# BÚSQUEDA: "amortización + libertad amortización + empresa reducida dimensión"
+# BÚSQUEDA: "gasto deducible + retribución administradores + estatutos sociales"
+
+
+# -----------------------------------------------------------------------------
+# ISD — IMPUESTO SOBRE SUCESIONES Y DONACIONES
+# -----------------------------------------------------------------------------
+# BÚSQUEDA: "reducción empresa familiar + art. 20.2.c LISD + requisitos"
+# BÚSQUEDA: "donaciones + cuenta corriente + parentesco + acreditación"
+
+
+# -----------------------------------------------------------------------------
+# RETENCIONES E INGRESOS A CUENTA
+# -----------------------------------------------------------------------------
+# BÚSQUEDA: "retención + arrendamiento inmuebles urbanos + obligación"
+# BÚSQUEDA: "retención + rendimientos profesionales + tipo aplicable"

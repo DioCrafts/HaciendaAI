@@ -37,17 +37,27 @@ on:
           - teac
           - manuales
 
-  # Job programado opcional: si el corpus en `data/` cambia, podemos
-  # programar reindexación. Por defecto no se ejecuta — debe activarse
-  # solo si el operador ya tiene Qdrant + VOYAGE_API_KEY configurados.
-  # schedule:
-  #   - cron: "0 4 * * 1"  # lunes 04:00 UTC
+  # Reindexa cuando se mergea un PR de ingesta (cualquier cambio en
+  # data/). Solo dispara reindex completo si la rama destino es main.
+  push:
+    branches: [main]
+    paths:
+      - "src/hacienda_ai/data/**"
+
+  # Cron semanal de respaldo (lunes 04:00 UTC). Por defecto corre con
+  # provider=hash + store=memory para no incurrir en coste sin secrets.
+  # Cuando VOYAGE_API_KEY y QDRANT_URL estén configurados como secrets
+  # del repo, editar el step "Resolve config" para promover a voyage+qdrant.
+  schedule:
+    - cron: "0 4 * * 1"
 
 permissions:
   contents: read
 
 concurrency:
-  group: index-vector-store-${{ github.event.inputs.collection }}
+  # Si llegan varios pushes a main muy seguidos (p.ej. dos PRs de ingesta),
+  # serializamos sobre la colección para evitar dos upserts concurrentes.
+  group: index-vector-store-${{ github.event.inputs.collection || 'hacienda_corpus_v1' }}
   cancel-in-progress: false
 
 jobs:
@@ -69,13 +79,40 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
 
-      - name: Validate config
+      - name: Resolve config
+        # workflow_dispatch trae inputs del operador; push/schedule no, así
+        # que aplicamos defaults seguros (hash + memory + all). Cuando se
+        # configuren los secrets VOYAGE_API_KEY/QDRANT_URL, basta con
+        # cambiar PROVIDER_DEFAULT/STORE_DEFAULT abajo para promover el
+        # pipeline automático a producción sin tocar workflow_dispatch.
+        id: cfg
         run: |
-          if [ "${{ github.event.inputs.provider }}" = "voyage" ] && [ -z "${{ secrets.VOYAGE_API_KEY }}" ]; then
+          PROVIDER_DEFAULT=hash
+          STORE_DEFAULT=memory
+          PROVIDER="${{ github.event.inputs.provider }}"
+          STORE="${{ github.event.inputs.store }}"
+          COLLECTION="${{ github.event.inputs.collection }}"
+          ONLY="${{ github.event.inputs.only }}"
+          : "${PROVIDER:=$PROVIDER_DEFAULT}"
+          : "${STORE:=$STORE_DEFAULT}"
+          : "${COLLECTION:=hacienda_corpus_v1}"
+          : "${ONLY:=all}"
+          echo "provider=${PROVIDER}" >> "${GITHUB_OUTPUT}"
+          echo "store=${STORE}" >> "${GITHUB_OUTPUT}"
+          echo "collection=${COLLECTION}" >> "${GITHUB_OUTPUT}"
+          echo "only=${ONLY}" >> "${GITHUB_OUTPUT}"
+          echo "event=${{ github.event_name }} provider=${PROVIDER} store=${STORE} only=${ONLY}"
+
+      - name: Validate config
+        # Solo bloqueamos si el operador pidió voyage/qdrant SIN secrets.
+        # Los runs automáticos (push/schedule) usan hash+memory por defecto
+        # y no necesitan secrets, así que pasan siempre.
+        run: |
+          if [ "${{ steps.cfg.outputs.provider }}" = "voyage" ] && [ -z "${{ secrets.VOYAGE_API_KEY }}" ]; then
             echo "::error::provider=voyage requiere secret VOYAGE_API_KEY"
             exit 1
           fi
-          if [ "${{ github.event.inputs.store }}" = "qdrant" ] && [ -z "${{ secrets.QDRANT_URL }}" ]; then
+          if [ "${{ steps.cfg.outputs.store }}" = "qdrant" ] && [ -z "${{ secrets.QDRANT_URL }}" ]; then
             echo "::error::store=qdrant requiere secret QDRANT_URL"
             exit 1
           fi
@@ -86,11 +123,11 @@ jobs:
           VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
         run: |
           set +e
-          ARGS="--provider ${{ github.event.inputs.provider }}"
-          ARGS="$ARGS --store ${{ github.event.inputs.store }}"
-          ARGS="$ARGS --collection ${{ github.event.inputs.collection }}"
-          ARGS="$ARGS --only ${{ github.event.inputs.only }}"
-          if [ "${{ github.event.inputs.store }}" = "qdrant" ]; then
+          ARGS="--provider ${{ steps.cfg.outputs.provider }}"
+          ARGS="$ARGS --store ${{ steps.cfg.outputs.store }}"
+          ARGS="$ARGS --collection ${{ steps.cfg.outputs.collection }}"
+          ARGS="$ARGS --only ${{ steps.cfg.outputs.only }}"
+          if [ "${{ steps.cfg.outputs.store }}" = "qdrant" ]; then
             ARGS="$ARGS --qdrant-url ${{ secrets.QDRANT_URL }}"
             if [ -n "${{ secrets.QDRANT_API_KEY }}" ]; then
               ARGS="$ARGS --qdrant-api-key ${{ secrets.QDRANT_API_KEY }}"

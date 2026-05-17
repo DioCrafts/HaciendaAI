@@ -146,7 +146,140 @@ def evaluate_deductions(
     profile: TaxProfile,
     registry: NormaRegistry | None = None,
 ) -> list[RuleEvaluation]:
-    return [evaluate_deduction(deduction, profile, registry) for deduction in deductions]
+    """Evalúa todas las deducciones contra el perfil y resuelve incompatibilidades.
+
+    El bucle por deducción es aislado por diseño (cada regla independiente),
+    pero algunas deducciones son mutuamente excluyentes por ley (p. ej.
+    familia numerosa categoría general vs. especial; alquiler de vivienda
+    habitual vs. inversión en vivienda habitual en el régimen transitorio).
+    `resolve_incompatibilities` detecta esos conflictos POST-evaluación y
+    degrada a `requires_user_choice` cuando dos o más deducciones aplicarían
+    sobre el mismo supuesto.
+    """
+    evaluations = [evaluate_deduction(deduction, profile, registry) for deduction in deductions]
+    return resolve_incompatibilities(evaluations, deductions)
+
+
+def resolve_incompatibilities(
+    evaluations: list[RuleEvaluation],
+    deductions: list[Deduction],
+) -> list[RuleEvaluation]:
+    """Detecta conflictos de exclusividad entre deducciones `applies` y los
+    degrada a `requires_user_choice` con la lista de alternativas y sus
+    importes.
+
+    Reglas:
+      1. Solo se procesan las evaluaciones con `status == "applies"`. El
+         resto se devuelve intacto (un `missing_data` o `pending_validation`
+         no compite con nada).
+      2. La relación de incompatibilidad se hace SIMÉTRICA aunque el JSON
+         solo la declare en un sentido. Es la rama segura: si A dice ser
+         incompatible con B, también B lo es con A para el contribuyente.
+      3. Se computa el cierre transitivo: si A↔B y B↔C, las tres compiten.
+      4. Si dentro de un componente conexo hay 2+ deducciones `applies`,
+         TODAS pasan a `requires_user_choice`; el reason enumera las
+         alternativas con sus importes estimados (sin decidir por el
+         contribuyente — esa es competencia del asesor humano).
+      5. Incompatibilidades que apuntan a IDs no presentes en el corpus
+         evaluado se ignoran silenciosamente (caso típico: deducción
+         autonómica que cita una estatal no incluida en el lote evaluado).
+
+    El motor no decide cuál es la "mejor" deducción — informar al asesor
+    de las opciones y sus importes ya elimina el error de coste real.
+    """
+    deduction_by_id = {d.id: d for d in deductions}
+    applies_by_id: dict[str, RuleEvaluation] = {
+        e.deduction_id: e for e in evaluations if e.status == "applies"
+    }
+    if len(applies_by_id) < 2:
+        return list(evaluations)
+
+    # Grafo simétrico de incompatibilidades restringido a las que aplican.
+    graph: dict[str, set[str]] = {dx: set() for dx in applies_by_id}
+    for dx_id in applies_by_id:
+        deduction = deduction_by_id.get(dx_id)
+        if deduction is None:
+            continue
+        for incompatible_id in deduction.incompatibilities:
+            if incompatible_id in applies_by_id and incompatible_id != dx_id:
+                graph[dx_id].add(incompatible_id)
+                graph[incompatible_id].add(dx_id)
+
+    # Componentes conexos (BFS). Cada componente con tamaño >=2 es un
+    # conflicto que hay que resolver.
+    conflicting: set[str] = set()
+    components: list[set[str]] = []
+    visited: set[str] = set()
+    for start in graph:
+        if start in visited or not graph[start]:
+            continue
+        component: set[str] = set()
+        queue = [start]
+        while queue:
+            node = queue.pop()
+            if node in visited:
+                continue
+            visited.add(node)
+            component.add(node)
+            queue.extend(graph[node] - visited)
+        if len(component) >= 2:
+            components.append(component)
+            conflicting.update(component)
+
+    if not conflicting:
+        return list(evaluations)
+
+    # Mapa de id → componente al que pertenece, para componer reason.
+    component_of: dict[str, set[str]] = {}
+    for comp in components:
+        for member in comp:
+            component_of[member] = comp
+
+    resolved: list[RuleEvaluation] = []
+    for evaluation in evaluations:
+        if evaluation.deduction_id not in conflicting:
+            resolved.append(evaluation)
+            continue
+        comp = component_of[evaluation.deduction_id]
+        alternatives = sorted(
+            (
+                (
+                    other_id,
+                    deduction_by_id[other_id].name
+                    if other_id in deduction_by_id
+                    else other_id,
+                    applies_by_id[other_id].estimated_amount,
+                )
+                for other_id in comp
+                if other_id != evaluation.deduction_id
+            ),
+            key=lambda item: item[2],
+            reverse=True,
+        )
+        alt_text = "; ".join(
+            f"{name} ({alt_id}) → {amount:.2f} €" for alt_id, name, amount in alternatives
+        )
+        reason = (
+            "Esta deducción es mutuamente excluyente con otra(s) que también "
+            "aplicarían según el perfil. El contribuyente solo puede elegir "
+            "una. Alternativas: "
+            f"{alt_text}. Importe propio si se eligiera esta: "
+            f"{evaluation.estimated_amount:.2f} €."
+        )
+        resolved.append(
+            RuleEvaluation(
+                deduction_id=evaluation.deduction_id,
+                status="requires_user_choice",
+                estimated_amount=0.0,
+                reason=reason,
+                missing_fields=evaluation.missing_fields,
+                missing_documents=evaluation.missing_documents,
+                sources=evaluation.sources,
+                risk_level=evaluation.risk_level,
+                confidence=evaluation.confidence,
+            )
+        )
+    return resolved
 
 
 def _check_deduction_vigencia(deduction: Deduction, devengo: date) -> RuleEvaluation | None:

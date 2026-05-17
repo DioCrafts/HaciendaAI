@@ -557,7 +557,7 @@
         "otras_rentas_max_eur": 6500
       },
       "incompatibilities": [
-        "es_reduccion_rendimientos_trabajo_tramo_intermedio_2024"
+        "es_reduccion_rendimientos_trabajo_tramo_intermedio_2025"
       ],
       "required_documents": [],
       "rent_web_boxes": [],
@@ -606,7 +606,7 @@
       "limit": null,
       "taxable_base_limits": {},
       "incompatibilities": [
-        "es_reduccion_rendimientos_trabajo_tramo_bajo_2024"
+        "es_reduccion_rendimientos_trabajo_tramo_bajo_2025"
       ],
       "required_documents": [],
       "rent_web_boxes": [],
@@ -1196,7 +1196,7 @@
       "limit": null,
       "taxable_base_limits": {},
       "incompatibilities": [
-        "es_deduccion_familia_numerosa_especial_2024"
+        "es_deduccion_familia_numerosa_especial_2025"
       ],
       "required_documents": [
         "Título vigente de familia numerosa"
@@ -1242,7 +1242,7 @@
       "limit": null,
       "taxable_base_limits": {},
       "incompatibilities": [
-        "es_deduccion_familia_numerosa_general_2024"
+        "es_deduccion_familia_numerosa_general_2025"
       ],
       "required_documents": [
         "Título vigente de familia numerosa especial"
@@ -1293,7 +1293,7 @@
       "limit": null,
       "taxable_base_limits": {},
       "incompatibilities": [
-        "es_reduccion_tributacion_conjunta_monoparental_2024"
+        "es_reduccion_tributacion_conjunta_monoparental_2025"
       ],
       "required_documents": [],
       "rent_web_boxes": [],
@@ -1342,7 +1342,7 @@
       "limit": null,
       "taxable_base_limits": {},
       "incompatibilities": [
-        "es_reduccion_tributacion_conjunta_biparental_2024"
+        "es_reduccion_tributacion_conjunta_biparental_2025"
       ],
       "required_documents": [],
       "rent_web_boxes": [],
@@ -1533,7 +1533,7 @@
       "taxable_base_limits": {
         "base_imponible_max_eur": 24107.2
       },
-      "incompatibilities": [],
+      "incompatibilities": ["es_deduccion_inversion_vivienda_habitual_transitoria_2025"],
       "required_documents": [
         "Contrato de arrendamiento anterior a 2015",
         "Recibos de alquiler"
@@ -1585,7 +1585,7 @@
       },
       "limit": null,
       "taxable_base_limits": {},
-      "incompatibilities": [],
+      "incompatibilities": ["es_deduccion_alquiler_vivienda_habitual_transitoria_2025"],
       "required_documents": [
         "Escritura de adquisición anterior a 2013",
         "Justificantes de las cantidades satisfechas en el ejercicio"
