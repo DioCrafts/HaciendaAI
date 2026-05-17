@@ -21,6 +21,8 @@ from datetime import date
 import pytest
 
 from hacienda_ai.chat import (
+    RAG_CONTEXT_INTRO,
+    RAG_CONTEXT_OUTRO,
     SAFE_FALLBACK_MESSAGE,
     SYSTEM_PROMPT,
     FakeLLMClient,
@@ -31,6 +33,12 @@ from hacienda_ai.chat import (
 from hacienda_ai.deductions import load_deductions
 from hacienda_ai.irpf import load_tax_scales
 from hacienda_ai.normas import load_norma_registry
+from hacienda_ai.rag.vector import (
+    EmbeddedChunk,
+    SourceType,
+    VectorMatch,
+    VectorQuery,
+)
 
 
 @pytest.fixture(scope="module")
@@ -211,6 +219,200 @@ def test_orchestrator_history_records_tool_results(_resources, tools) -> None:
         and any(b.get("type") == "tool_result" for b in m["content"])
     ]
     assert user_with_tool_result, "el historial no contiene tool_result"
+
+
+class _StubRetriever:
+    """Retriever fake que devuelve una lista predefinida de matches.
+
+    Registra todas las queries recibidas para que los tests puedan
+    aserver sobre el VectorQuery construido por el orquestador.
+    """
+
+    def __init__(self, matches: list[VectorMatch]) -> None:
+        self._matches = list(matches)
+        self.calls: list[VectorQuery] = []
+
+    def search(self, query: VectorQuery) -> list[VectorMatch]:
+        self.calls.append(query)
+        return list(self._matches)
+
+
+def _stub_norma_match(
+    chunk_id: str = "norma::BOE-A-2006-20764::art-19",
+    text: str = (
+        "Articulo 19. Rendimientos netos del trabajo. Los gastos de defensa "
+        "juridica derivados directamente de litigios suscitados en la "
+        "relacion del contribuyente con la persona de la que percibe los "
+        "rendimientos son deducibles con el limite de 300 euros anuales."
+    ),
+) -> VectorMatch:
+    chunk = EmbeddedChunk(
+        chunk_id=chunk_id,
+        source_type=SourceType.NORMA,
+        text=text,
+        embedding=(0.0,),
+        embedding_model="stub",
+        metadata={
+            "boe_id": "BOE-A-2006-20764",
+            "articulo": "art. 19",
+            "apartado": "2.e)",
+            "impuesto": "irpf",
+            "effective_from": "2015-01-01",
+        },
+    )
+    return VectorMatch(chunk=chunk, score=0.91)
+
+
+def test_orchestrator_injects_rag_context_into_system(_resources, tools) -> None:
+    """Con un retriever inyectado, el system del primer turno debe contener
+    el bloque [FUENTE 1] y los chunk_ids deben quedar en el ChatResult."""
+    corpus, registry, scales = _resources
+    retriever = _StubRetriever([_stub_norma_match()])
+    fake = FakeLLMClient(
+        [FakeTurn(text="Sí, son deducibles con el límite del art. 19 LIRPF.")]
+    )
+    res = run_chat(
+        user_message="¿Son deducibles los gastos de defensa jurídica?",
+        history=None,
+        llm=fake,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        devengo=date(2024, 12, 31),
+        impuesto="irpf",
+        retriever=retriever,
+        corpus=corpus,
+        registry=registry,
+        scales=scales,
+    )
+
+    # 1. El retriever fue invocado con la query del usuario, devengo e impuesto.
+    assert len(retriever.calls) == 1
+    query = retriever.calls[0]
+    assert query.text.startswith("¿Son deducibles")
+    assert query.fecha_devengo == date(2024, 12, 31)
+    assert query.impuesto == "irpf"
+
+    # 2. El system enviado al LLM se extendió con el contexto RAG.
+    seen_system = fake.calls[0]["system"]
+    assert SYSTEM_PROMPT in seen_system  # base intacto
+    assert RAG_CONTEXT_INTRO in seen_system
+    assert RAG_CONTEXT_OUTRO in seen_system
+    assert "[FUENTE 1]" in seen_system
+    assert "BOE-A-2006-20764" in seen_system
+
+    # 3. Los ids recuperados se exponen en el resultado para auditoría.
+    assert res.retrieved_chunk_ids == ["norma::BOE-A-2006-20764::art-19"]
+
+
+def test_orchestrator_no_retriever_keeps_system_unchanged(_resources, tools) -> None:
+    """Sin retriever (default), el system queda intacto y no se exponen
+    chunk_ids — no debe haber regresión sobre el flujo previo a Fase 1."""
+    corpus, registry, scales = _resources
+    fake = FakeLLMClient([FakeTurn(text="Listo.")])
+    res = run_chat(
+        user_message="Hola",
+        history=None,
+        llm=fake,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        devengo=date(2024, 12, 31),
+        corpus=corpus,
+        registry=registry,
+        scales=scales,
+    )
+    assert fake.calls[0]["system"] == SYSTEM_PROMPT
+    assert res.retrieved_chunk_ids == []
+
+
+def test_orchestrator_empty_retriever_does_not_inject_context(
+    _resources, tools
+) -> None:
+    """Retriever que devuelve [] no debe inyectar contexto vacío al system."""
+    corpus, registry, scales = _resources
+    retriever = _StubRetriever([])
+    fake = FakeLLMClient([FakeTurn(text="Listo.")])
+    res = run_chat(
+        user_message="Pregunta esotérica",
+        history=None,
+        llm=fake,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        retriever=retriever,
+        corpus=corpus,
+        registry=registry,
+        scales=scales,
+    )
+    assert RAG_CONTEXT_INTRO not in fake.calls[0]["system"]
+    assert fake.calls[0]["system"] == SYSTEM_PROMPT
+    assert res.retrieved_chunk_ids == []
+
+
+def test_orchestrator_retriever_failure_is_graceful(_resources, tools) -> None:
+    """Si el retriever lanza (red caída, Qdrant inalcanzable, etc.) el chat
+    continúa sin contexto: el RAG es complementario, no bloqueante."""
+
+    class _Boom:
+        def search(self, query: VectorQuery) -> list[VectorMatch]:
+            raise RuntimeError("Qdrant unreachable")
+
+    corpus, registry, scales = _resources
+    fake = FakeLLMClient([FakeTurn(text="Sigo sin contexto.")])
+    res = run_chat(
+        user_message="Pregunta",
+        history=None,
+        llm=fake,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        retriever=_Boom(),
+        corpus=corpus,
+        registry=registry,
+        scales=scales,
+    )
+    assert res.assistant_text == "Sigo sin contexto."
+    assert res.retrieved_chunk_ids == []
+    assert fake.calls[0]["system"] == SYSTEM_PROMPT
+
+
+def test_orchestrator_rag_context_survives_tool_loop(_resources, tools) -> None:
+    """El system extendido con RAG debe persistir en TODAS las iteraciones
+    del loop (no solo en la primera). Es importante porque la respuesta
+    final del LLM puede llegar tras varios tool_use → tool_result."""
+    corpus, registry, scales = _resources
+    retriever = _StubRetriever([_stub_norma_match()])
+    profile = {
+        "tax_year": 2024,
+        "region": "Madrid",
+        "filing_mode": "individual",
+        "personal": {"has_disability": False},
+        "family": {"children_count": 0, "ascendants_count": 0},
+        "income": {"work_gross": 30000, "work_net": 27500},
+        "expenses": {},
+        "documents": [],
+    }
+    fake = FakeLLMClient(
+        [
+            FakeTurn(tool_calls=[("evaluate_profile", {"profile": profile})]),
+            FakeTurn(text="Conclusión basada en [FUENTE 1]."),
+        ]
+    )
+    run_chat(
+        user_message="Calcula mi cuota.",
+        history=None,
+        llm=fake,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        devengo=date(2024, 12, 31),
+        impuesto="irpf",
+        retriever=retriever,
+        corpus=corpus,
+        registry=registry,
+        scales=scales,
+    )
+    # Una sola llamada al retriever (antes del primer turno).
+    assert len(retriever.calls) == 1
+    # Todas las llamadas al LLM (en este caso 2) ven el system con RAG.
+    for call in fake.calls:
+        assert RAG_CONTEXT_INTRO in call["system"]
 
 
 def test_orchestrator_preserves_initial_history(_resources, tools) -> None:
