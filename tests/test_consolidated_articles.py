@@ -19,6 +19,7 @@ from pathlib import Path
 
 from hacienda_ai.rag.consolidated import (
     all_block_hashes,
+    iter_article_versions,
     iter_precept_blocks,
     normalize_version_text,
     select_version_for_date,
@@ -129,3 +130,127 @@ def test_hash_NO_cambia_si_solo_cambia_una_nota_pie() -> None:
     )
     new = all_block_hashes(mutated, date(2010, 6, 1))
     assert original == new
+
+
+# ---------- iter_article_versions: timeline completo por artículo ----------
+
+
+def test_iter_article_versions_devuelve_todas_las_versiones() -> None:
+    """A diferencia de `all_block_hashes`, este iterador devuelve TODAS
+    las versiones de cada bloque (no solo la vigente en una fecha)."""
+    versions = list(
+        iter_article_versions(LIRPF_XML, norma_boe_id="BOE-A-2006-20764")
+    )
+    # 5 preceptos × versiones: a1=2, a2=1, a19=2, a81bis=1, dadecimoctava=1 → 7
+    assert len(versions) == 7
+
+
+def test_iter_article_versions_inyecta_norma_boe_id() -> None:
+    versions = list(
+        iter_article_versions(LIRPF_XML, norma_boe_id="BOE-A-2006-20764")
+    )
+    assert all(v.norma_boe_id == "BOE-A-2006-20764" for v in versions)
+
+
+def test_iter_article_versions_a19_tiene_dos_redacciones() -> None:
+    versions = [
+        v
+        for v in iter_article_versions(LIRPF_XML, norma_boe_id="BOE-A-2006-20764")
+        if v.article_id == "a19"
+    ]
+    assert len(versions) == 2
+    versions.sort(key=lambda v: v.effective_from)
+    assert versions[0].effective_from == date(2007, 1, 1)
+    assert versions[0].effective_to == date(2014, 12, 31)
+    assert versions[1].effective_from == date(2015, 1, 1)
+    assert versions[1].effective_to is None
+    # Los textos son diferentes y los hashes también.
+    assert versions[0].text_hash != versions[1].text_hash
+    # La reforma 2015 introduce el importe de 2.000 €.
+    assert "2.000 euros" in versions[1].text
+
+
+def test_iter_article_versions_excluye_notas_pie_del_texto() -> None:
+    versions = [
+        v
+        for v in iter_article_versions(LIRPF_XML, norma_boe_id="BOE-A-2006-20764")
+        if v.article_id == "a19"
+    ]
+    for v in versions:
+        # Las notas editoriales del fixture NO deben aparecer en el texto.
+        assert "Redaccion original" not in v.text
+        assert "Reforma Ley 26/2014" not in v.text
+
+
+def test_iter_article_versions_resuelve_modified_by_law_label() -> None:
+    """Cuando la `<nota_pie>` cita 'Ley X/AAAA' sin BOE-A, devolvemos
+    el label como fallback."""
+    versions = [
+        v
+        for v in iter_article_versions(LIRPF_XML, norma_boe_id="BOE-A-2006-20764")
+        if v.article_id == "a19" and v.effective_from == date(2015, 1, 1)
+    ]
+    assert len(versions) == 1
+    assert versions[0].modified_by_boe_id == "law:Ley 26/2014"
+
+
+def test_iter_article_versions_prefiere_boe_a_sobre_law_label() -> None:
+    """Si la nota tiene BOE-A directo, ese gana sobre el label de ley."""
+    xml = """<?xml version="1.0"?>
+<legislacion-consolidada><texto>
+<bloque id="a23" tipo="precepto">
+  <version fecha_vigencia="20150101">
+    <p class="parrafo">Texto.</p>
+    <p class="nota_pie">Modificado por la Ley 26/2014, publicada en BOE-A-2014-12328.</p>
+  </version>
+</bloque>
+</texto></legislacion-consolidada>"""
+    versions = list(
+        iter_article_versions(xml, norma_boe_id="BOE-A-2006-20764")
+    )
+    assert versions[0].modified_by_boe_id == "BOE-A-2014-12328"
+
+
+def test_iter_article_versions_modified_by_none_sin_referencia() -> None:
+    """Cuando no hay nota_pie con referencia parseable, devolvemos None."""
+    xml = """<?xml version="1.0"?>
+<legislacion-consolidada><texto>
+<bloque id="a23" tipo="precepto">
+  <version fecha_vigencia="20150101">
+    <p class="parrafo">Texto sin referencia editorial.</p>
+  </version>
+</bloque>
+</texto></legislacion-consolidada>"""
+    versions = list(
+        iter_article_versions(xml, norma_boe_id="BOE-A-2006-20764")
+    )
+    assert versions[0].modified_by_boe_id is None
+
+
+def test_iter_article_versions_omite_versiones_sin_texto() -> None:
+    """Una `<version>` con todos sus `<p>` siendo `nota_pie` (sin texto
+    normativo) NO debe generar VersionArticulo — rompería la invariante
+    del modelo (text no vacío)."""
+    xml = """<?xml version="1.0"?>
+<legislacion-consolidada><texto>
+<bloque id="a23" tipo="precepto">
+  <version fecha_vigencia="20150101">
+    <p class="nota_pie">Solo nota editorial.</p>
+  </version>
+</bloque>
+</texto></legislacion-consolidada>"""
+    versions = list(
+        iter_article_versions(xml, norma_boe_id="BOE-A-2006-20764")
+    )
+    assert versions == []
+
+
+def test_iter_article_versions_text_hash_coincide_con_sha256_del_texto() -> None:
+    import hashlib
+
+    versions = list(
+        iter_article_versions(LIRPF_XML, norma_boe_id="BOE-A-2006-20764")
+    )
+    for v in versions:
+        expected = hashlib.sha256(v.text.encode("utf-8")).hexdigest()
+        assert v.text_hash == expected

@@ -22,10 +22,21 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
-from ...models import NormaRegistry, NormaStatus
+from ...models import NormaRegistry, NormaStatus, VersionArticulo
 from ..cache import RAGCache
-from .articles import all_block_hashes
-from .drift import NormaDriftReport, compute_norma_drift
+from .article_snapshot import (
+    ArticleSnapshotError,
+    ArticleVersionSnapshot,
+    load_article_snapshot,
+    save_article_snapshot,
+)
+from .articles import all_block_hashes, iter_article_versions
+from .drift import (
+    ArticleVersionDriftReport,
+    NormaDriftReport,
+    compute_article_version_drift,
+    compute_norma_drift,
+)
 from .fetcher import ConsolidatedFetcher, ConsolidatedFetchError
 from .snapshot import (
     SnapshotError,
@@ -37,10 +48,19 @@ from .snapshot import (
 
 @dataclass(frozen=True)
 class NormaCheckOutcome:
-    """Resultado de comprobar UNA norma del registry."""
+    """Resultado de comprobar UNA norma del registry.
+
+    `drift` es el diff a nivel norma (hashes por bloque vigente en
+    `reference_date`). `article_version_drift` es el diff a nivel
+    timeline completo (todas las versiones de cada artículo). Ambos se
+    calculan en cada ejecución; el primero es barato y suficiente para
+    detectar cambios del día, el segundo es la fuente canónica del
+    versionado por artículo que alimenta `ArticleRegistry`.
+    """
 
     boe_id: str
     drift: NormaDriftReport | None
+    article_version_drift: ArticleVersionDriftReport | None
     skipped_reason: str | None
     error: str | None
 
@@ -110,6 +130,7 @@ def check_norma(
     reference_date: date,
     today: date,
     persist: bool = True,
+    article_snapshots_dir: Path | None = None,
 ) -> NormaCheckOutcome:
     """Ejecuta el chequeo de UNA norma. No filtra elegibilidad (lo hace el caller).
 
@@ -118,12 +139,26 @@ def check_norma(
     - Pide al fetcher que invalide su cache local (próximo `fetch` baja XML fresco).
     - Persiste el nuevo snapshot.
     En bootstrap solo persiste el snapshot.
+
+    `article_snapshots_dir`: si se inyecta, además del snapshot de hashes
+    a fecha (`snapshots_dir`) calculamos y persistimos el timeline
+    completo por artículo en `article_snapshots_dir/<boe_id>.json`. Es
+    opcional para no romper código existente que solo necesita el diff
+    a fecha; cuando se proporciona, `outcome.article_version_drift` lleva
+    el `ArticleVersionDriftReport`. Si está `None` o falla la lectura
+    previa, el outcome lleva `article_version_drift=None` y se reporta
+    el error sin abortar — el diff por fecha sigue siendo válido por
+    sí solo.
     """
     try:
         xml = fetcher.fetch(boe_id)
     except ConsolidatedFetchError as exc:
         return NormaCheckOutcome(
-            boe_id=boe_id, drift=None, skipped_reason=None, error=str(exc)
+            boe_id=boe_id,
+            drift=None,
+            article_version_drift=None,
+            skipped_reason=None,
+            error=str(exc),
         )
 
     current = all_block_hashes(xml, reference_date)
@@ -136,6 +171,7 @@ def check_norma(
         return NormaCheckOutcome(
             boe_id=boe_id,
             drift=None,
+            article_version_drift=None,
             skipped_reason=None,
             error=f"snapshot corrupto: {exc}",
         )
@@ -147,6 +183,45 @@ def check_norma(
         previous=previous,
         today=today,
     )
+
+    article_drift: ArticleVersionDriftReport | None = None
+    new_article_snapshot: ArticleVersionSnapshot | None = None
+    if article_snapshots_dir is not None:
+        current_article_versions = list(
+            iter_article_versions(xml, norma_boe_id=boe_id)
+        )
+        try:
+            previous_article_snapshot = load_article_snapshot(
+                article_snapshots_dir, boe_id
+            )
+        except ArticleSnapshotError as exc:
+            # Mismo criterio que con NormaSnapshot: snapshot corrupto =
+            # error explícito, no asumir bootstrap. Pero NO devolvemos
+            # aquí: ya tenemos el diff a fecha, devolvémoslo sin el
+            # article drift y dejamos el error visible.
+            return NormaCheckOutcome(
+                boe_id=boe_id,
+                drift=drift,
+                article_version_drift=None,
+                skipped_reason=None,
+                error=f"article snapshot corrupto: {exc}",
+            )
+        prev_versions_list = (
+            list(previous_article_snapshot.versions)
+            if previous_article_snapshot is not None
+            else []
+        )
+        article_drift = compute_article_version_drift(
+            boe_id=boe_id,
+            previous_versions=prev_versions_list,
+            current_versions=current_article_versions,
+        )
+        new_article_snapshot = ArticleVersionSnapshot(
+            boe_id=boe_id,
+            last_checked_at=today,
+            reference_date=reference_date,
+            versions=tuple(current_article_versions),
+        )
 
     if persist:
         save_snapshot(snapshots_dir, drift.new_snapshot)
@@ -165,9 +240,18 @@ def check_norma(
                 ),
             )
             fetcher.invalidate(boe_id)
+        if (
+            article_snapshots_dir is not None
+            and new_article_snapshot is not None
+        ):
+            save_article_snapshot(article_snapshots_dir, new_article_snapshot)
 
     return NormaCheckOutcome(
-        boe_id=boe_id, drift=drift, skipped_reason=None, error=None
+        boe_id=boe_id,
+        drift=drift,
+        article_version_drift=article_drift,
+        skipped_reason=None,
+        error=None,
     )
 
 
@@ -180,11 +264,17 @@ def run_check_for_registry(
     reference_date: date,
     today: date,
     persist: bool = True,
+    article_snapshots_dir: Path | None = None,
 ) -> CheckRunReport:
     """Recorre todas las normas del registry y devuelve un reporte agregado.
 
     El orden es lexicográfico por `boe_id` para diffs estables del
     reporte serializado.
+
+    `article_snapshots_dir`: se reenvía a `check_norma`. Si se inyecta,
+    cada chequeo además calcula y persiste el timeline completo por
+    artículo (`ArticleVersionSnapshot`) y rellena
+    `outcome.article_version_drift`. Si es `None`, comportamiento legacy.
     """
     report = CheckRunReport(reference_date=reference_date, today=today)
     for boe_id in registry.all_boe_ids():
@@ -192,7 +282,11 @@ def run_check_for_registry(
         if not eligible:
             report.outcomes.append(
                 NormaCheckOutcome(
-                    boe_id=boe_id, drift=None, skipped_reason=reason, error=None
+                    boe_id=boe_id,
+                    drift=None,
+                    article_version_drift=None,
+                    skipped_reason=reason,
+                    error=None,
                 )
             )
             continue
@@ -204,6 +298,7 @@ def run_check_for_registry(
             reference_date=reference_date,
             today=today,
             persist=persist,
+            article_snapshots_dir=article_snapshots_dir,
         )
         report.outcomes.append(outcome)
         if persist and outcome.drift is not None:
@@ -212,7 +307,13 @@ def run_check_for_registry(
 
 
 def serialize_report(report: CheckRunReport) -> dict[str, object]:
-    """Convierte el reporte a JSON-friendly para el body del PR/issue."""
+    """Convierte el reporte a JSON-friendly para el body del PR/issue.
+
+    Incluye el diff a fecha (`drift`) y el diff de timeline por artículo
+    (`article_version_drift`) cuando esté disponible. El segundo se
+    omite del JSON si es `None` para mantener el output compacto en
+    runs legacy (sin `article_snapshots_dir`).
+    """
 
     def _drift_to_dict(d: NormaDriftReport | None) -> dict[str, object] | None:
         if d is None:
@@ -238,18 +339,83 @@ def serialize_report(report: CheckRunReport) -> dict[str, object]:
             ],
         }
 
+    def _article_drift_to_dict(
+        d: ArticleVersionDriftReport | None,
+    ) -> dict[str, object] | None:
+        if d is None:
+            return None
+
+        def _v(ver: VersionArticulo | None) -> dict[str, object] | None:
+            if ver is None:
+                return None
+            return {
+                "article_id": ver.article_id,
+                "effective_from": ver.effective_from.isoformat(),
+                "effective_to": (
+                    ver.effective_to.isoformat()
+                    if ver.effective_to is not None
+                    else None
+                ),
+                "text_hash": ver.text_hash,
+                "modified_by_boe_id": ver.modified_by_boe_id,
+            }
+
+        return {
+            "is_bootstrap": d.is_bootstrap,
+            "has_changes": d.has_changes,
+            "added": [
+                {
+                    "article_id": x.article_id,
+                    "effective_from": x.effective_from.isoformat(),
+                    "current": _v(x.current),
+                }
+                for x in d.added
+            ],
+            "removed": [
+                {
+                    "article_id": x.article_id,
+                    "effective_from": x.effective_from.isoformat(),
+                    "previous": _v(x.previous),
+                }
+                for x in d.removed
+            ],
+            "rewritten": [
+                {
+                    "article_id": x.article_id,
+                    "effective_from": x.effective_from.isoformat(),
+                    "previous": _v(x.previous),
+                    "current": _v(x.current),
+                }
+                for x in d.rewritten
+            ],
+            "shifted": [
+                {
+                    "article_id": x.article_id,
+                    "effective_from": x.effective_from.isoformat(),
+                    "previous": _v(x.previous),
+                    "current": _v(x.current),
+                }
+                for x in d.shifted
+            ],
+        }
+
+    def _outcome_to_dict(o: NormaCheckOutcome) -> dict[str, object]:
+        out: dict[str, object] = {
+            "boe_id": o.boe_id,
+            "drift": _drift_to_dict(o.drift),
+            "skipped_reason": o.skipped_reason,
+            "error": o.error,
+        }
+        if o.article_version_drift is not None:
+            out["article_version_drift"] = _article_drift_to_dict(
+                o.article_version_drift
+            )
+        return out
+
     return {
         "reference_date": report.reference_date.isoformat(),
         "today": report.today.isoformat(),
-        "outcomes": [
-            {
-                "boe_id": o.boe_id,
-                "drift": _drift_to_dict(o.drift),
-                "skipped_reason": o.skipped_reason,
-                "error": o.error,
-            }
-            for o in report.outcomes
-        ],
+        "outcomes": [_outcome_to_dict(o) for o in report.outcomes],
         "summary": {
             "drift_count": len(report.drift_outcomes),
             "bootstrap_count": len(report.bootstrap_outcomes),
