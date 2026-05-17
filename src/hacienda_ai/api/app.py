@@ -48,6 +48,7 @@ from hacienda_ai.chat import (
     run_chat,
 )
 from hacienda_ai.deductions import load_deductions
+from hacienda_ai.fiscal_calendar import resolve_current_fiscal_year
 from hacienda_ai.irpf import compute_quota, load_tax_scales
 from hacienda_ai.irpf.quota import quota_to_dict
 from hacienda_ai.models import (
@@ -529,6 +530,13 @@ def create_app(
               "devengo_date": "YYYY-MM-DD"  (opcional)
             }
 
+        Si `devengo_date` se omite, el endpoint lo autoresuelve con
+        `resolve_current_fiscal_year(date.today())` y usa la
+        `recommended_devengo` (31-dic del último ejercicio cerrado). El
+        valor efectivo se devuelve al cliente en `resolved_devengo`
+        junto con `devengo_source` ("explicit" | "auto") para que el
+        consumidor sepa qué fecha verificó el guard.
+
         Respuesta:
             {
               "session_id": "...",
@@ -536,7 +544,13 @@ def create_app(
               "blocked_text": "texto que el guard rechazó (si hubo block)",
               "tool_invocations": [...],
               "citation_check": {verdict, blocking_issues, warnings},
+              "verify_attempts": N,
+              "verify_history": [...],
+              "retrieved_chunk_ids": [...],
               "iterations": N,
+              "stop_reason": "...",
+              "resolved_devengo": "YYYY-MM-DD",
+              "devengo_source": "explicit" | "auto",
               "disclaimer": "..."
             }
         """
@@ -548,6 +562,7 @@ def create_app(
             raise HTTPException(status_code=422, detail="session_id debe ser string")
         session_id = session_id_raw or uuid.uuid4().hex
         devengo: date | None = None
+        devengo_source: str = "explicit"
         devengo_raw = body.get("devengo_date")
         if isinstance(devengo_raw, str) and devengo_raw:
             try:
@@ -557,6 +572,17 @@ def create_app(
                     status_code=422,
                     detail="devengo_date debe ser ISO 8601 (YYYY-MM-DD)",
                 ) from exc
+        if devengo is None:
+            # Autoresolución: si el cliente no especifica devengo, usamos
+            # el ejercicio recomendado por `resolve_current_fiscal_year`
+            # (último ejercicio cerrado por devengo, típicamente el que
+            # el usuario pregunta cuando no precisa año). Esto hace que
+            # el guard verifique vigencia contra la fecha correcta —
+            # sin esto, citar una norma derogada el año pasado pasaría
+            # como `safe` contra `date.today()`.
+            resolution = resolve_current_fiscal_year()
+            devengo = resolution.recommended_devengo
+            devengo_source = "auto"
 
         history = chat_repo.get(session_id) or []
         llm = _resolve_llm()
@@ -590,6 +616,8 @@ def create_app(
             "retrieved_chunk_ids": payload["retrieved_chunk_ids"],
             "iterations": result.iterations,
             "stop_reason": result.stop_reason,
+            "resolved_devengo": devengo.isoformat(),
+            "devengo_source": devengo_source,
             "disclaimer": DISCLAIMER,
         }
 

@@ -21,6 +21,11 @@ from datetime import date
 from typing import Any
 
 from ..deductions import load_deductions
+from ..fiscal_calendar import (
+    TaxpayerSegment,
+    get_upcoming_events,
+    resolve_current_fiscal_year,
+)
 from ..irpf import compute_quota, load_tax_scales
 from ..irpf.quota import quota_to_dict
 from ..irpf.scales import TaxScale
@@ -458,6 +463,84 @@ def _make_retrieve_legal_context(retriever: LegalContextRetriever) -> ToolHandle
     return handler
 
 
+_FISCAL_CALENDAR_MIN_WINDOW = 1
+_FISCAL_CALENDAR_MAX_WINDOW = 365
+_FISCAL_CALENDAR_DEFAULT_WINDOW = 90
+_SEGMENT_VALUES = tuple(s.value for s in TaxpayerSegment)
+
+
+def _make_get_fiscal_calendar() -> ToolHandler:
+    def handler(args: dict[str, Any]) -> dict[str, Any]:
+        today_raw = args.get("today_override")
+        today: date | None = None
+        if today_raw is not None:
+            if not isinstance(today_raw, str) or not today_raw:
+                return {
+                    "error": "'today_override' debe ser string ISO 8601 (YYYY-MM-DD)"
+                }
+            try:
+                today = date.fromisoformat(today_raw)
+            except ValueError:
+                return {
+                    "error": "'today_override' inválida; usa formato ISO 8601 (YYYY-MM-DD)"
+                }
+        if today is None:
+            today = date.today()
+
+        window_raw = args.get("window_days", _FISCAL_CALENDAR_DEFAULT_WINDOW)
+        if (
+            not isinstance(window_raw, int)
+            or isinstance(window_raw, bool)
+            or window_raw < _FISCAL_CALENDAR_MIN_WINDOW
+            or window_raw > _FISCAL_CALENDAR_MAX_WINDOW
+        ):
+            return {
+                "error": (
+                    f"'window_days' debe ser entero entre "
+                    f"{_FISCAL_CALENDAR_MIN_WINDOW} y "
+                    f"{_FISCAL_CALENDAR_MAX_WINDOW}"
+                )
+            }
+
+        segments_raw = args.get("segments")
+        segments: tuple[TaxpayerSegment, ...] | None = None
+        if segments_raw is not None:
+            if not isinstance(segments_raw, list) or not segments_raw:
+                return {
+                    "error": (
+                        "'segments' debe ser una lista no vacía con valores "
+                        f"en {list(_SEGMENT_VALUES)}"
+                    )
+                }
+            parsed: list[TaxpayerSegment] = []
+            for raw in segments_raw:
+                if not isinstance(raw, str) or raw not in _SEGMENT_VALUES:
+                    return {
+                        "error": (
+                            f"'segments' contiene un valor inválido: {raw!r}. "
+                            f"Permitidos: {list(_SEGMENT_VALUES)}"
+                        )
+                    }
+                parsed.append(TaxpayerSegment(raw))
+            segments = tuple(parsed)
+
+        resolution = resolve_current_fiscal_year(today)
+        events = get_upcoming_events(
+            today, window_days=window_raw, segments=segments
+        )
+        return {
+            "today": today.isoformat(),
+            "fiscal_year_resolution": resolution.to_dict(),
+            "upcoming_events": [e.to_dict() for e in events],
+            "filters": {
+                "window_days": window_raw,
+                "segments": [s.value for s in segments] if segments else None,
+            },
+        }
+
+    return handler
+
+
 # ---------- Builder ----------
 
 
@@ -603,6 +686,60 @@ def build_default_registry(
                 "required": ["text"],
             },
             handler=_make_verify_citation(deductions, registry, scales),
+        )
+    )
+    reg.register(
+        Tool(
+            name="get_fiscal_calendar",
+            description=(
+                "Devuelve las próximas obligaciones fiscales (modelos AEAT: "
+                "100, 130, 131, 303, 390, 111, 115, 190, 202, 200, 347, 349, "
+                "720, 721) dentro de una ventana temporal, junto con la "
+                "resolución del ejercicio fiscal en curso (campaña de Renta "
+                "abierta/cerrada, último ejercicio cerrado, recomendación "
+                "para preguntas genéricas). LLÁMALA cuando el usuario pregunte "
+                "sobre plazos, calendario, ejercicio aplicable o cuando no "
+                "especifique el año fiscal y necesites saber cuál asumir."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "today_override": {
+                        "type": "string",
+                        "description": (
+                            "Fecha ISO 8601 (YYYY-MM-DD) usada como 'hoy'. "
+                            "Opcional: por defecto se usa la fecha actual "
+                            "del sistema. Útil para simular escenarios."
+                        ),
+                    },
+                    "window_days": {
+                        "type": "integer",
+                        "minimum": _FISCAL_CALENDAR_MIN_WINDOW,
+                        "maximum": _FISCAL_CALENDAR_MAX_WINDOW,
+                        "default": _FISCAL_CALENDAR_DEFAULT_WINDOW,
+                        "description": (
+                            "Días hacia adelante para listar obligaciones "
+                            f"(entre {_FISCAL_CALENDAR_MIN_WINDOW} y "
+                            f"{_FISCAL_CALENDAR_MAX_WINDOW}, default "
+                            f"{_FISCAL_CALENDAR_DEFAULT_WINDOW})."
+                        ),
+                    },
+                    "segments": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": list(_SEGMENT_VALUES),
+                        },
+                        "description": (
+                            "Filtra por segmento de contribuyente "
+                            "(particular, autonomo, autonomo_modulos, "
+                            "empresa, gran_empresa). Omítelo para vista "
+                            "panorámica."
+                        ),
+                    },
+                },
+            },
+            handler=_make_get_fiscal_calendar(),
         )
     )
     if retriever is not None:

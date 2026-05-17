@@ -937,3 +937,57 @@ def test_chat_endpoint_uses_injected_retriever_for_rag() -> None:
 
         # 3. La respuesta final pasó el guard.
         assert data["citation_check"]["verdict"] in ("safe", "warn")
+
+
+def test_chat_endpoint_uses_explicit_devengo_date_when_provided() -> None:
+    """Si el body trae `devengo_date`, el endpoint lo respeta y lo
+    devuelve en `resolved_devengo` con `devengo_source='explicit'`."""
+    from hacienda_ai.chat import FakeLLMClient, FakeTurn
+
+    fake = FakeLLMClient([FakeTurn(text="Listo.")])
+    app = create_app(db_path=":memory:", llm_client=fake)
+    with TestClient(app) as c:
+        r = c.post(
+            "/chat",
+            json={"message": "Hola", "devengo_date": "2023-12-31"},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["resolved_devengo"] == "2023-12-31"
+        assert data["devengo_source"] == "explicit"
+
+
+def test_chat_endpoint_autoresolves_devengo_when_absent() -> None:
+    """Sin `devengo_date` en el body, el endpoint autoresuelve usando
+    `resolve_current_fiscal_year()` y devuelve la fecha efectiva en
+    `resolved_devengo` con `devengo_source='auto'`. Ese año debe ser
+    el último cerrado por devengo IRPF (= year actual - 1)."""
+    from datetime import date
+
+    from hacienda_ai.chat import FakeLLMClient, FakeTurn
+
+    fake = FakeLLMClient([FakeTurn(text="Listo.")])
+    app = create_app(db_path=":memory:", llm_client=fake)
+    with TestClient(app) as c:
+        r = c.post("/chat", json={"message": "¿Cuánto pago de IRPF?"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["devengo_source"] == "auto"
+        # El devengo recomendado por defecto es 31-dic del año anterior.
+        expected_year = date.today().year - 1
+        assert data["resolved_devengo"] == f"{expected_year}-12-31"
+
+
+def test_chat_endpoint_rejects_malformed_devengo_date() -> None:
+    """Una `devengo_date` mal formada sigue devolviendo 422 (no se cae
+    silenciosamente a la autoresolución)."""
+    from hacienda_ai.chat import FakeLLMClient, FakeTurn
+
+    fake = FakeLLMClient([FakeTurn(text="Listo.")])
+    app = create_app(db_path=":memory:", llm_client=fake)
+    with TestClient(app) as c:
+        r = c.post(
+            "/chat",
+            json={"message": "Hola", "devengo_date": "31/12/2024"},
+        )
+        assert r.status_code == 422

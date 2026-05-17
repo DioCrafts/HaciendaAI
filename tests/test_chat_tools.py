@@ -43,6 +43,7 @@ def test_registry_exposes_expected_tools(registry) -> None:
         "evaluate_profile",
         "compute_irpf_quota",
         "verify_citation",
+        "get_fiscal_calendar",
     }
 
 
@@ -409,3 +410,85 @@ def test_retrieve_tool_payload_is_json_serializable(rag_registry) -> None:
     decoded = json.loads(serialize_tool_result(r))
     assert decoded["count"] == r["count"]
     assert decoded["sources"][0]["index"] == 1
+
+
+# ---------- get_fiscal_calendar ----------
+
+
+def test_fiscal_calendar_tool_returns_resolution_and_events(registry) -> None:
+    r = registry.dispatch(
+        "get_fiscal_calendar",
+        {"today_override": "2026-05-17", "window_days": 60},
+    )
+    assert r["today"] == "2026-05-17"
+    resolution = r["fiscal_year_resolution"]
+    assert resolution["in_progress_year"] == 2026
+    assert resolution["last_closed_year"] == 2025
+    assert resolution["recommended_for_irpf_query"] == 2025
+    assert resolution["renta_campaign"]["is_open"] is True
+    # Renta 2025 vence el 30-jun-2026 (a 44 días).
+    assert any(
+        e["code"] == "100" and e["period_label"] == "Ejercicio 2025"
+        for e in r["upcoming_events"]
+    )
+
+
+def test_fiscal_calendar_tool_filters_by_segment(registry) -> None:
+    r = registry.dispatch(
+        "get_fiscal_calendar",
+        {
+            "today_override": "2026-05-17",
+            "window_days": 365,
+            "segments": ["particular"],
+        },
+    )
+    codes = {e["code"] for e in r["upcoming_events"]}
+    assert "100" in codes  # particular declara IRPF
+    assert "303" not in codes  # IVA no aplica a particular sin actividad
+    assert r["filters"]["segments"] == ["particular"]
+
+
+def test_fiscal_calendar_tool_rejects_invalid_today_override(registry) -> None:
+    r = registry.dispatch(
+        "get_fiscal_calendar",
+        {"today_override": "17/05/2026"},
+    )
+    assert "error" in r and "today_override" in r["error"].lower()
+
+
+def test_fiscal_calendar_tool_rejects_window_out_of_range(registry) -> None:
+    assert "error" in registry.dispatch(
+        "get_fiscal_calendar",
+        {"window_days": 0},
+    )
+    assert "error" in registry.dispatch(
+        "get_fiscal_calendar",
+        {"window_days": 1000},
+    )
+
+
+def test_fiscal_calendar_tool_rejects_unknown_segment(registry) -> None:
+    r = registry.dispatch(
+        "get_fiscal_calendar",
+        {"segments": ["particular", "extraterrestre"]},
+    )
+    assert "error" in r and "segments" in r["error"].lower()
+
+
+def test_fiscal_calendar_tool_defaults_to_today(registry) -> None:
+    """Sin `today_override` usa `date.today()` y nunca devuelve eventos
+    pasados."""
+    r = registry.dispatch("get_fiscal_calendar", {"window_days": 365})
+    today_iso = r["today"]
+    for event in r["upcoming_events"]:
+        assert event["deadline"] >= today_iso
+
+
+def test_fiscal_calendar_tool_payload_is_json_serializable(registry) -> None:
+    r = registry.dispatch(
+        "get_fiscal_calendar",
+        {"today_override": "2026-05-17", "window_days": 30},
+    )
+    decoded = json.loads(serialize_tool_result(r))
+    assert decoded["today"] == "2026-05-17"
+    assert "upcoming_events" in decoded
