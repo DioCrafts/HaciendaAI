@@ -1,0 +1,87 @@
+# =============================================================================
+#  TEAC / TEAR — Resoluciones económico-administrativas
+# =============================================================================
+#
+#  Cada línea no comentada es un número de resolución a ingerir vía
+#  ingest-teac.yml. Formatos aceptados:
+#     - DD/NNNNN/AAAA  (p.ej. 00/12345/2023 = TEAC, expediente 12345 del 2023)
+#     - R.G. NNNNN/AAAA (formato heredado)
+#     - <CÓDIGO_TEAR>/NNNNN/AAAA (p.ej. 28/00345/2024 para TEAR Madrid)
+#
+#  IMPORTANTE: Los números se localizan en DYCTEA:
+#     https://serviciostelematicosext.hacienda.gob.es/TEAC/DYCTEA/
+#  Antes de activar una línea, VERIFICA el número en DYCTEA.
+#
+#  Recordatorio de peso doctrinal (¡crítico al citar!):
+#     - UNIFICACIÓN DE CRITERIO (art. 242 LGT): vincula a AEAT y a todos
+#       los TEAR. Prioridad absoluta para la siembra.
+#     - EXTENSIÓN DE EFECTOS (art. 244 LGT): vincula a AEAT en supuestos
+#       análogos. Alta prioridad.
+#     - ORDINARIA: criterio del caso, no vinculante para futuros.
+#     - TEAR/TEAL: solo vinculan al caso resuelto.
+#
+#  Prioriza unificaciones de criterio y extensiones de efectos en la
+#  primera siembra.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# TEAC — UNIFICACIÓN DE CRITERIO (art. 242 LGT) — MÁXIMA PRIORIDAD
+# -----------------------------------------------------------------------------
+# BÚSQUEDA en DYCTEA: filtrar tipo="Unificación de criterio" + impuesto=IRPF
+# BÚSQUEDA: tipo="Unificación de criterio" + impuesto=IVA
+# BÚSQUEDA: tipo="Unificación de criterio" + impuesto=IS
+# BÚSQUEDA: tipo="Unificación de criterio" + materia="procedimiento"
+
+
+# -----------------------------------------------------------------------------
+# TEAC — EXTENSIÓN DE EFECTOS (art. 244 LGT)
+# -----------------------------------------------------------------------------
+# BÚSQUEDA: tipo="Extensión de efectos" — son menos numerosas; toma todas
+# las recientes (3 últimos años) de impuestos principales.
+
+
+# -----------------------------------------------------------------------------
+# TEAC — IRPF (ordinarias relevantes)
+# -----------------------------------------------------------------------------
+# BÚSQUEDA: "TEAC + IRPF + rendimiento trabajo + indemnización + reducción 30%"
+# BÚSQUEDA: "TEAC + IRPF + ganancia patrimonial + reinversión vivienda"
+# BÚSQUEDA: "TEAC + IRPF + actividad económica + estimación directa simplificada"
+# BÚSQUEDA: "TEAC + IRPF + residencia fiscal + criterio del centro de intereses"
+
+
+# -----------------------------------------------------------------------------
+# TEAC — IVA
+# -----------------------------------------------------------------------------
+# BÚSQUEDA: "TEAC + IVA + prorrata + sector diferenciado"
+# BÚSQUEDA: "TEAC + IVA + devolución de cuotas + plazo + procedimiento"
+# BÚSQUEDA: "TEAC + IVA + factura + requisitos formales + deducibilidad"
+
+
+# -----------------------------------------------------------------------------
+# TEAC — IS (Impuesto Sociedades)
+# -----------------------------------------------------------------------------
+# BÚSQUEDA: "TEAC + IS + operaciones vinculadas + valor de mercado"
+# BÚSQUEDA: "TEAC + IS + amortizaciones + tabla oficial + libertad amortización"
+# BÚSQUEDA: "TEAC + IS + BINs + comprobación + plazo de comprobación"
+
+
+# -----------------------------------------------------------------------------
+# TEAC — PROCEDIMIENTO Y SANCIONES
+# -----------------------------------------------------------------------------
+# BÚSQUEDA: "TEAC + sanción + culpabilidad + motivación + criterio del 2023"
+# BÚSQUEDA: "TEAC + comprobación de valores + tasación pericial contradictoria"
+# BÚSQUEDA: "TEAC + prescripción + interrupción + actos del obligado"
+# BÚSQUEDA: "TEAC + recargo de extemporaneidad + art. 27 LGT + reforma 2021"
+
+
+# -----------------------------------------------------------------------------
+# TEAR — opcional, solo casos de impacto local o cuando no hay TEAC
+# -----------------------------------------------------------------------------
+# Las resoluciones TEAR solo vinculan al caso, pero pueden ser útiles para
+# criterio autonómico cuando el TEAC no se ha pronunciado. Prioriza
+# tribunales de CCAA con normativa propia (Cataluña 41, Madrid 28,
+# Andalucía 41, País Vasco — éste último solo si la materia es estatal).
+#
+# BÚSQUEDA: "TEAR Madrid + ITP + reducción adquisición vivienda jóvenes"
+# BÚSQUEDA: "TEAR Cataluña + IRPF autonómico + deducción alquiler"

@@ -1,0 +1,120 @@
+# =============================================================================
+#  CENDOJ — Jurisprudencia tributaria
+# =============================================================================
+#
+#  Cada línea no comentada es un ECLI a ingerir vía ingest-cendoj.yml.
+#  Formato: ECLI:ES:<ORGANO>:<AÑO>:<NUMERO>
+#
+#  IMPORTANTE: Los ECLIs reales se localizan en el buscador del CGPJ:
+#     https://www.poderjudicial.es/search/indexAN.jsp
+#  Antes de activar una línea, VERIFICA el ECLI en el buscador. Los temas
+#  marcados como "BÚSQUEDA SUGERIDA" describen el caso a buscar; el
+#  operador localiza el ECLI exacto en CENDOJ y lo añade descomentado.
+#
+#  Para la primera siembra basta con que actives 8-15 ECLIs verificados
+#  por ti — es preferible un corpus pequeño y exacto que uno grande con
+#  errores.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# HITOS CONSTITUCIONALES / TRIBUNAL CONSTITUCIONAL
+# -----------------------------------------------------------------------------
+# STC 182/2021 — Declara inconstitucional el método objetivo de cálculo de la
+# base imponible del IIVTNU (plusvalía municipal). Hito que obligó al RDL
+# 26/2021. Imprescindible para cualquier consulta sobre plusvalía municipal.
+# BÚSQUEDA: TC → 2021 → sentencia 182/2021
+# (TC no usa ECLI:ES:TS sino ECLI:ES:TC — la ingestión vía CENDOJ puede no
+# cubrirlo; verifica el organo soportado por LocalCendojClient/HttpCendojClient
+# antes de activar.)
+#
+# STC 59/2017 — Antecedente de la STC 182/2021 (inconstitucionalidad parcial
+# del IIVTNU cuando no hay incremento de valor).
+
+
+# -----------------------------------------------------------------------------
+# TRIBUNAL SUPREMO — IRPF
+# -----------------------------------------------------------------------------
+# BÚSQUEDA SUGERIDA: "sentencia + IRPF + rendimiento del trabajo + indemnización
+#   por despido + año 2023-2024" → Sala 3ª, sección 2ª (contencioso-administrativo).
+# BÚSQUEDA SUGERIDA: "STS + IRPF + exención reinversión vivienda habitual"
+#   → criterio sobre el cómputo del plazo de 2 años.
+# BÚSQUEDA SUGERIDA: "STS + IRPF + ganancia patrimonial + transmisión + valor
+#   de mercado"
+# BÚSQUEDA SUGERIDA: "STS + IRPF + régimen impatriados + Ley Beckham"
+# BÚSQUEDA SUGERIDA: "STS + IRPF + rendimientos actividades económicas +
+#   afectación + vehículo + uso mixto"
+
+
+# -----------------------------------------------------------------------------
+# TRIBUNAL SUPREMO — IVA
+# -----------------------------------------------------------------------------
+# BÚSQUEDA SUGERIDA: "STS + IVA + regla de prorrata + sector diferenciado"
+# BÚSQUEDA SUGERIDA: "STS + IVA + operaciones intracomunitarias + prueba +
+#   transporte"
+# BÚSQUEDA SUGERIDA: "STS + IVA + deducción cuotas soportadas + bienes de
+#   inversión + regularización"
+# BÚSQUEDA SUGERIDA: "STS + IVA + exención + arrendamiento vivienda + uso
+#   distinto al de vivienda"
+# BÚSQUEDA SUGERIDA: "STS + IVA + autoconsumo + grupo de entidades + REGE"
+
+
+# -----------------------------------------------------------------------------
+# TRIBUNAL SUPREMO — IS (Impuesto Sociedades)
+# -----------------------------------------------------------------------------
+# BÚSQUEDA SUGERIDA: "STS + IS + operaciones vinculadas + valor de mercado +
+#   art. 18 LIS"
+# BÚSQUEDA SUGERIDA: "STS + IS + BINs + compensación + límite + año 2024"
+# BÚSQUEDA SUGERIDA: "STS + IS + libertad amortización + empresa reducida
+#   dimensión"
+# BÚSQUEDA SUGERIDA: "STS + IS + gastos deducibles + retribución administradores"
+# BÚSQUEDA SUGERIDA: "STS + IS + simulación + art. 16 LGT + conflicto en
+#   aplicación de la norma"
+
+
+# -----------------------------------------------------------------------------
+# TRIBUNAL SUPREMO — IIVTNU (Plusvalía municipal)
+# -----------------------------------------------------------------------------
+# BÚSQUEDA SUGERIDA: "STS + plusvalía municipal + post STC 182/2021 +
+#   liquidaciones firmes"
+# BÚSQUEDA SUGERIDA: "STS + IIVTNU + prueba de inexistencia de incremento +
+#   carga probatoria"
+
+
+# -----------------------------------------------------------------------------
+# TRIBUNAL SUPREMO — PROCEDIMIENTO TRIBUTARIO (LGT)
+# -----------------------------------------------------------------------------
+# BÚSQUEDA SUGERIDA: "STS + LGT + comprobación de valores + motivación"
+# BÚSQUEDA SUGERIDA: "STS + LGT + prescripción + interrupción + actas de
+#   inspección"
+# BÚSQUEDA SUGERIDA: "STS + LGT + sanción tributaria + culpabilidad + motivación"
+# BÚSQUEDA SUGERIDA: "STS + LGT + derivación responsabilidad + administradores"
+
+
+# -----------------------------------------------------------------------------
+# TJUE (Tribunal de Justicia de la Unión Europea) — relevante para IVA
+# -----------------------------------------------------------------------------
+# Nota: las sentencias TJUE no llevan ECLI español; el ECLI europeo es
+#   ECLI:EU:C:YYYY:NNN. Comprueba si el ingestor CENDOJ soporta este formato.
+# BÚSQUEDA SUGERIDA: "TJUE + IVA + prorrata especial + bienes de inversión"
+# BÚSQUEDA SUGERIDA: "TJUE + IVA + facturación + factura defectuosa + derecho
+#   a deducir"
+
+
+# -----------------------------------------------------------------------------
+# AUDIENCIA NACIONAL
+# -----------------------------------------------------------------------------
+# BÚSQUEDA SUGERIDA: "SAN + IS + precios de transferencia + ajuste secundario"
+# BÚSQUEDA SUGERIDA: "SAN + IRPF + residencia fiscal + traslado al extranjero"
+# BÚSQUEDA SUGERIDA: "SAN + IVA + grupos de entidades + prorrata"
+
+
+# -----------------------------------------------------------------------------
+# TRIBUNALES SUPERIORES DE JUSTICIA (autonómico) — opcional
+# -----------------------------------------------------------------------------
+# Los TSJ son útiles para criterio autonómico, pero su peso doctrinal es
+# limitado (solo vinculan al caso). Priorízalos solo para CCAA con
+# normativa autonómica diferenciada (Cataluña, Madrid, Andalucía).
+#
+# BÚSQUEDA SUGERIDA: "TSJ Cataluña + IRPF autonómico + deducción alquiler"
+# BÚSQUEDA SUGERIDA: "TSJ Madrid + ISD + reducción empresa familiar"
