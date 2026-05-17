@@ -21,6 +21,7 @@ from datetime import date
 import pytest
 
 from hacienda_ai.chat import (
+    MAX_VERIFY_RETRIES,
     RAG_CONTEXT_INTRO,
     RAG_CONTEXT_OUTRO,
     SAFE_FALLBACK_MESSAGE,
@@ -120,22 +121,144 @@ def test_orchestrator_executes_tool_and_closes(_resources, tools) -> None:
     assert "2.452,50" in res.assistant_text
 
 
-def test_orchestrator_guard_blocks_hallucinated_article(_resources, tools) -> None:
-    """Si el modelo cierra con un artículo no documentado en el corpus, el
-    guard sustituye el texto por SAFE_FALLBACK_MESSAGE y deja el original
-    accesible en `blocked_text`."""
-    script = [
-        FakeTurn(text="Te aplico el art. 999 LIRPF: deducción especial de 500 €.")
-    ]
+def test_orchestrator_falls_back_after_exhausting_verify_retries(
+    _resources, tools
+) -> None:
+    """Modelo persistente: insiste en una cita alucinada incluso después del
+    feedback. Tras agotar los reintentos, el guard sustituye el texto por
+    SAFE_FALLBACK_MESSAGE, deja el último intento en `blocked_text` y
+    `verify_history` queda con N+1 entradas en `block`."""
+    bad_text = "Te aplico el art. 999 LIRPF: deducción especial de 500 €."
+    script = [FakeTurn(text=bad_text) for _ in range(MAX_VERIFY_RETRIES + 1)]
     res = _run(script, _resources=_resources, tools=tools)
+
     assert res.citation_check.verdict == "block"
     assert res.blocked_text is not None
     assert "art. 999" in res.blocked_text
     assert res.assistant_text == SAFE_FALLBACK_MESSAGE
-    # El historial conserva el bloque original + el mensaje seguro como
-    # turno extra del asistente.
+    assert res.verify_attempts == MAX_VERIFY_RETRIES + 1
+    assert all(c.verdict == "block" for c in res.verify_history)
+
+    # El historial recoge tantos turnos assistant (texto problemático)
+    # como intentos hechos + el assistant final con el SAFE_FALLBACK.
     assistant_turns = [m for m in res.history if m["role"] == "assistant"]
-    assert len(assistant_turns) >= 2
+    assert len(assistant_turns) == MAX_VERIFY_RETRIES + 2
+
+    # Entre cada intento problemático y el siguiente hay un mensaje
+    # `user` con el feedback estructurado (lista de issues).
+    feedback_user_msgs = [
+        m
+        for m in res.history
+        if m["role"] == "user"
+        and isinstance(m.get("content"), str)
+        and "verificador de citas" in m["content"]
+    ]
+    assert len(feedback_user_msgs) == MAX_VERIFY_RETRIES
+    # El feedback incluye el código del issue concreto.
+    assert any(
+        "ARTICLE_NOT_IN_CORPUS" in m["content"] for m in feedback_user_msgs
+    )
+
+
+def test_orchestrator_recovers_when_model_reformulates_after_feedback(
+    _resources, tools
+) -> None:
+    """Modelo que aprende del feedback: primer intento alucina, segundo
+    intento corrige. El resultado final es safe y `blocked_text` queda
+    None (no se aplicó el fallback)."""
+    script = [
+        FakeTurn(text="Aplica el art. 999 LIRPF: deducción mágica."),
+        FakeTurn(
+            text=(
+                "Disculpa, mi cita no era correcta. No identifico una "
+                "deducción aplicable en el corpus auditable para tu caso."
+            )
+        ),
+    ]
+    res = _run(script, _resources=_resources, tools=tools)
+
+    assert res.citation_check.verdict == "safe"
+    assert res.blocked_text is None
+    assert res.assistant_text.startswith("Disculpa")
+    assert res.verify_attempts == 2
+    assert [c.verdict for c in res.verify_history] == ["block", "safe"]
+
+
+def test_orchestrator_legacy_mode_falls_back_immediately(_resources, tools) -> None:
+    """Con `max_verify_retries=0` se reproduce el comportamiento legacy:
+    el primer block dispara el fallback sin reintentos."""
+    corpus, registry, scales = _resources
+    fake = FakeLLMClient(
+        [FakeTurn(text="Te aplico el art. 999 LIRPF: deducción de 500 €.")]
+    )
+    res = run_chat(
+        user_message="Hola",
+        history=None,
+        llm=fake,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        devengo=date(2024, 12, 31),
+        max_verify_retries=0,
+        corpus=corpus,
+        registry=registry,
+        scales=scales,
+    )
+    assert res.assistant_text == SAFE_FALLBACK_MESSAGE
+    assert res.blocked_text is not None
+    assert "art. 999" in res.blocked_text
+    assert res.verify_attempts == 1
+
+
+def test_orchestrator_safe_first_attempt_does_not_trigger_retry(
+    _resources, tools
+) -> None:
+    """Respuesta limpia al primer intento: `verify_attempts=1`, sin
+    feedback en el historial, sin entradas extra de assistant."""
+    script = [FakeTurn(text="Necesito tu CCAA antes de calcular.")]
+    res = _run(script, _resources=_resources, tools=tools)
+    assert res.citation_check.verdict == "safe"
+    assert res.verify_attempts == 1
+    feedback_msgs = [
+        m
+        for m in res.history
+        if m["role"] == "user"
+        and isinstance(m.get("content"), str)
+        and "verificador de citas" in m["content"]
+    ]
+    assert feedback_msgs == []
+
+
+def test_orchestrator_warn_verdict_does_not_trigger_retry(
+    _resources, tools
+) -> None:
+    """`warn` (p.ej. jurisprudencia no indexada) se acepta sin reintentar:
+    solo los `block` dispararan retry."""
+    # STS no indexado dispara WARN, no BLOCK.
+    script = [
+        FakeTurn(text="Según STS 1234/2024, el criterio es claro.")
+    ]
+    res = _run(script, _resources=_resources, tools=tools)
+    assert res.citation_check.verdict == "warn"
+    assert res.verify_attempts == 1
+    assert res.blocked_text is None
+    assert res.assistant_text.startswith("Según STS")
+
+
+def test_orchestrator_negative_max_verify_retries_raises(_resources, tools) -> None:
+    corpus, registry, scales = _resources
+    fake = FakeLLMClient([FakeTurn(text="x")])
+    with pytest.raises(ValueError, match="max_verify_retries"):
+        run_chat(
+            user_message="Hola",
+            history=None,
+            llm=fake,
+            tools=tools,
+            system_prompt=SYSTEM_PROMPT,
+            max_verify_retries=-1,
+            corpus=corpus,
+            registry=registry,
+            scales=scales,
+        )
 
 
 def test_orchestrator_chained_tool_calls(_resources, tools) -> None:

@@ -28,6 +28,7 @@ from .client import (
 )
 from .orchestrator import (
     MAX_ITERATIONS,
+    MAX_VERIFY_RETRIES,
     RAG_CONTEXT_INTRO,
     RAG_CONTEXT_OUTRO,
     RAG_DEFAULT_TOP_K,
@@ -49,6 +50,7 @@ __all__ = [
     "LLMUnavailable",
     "LegalContextRetriever",
     "MAX_ITERATIONS",
+    "MAX_VERIFY_RETRIES",
     "RAG_CONTEXT_INTRO",
     "RAG_CONTEXT_OUTRO",
     "RAG_DEFAULT_TOP_K",

@@ -12,15 +12,25 @@ Flujo de un turno de chat:
 2. Llama al LLM con `system=system_efectivo`, `tools=tool_specs`.
 3. Si la respuesta contiene `tool_use`, ejecuta cada tool localmente, mete
    los resultados como `tool_result` y vuelve a 2.
-4. Cuando el LLM emite SOLO texto (sin tool_use): es el turno final.
-5. Aplica `safety.verify_citations` al texto del turno final. Si veredicto
-   = `block`, sustituye la respuesta por `SAFE_FALLBACK_MESSAGE`.
+4. Cuando el LLM emite SOLO texto (sin tool_use): se ejecuta
+   `safety.verify_citations` sobre ese texto.
+5. **Verify retry loop**: si el veredicto es `block`, el orquestador
+   NO se rinde: inyecta un mensaje `user` con feedback estructurado
+   (códigos de issue + instrucción "reescribe" + recordatorio de que
+   puede llamar a `retrieve_legal_context`) y vuelve a 2, hasta agotar
+   `MAX_VERIFY_RETRIES`. Si tras los reintentos sigue en `block`, se
+   aplica el `SAFE_FALLBACK_MESSAGE` como antes; el texto original
+   queda en `blocked_text` para auditoría. `verify_history` registra
+   todos los veredictos por orden.
 6. Devuelve el `ChatResult` con historial actualizado + texto + traza
-   de las tools invocadas + veredicto del guard + ids de chunks RAG
-   recuperados (auditoría).
+   de las tools invocadas + último guard + ids de chunks RAG
+   recuperados + `verify_attempts` + `verify_history`.
 
-Hay un techo de `MAX_ITERATIONS` para que un bug de prompt o un LLM en
-bucle no consuma tokens indefinidamente.
+Hay dos topes:
+- `MAX_ITERATIONS`: protección contra loops de tool_use sin fin.
+- `MAX_VERIFY_RETRIES`: cuántas veces reformulamos la respuesta tras
+  un `block` antes de caer al fallback. `0` reproduce el comportamiento
+  legacy (fallback inmediato).
 """
 
 from __future__ import annotations
@@ -42,6 +52,7 @@ from .tools import ToolRegistry, serialize_tool_result
 logger = logging.getLogger(__name__)
 
 MAX_ITERATIONS = 6
+MAX_VERIFY_RETRIES = 2
 RAG_DEFAULT_TOP_K = 8
 
 
@@ -76,21 +87,22 @@ class ChatResult:
     iterations: int
     stop_reason: str | None
     retrieved_chunk_ids: list[str] = field(default_factory=list)
+    verify_history: list[CitationCheckResult] = field(default_factory=list)
+
+    @property
+    def verify_attempts(self) -> int:
+        """Cuántas verificaciones de citas se ejecutaron en este turno.
+
+        Incluye la primera más cada reintento. Mismo valor que
+        `len(verify_history)`. Expuesto como propiedad para no
+        duplicar estado.
+        """
+        return len(self.verify_history)
 
     def to_dict(self) -> dict[str, Any]:
         guard: dict[str, Any] | None = None
         if self.citation_check is not None:
-            guard = {
-                "verdict": self.citation_check.verdict,
-                "blocking_issues": [
-                    {"code": i.code, "message": i.message}
-                    for i in self.citation_check.blocking_issues
-                ],
-                "warnings": [
-                    {"code": i.code, "message": i.message}
-                    for i in self.citation_check.warnings
-                ],
-            }
+            guard = _serialize_check(self.citation_check)
         return {
             "assistant": self.assistant_text,
             "blocked_text": self.blocked_text,
@@ -100,7 +112,21 @@ class ChatResult:
             "stop_reason": self.stop_reason,
             "history": self.history,
             "retrieved_chunk_ids": list(self.retrieved_chunk_ids),
+            "verify_attempts": self.verify_attempts,
+            "verify_history": [_serialize_check(c) for c in self.verify_history],
         }
+
+
+def _serialize_check(check: CitationCheckResult) -> dict[str, Any]:
+    return {
+        "verdict": check.verdict,
+        "blocking_issues": [
+            {"code": i.code, "message": i.message} for i in check.blocking_issues
+        ],
+        "warnings": [
+            {"code": i.code, "message": i.message} for i in check.warnings
+        ],
+    }
 
 
 def _final_text(blocks: list[dict[str, Any]]) -> str:
@@ -116,6 +142,7 @@ def run_chat(
     system_prompt: str,
     devengo: date | None = None,
     max_iterations: int = MAX_ITERATIONS,
+    max_verify_retries: int = MAX_VERIFY_RETRIES,
     corpus: list[Deduction] | None = None,
     registry: NormaRegistry | None = None,
     scales: list[TaxScale] | None = None,
@@ -125,7 +152,7 @@ def run_chat(
     rag_min_score: float = 0.0,
 ) -> ChatResult:
     """Ejecuta un turno de chat completo (potencialmente con varias llamadas
-    al LLM si el modelo encadena tool_use).
+    al LLM si el modelo encadena tool_use y/o reformula tras un block).
 
     `devengo` se reenvía al guard de citas: una respuesta cita una norma
     derogada para esa fecha → block.
@@ -148,7 +175,17 @@ def run_chat(
     (red caída, dependencias del backend) el chat continúa sin
     contexto y se registra un warning — el RAG es complementario, no
     bloqueante.
+
+    `max_verify_retries` controla cuántas veces se reformula la
+    respuesta tras un `block` antes de caer al `SAFE_FALLBACK_MESSAGE`.
+    Cada reintento consume una iteración del loop principal — el
+    presupuesto compartido `max_iterations` protege ambos modos. Con
+    `max_verify_retries=0` el comportamiento es legacy: el primer
+    block dispara el fallback de inmediato.
     """
+    if max_verify_retries < 0:
+        raise ValueError("max_verify_retries debe ser >= 0")
+
     messages: list[dict[str, Any]] = list(history or [])
     messages.append({"role": "user", "content": user_message})
     tool_invocations: list[dict[str, Any]] = []
@@ -164,6 +201,13 @@ def run_chat(
         min_score=rag_min_score,
     )
 
+    verify_history: list[CitationCheckResult] = []
+    verify_retries_used = 0
+    blocked_original: str | None = None
+    assistant_text: str = ""
+    last_guard: CitationCheckResult | None = None
+    final_reached = False
+
     iterations = 0
     while iterations < max_iterations:
         iterations += 1
@@ -174,75 +218,156 @@ def run_chat(
         )
         stop_reason = turn.stop_reason
         blocks = list(turn.content_blocks)
+
         if not blocks:
             # LLM se calló: cerramos con texto vacío y guard sobre cadena vacía.
             assistant_text = ""
             messages.append({"role": "assistant", "content": []})
+            last_guard = verify_citations(
+                assistant_text,
+                corpus=corpus,
+                scales=scales,
+                registry=registry,
+                devengo=devengo,
+            )
+            verify_history.append(last_guard)
+            final_reached = True
             break
 
         messages.append({"role": "assistant", "content": blocks})
 
         tool_uses = [b for b in blocks if b.get("type") == "tool_use"]
-        if not tool_uses:
-            assistant_text = _final_text(blocks)
+        if tool_uses:
+            tool_results: list[dict[str, Any]] = []
+            for tu in tool_uses:
+                name = tu["name"]
+                tool_input = tu.get("input") or {}
+                result = tools.dispatch(name, tool_input)
+                tool_invocations.append(
+                    {
+                        "iteration": iterations,
+                        "tool": name,
+                        "input": tool_input,
+                        "result_preview": _preview(result),
+                    }
+                )
+                tool_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tu["id"],
+                        "content": serialize_tool_result(result),
+                    }
+                )
+            messages.append({"role": "user", "content": tool_results})
+            continue
+
+        # Texto final del LLM: ejecutamos el guard.
+        assistant_text = _final_text(blocks)
+        last_guard = verify_citations(
+            assistant_text,
+            corpus=corpus,
+            scales=scales,
+            registry=registry,
+            devengo=devengo,
+        )
+        verify_history.append(last_guard)
+
+        if last_guard.verdict != "block":
+            # safe o warn → aceptamos la respuesta.
+            final_reached = True
             break
 
-        tool_results: list[dict[str, Any]] = []
-        for tu in tool_uses:
-            name = tu["name"]
-            tool_input = tu.get("input") or {}
-            result = tools.dispatch(name, tool_input)
-            tool_invocations.append(
+        # Block. ¿Quedan reintentos?
+        if verify_retries_used >= max_verify_retries:
+            blocked_original = assistant_text
+            assistant_text = SAFE_FALLBACK_MESSAGE
+            messages.append(
                 {
-                    "iteration": iterations,
-                    "tool": name,
-                    "input": tool_input,
-                    "result_preview": _preview(result),
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": assistant_text}],
                 }
             )
-            tool_results.append(
-                {
-                    "type": "tool_result",
-                    "tool_use_id": tu["id"],
-                    "content": serialize_tool_result(result),
-                }
-            )
-        messages.append({"role": "user", "content": tool_results})
-    else:  # max iterations agotadas
+            final_reached = True
+            break
+
+        # Inyectamos feedback estructurado y dejamos que el modelo
+        # reformule en la próxima iteración del while.
+        verify_retries_used += 1
+        feedback = _build_verify_feedback(
+            last_guard,
+            attempt=verify_retries_used,
+            max_attempts=max_verify_retries,
+        )
+        messages.append({"role": "user", "content": feedback})
+
+    if not final_reached:
+        # Agotadas las iteraciones del loop sin cerrar — puede ocurrir
+        # en un loop infinito de tool_use o en una cadena de reintentos
+        # que no convergen. Sustituimos con el mensaje de límite y
+        # ejecutamos el guard también sobre él (será siempre `safe`,
+        # pero mantenemos la simetría: TODA respuesta al usuario pasa
+        # por el guard al menos una vez).
         assistant_text = (
             "Se ha alcanzado el límite de iteraciones del orquestador "
             "sin obtener una respuesta final. Reformula la pregunta o "
             "redúcela a un único cálculo."
         )
-
-    guard = verify_citations(
-        assistant_text,
-        corpus=corpus,
-        scales=scales,
-        registry=registry,
-        devengo=devengo,
-    )
-    blocked_original: str | None = None
-    if guard.verdict == "block":
-        blocked_original = assistant_text
-        assistant_text = SAFE_FALLBACK_MESSAGE
-        # En el historial mantenemos el bloque del modelo intacto + un
-        # turno extra del asistente con el mensaje seguro. Quien lea el
-        # historial verá ambos: el original (bloqueado) y la respuesta
-        # que el usuario realmente recibió.
-        messages.append(
-            {"role": "assistant", "content": [{"type": "text", "text": assistant_text}]}
+        last_guard = verify_citations(
+            assistant_text,
+            corpus=corpus,
+            scales=scales,
+            registry=registry,
+            devengo=devengo,
         )
+        verify_history.append(last_guard)
 
     return ChatResult(
         history=messages,
         assistant_text=assistant_text,
         tool_invocations=tool_invocations,
-        citation_check=guard,
+        citation_check=last_guard,
         blocked_text=blocked_original,
         iterations=iterations,
         stop_reason=stop_reason,
         retrieved_chunk_ids=retrieved_chunk_ids,
+        verify_history=verify_history,
+    )
+
+
+def _build_verify_feedback(
+    check: CitationCheckResult,
+    *,
+    attempt: int,
+    max_attempts: int,
+) -> str:
+    """Construye el mensaje user que se inyecta tras un veredicto `block`.
+
+    El feedback es accionable: lista los códigos de issue concretos,
+    instruye explícitamente a reescribir, recuerda que existe
+    `retrieve_legal_context` para buscar las citas correctas, y avisa
+    cuántos intentos quedan antes del fallback. La estructura sigue
+    el patrón "ToolErrorFeedback" recomendado por Anthropic para que
+    el modelo pueda corregir su salida en el siguiente turno.
+    """
+    issue_lines = [
+        f"  - [{issue.code}] {issue.message}"
+        for issue in check.blocking_issues
+    ]
+    issues_text = "\n".join(issue_lines) if issue_lines else "  (sin detalles)"
+    remaining = max_attempts - attempt
+    plural = "intento" if remaining == 1 else "intentos"
+    return (
+        "He ejecutado el verificador de citas sobre tu respuesta y ha "
+        "detectado problemas que la invalidan:\n"
+        f"{issues_text}\n\n"
+        "Reescribe la respuesta eliminando o sustituyendo las citas "
+        "problemáticas. Si necesitas el texto correcto de una norma, "
+        "consulta DGT, resolución TEAC, sentencia o manual AEAT antes "
+        "de afirmar, llama a `retrieve_legal_context` con una query "
+        "reformulada y los filtros adecuados (impuesto, devengo_date) "
+        "y construye la respuesta a partir de las FUENTES devueltas.\n"
+        f"Te quedan {remaining} {plural} antes de que tu respuesta se "
+        "sustituya por un mensaje de error genérico."
     )
 
 

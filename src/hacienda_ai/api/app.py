@@ -575,12 +575,19 @@ def create_app(
         )
         chat_repo.save(session_id, result.history)
 
+        # Reutilizamos `to_dict` para serializar citation_check +
+        # verify_history (mantiene un único punto de codificación de
+        # esos veredictos y evita drifts cuando cambien los campos).
+        payload = result.to_dict()
         return {
             "session_id": session_id,
             "assistant": result.assistant_text,
             "blocked_text": result.blocked_text,
             "tool_invocations": result.tool_invocations,
-            "citation_check": result.to_dict()["citation_check"],
+            "citation_check": payload["citation_check"],
+            "verify_attempts": payload["verify_attempts"],
+            "verify_history": payload["verify_history"],
+            "retrieved_chunk_ids": payload["retrieved_chunk_ids"],
             "iterations": result.iterations,
             "stop_reason": result.stop_reason,
             "disclaimer": DISCLAIMER,

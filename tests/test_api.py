@@ -432,15 +432,17 @@ def test_chat_endpoint_with_injected_fake_llm() -> None:
         assert len(r2.json()["history"]) >= 3
 
 
-def test_chat_endpoint_blocks_hallucinated_response() -> None:
-    """Si el LLM cierra con un artículo inventado, el endpoint sustituye
-    la respuesta por el mensaje seguro y devuelve verdict=block. El
-    cliente NUNCA ve el texto alucinado en `assistant` (sí en
-    `blocked_text` para auditoría)."""
-    from hacienda_ai.chat import FakeLLMClient, FakeTurn
+def test_chat_endpoint_blocks_hallucinated_response_after_retries() -> None:
+    """Si el LLM insiste en una cita alucinada incluso tras el feedback
+    del verificador, el endpoint agota los reintentos y sustituye la
+    respuesta por el mensaje seguro. El cliente nunca ve el texto
+    alucinado en `assistant` (sí en `blocked_text` para auditoría) y
+    `verify_history` registra los veredictos consecutivos."""
+    from hacienda_ai.chat import MAX_VERIFY_RETRIES, FakeLLMClient, FakeTurn
 
+    bad_text = "Aplicamos el art. 999 LIRPF: nueva deducción de 500 €."
     fake = FakeLLMClient(
-        [FakeTurn(text="Aplicamos el art. 999 LIRPF: nueva deducción de 500 €.")]
+        [FakeTurn(text=bad_text) for _ in range(MAX_VERIFY_RETRIES + 1)]
     )
     app = create_app(db_path=":memory:", llm_client=fake)
     with TestClient(app) as c:
@@ -450,6 +452,9 @@ def test_chat_endpoint_blocks_hallucinated_response() -> None:
         assert data["citation_check"]["verdict"] == "block"
         assert "art. 999" not in data["assistant"]
         assert "art. 999" in data["blocked_text"]
+        # Una verificación por turno problemático (incluida la primera).
+        assert data["verify_attempts"] == MAX_VERIFY_RETRIES + 1
+        assert all(v["verdict"] == "block" for v in data["verify_history"])
 
 
 def test_chat_endpoint_continues_existing_session() -> None:
