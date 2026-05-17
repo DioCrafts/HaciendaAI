@@ -17,19 +17,125 @@
 # =============================================================================
 
 
-# -----------------------------------------------------------------------------
-# HITOS CONSTITUCIONALES / TRIBUNAL CONSTITUCIONAL
-# -----------------------------------------------------------------------------
-# STC 182/2021 — Declara inconstitucional el método objetivo de cálculo de la
-# base imponible del IIVTNU (plusvalía municipal). Hito que obligó al RDL
-# 26/2021. Imprescindible para cualquier consulta sobre plusvalía municipal.
-# BÚSQUEDA: TC → 2021 → sentencia 182/2021
-# (TC no usa ECLI:ES:TS sino ECLI:ES:TC — la ingestión vía CENDOJ puede no
-# cubrirlo; verifica el organo soportado por LocalCendojClient/HttpCendojClient
-# antes de activar.)
+# =============================================================================
+#  REFERENCIAS VERIFICADAS — LISTAS PARA DISPATCH
+# =============================================================================
+#  Cada ECLI activo (no comentado) ha sido verificado el 2026-05-17 contra
+#  fuente pública (BOE, CGPJ, EUR-Lex). Tema y URL de verificación en
+#  comentario inmediatamente superior.
 #
-# STC 59/2017 — Antecedente de la STC 182/2021 (inconstitucionalidad parcial
-# del IIVTNU cuando no hay incremento de valor).
+#  Antes de un primer dispatch masivo, RECOMENDADO:
+#    1. Probar con 1-2 ECLIs primero para confirmar que LocalCendojClient/
+#       HttpCendojClient parsean el HTML actual del CGPJ sin error.
+#    2. Si el ingestor falla con un ECLI, abrir issue antes de seguir.
+# =============================================================================
+
+# ----- Tribunal Supremo · IIVTNU post-STC 182/2021 ---------------------------
+# STS 949/2023, de 10 jul: efectos temporales STC 182/2021 — liquidaciones
+# firmes no recurridas a la fecha de la STC son situaciones consolidadas.
+# https://www.poderjudicial.es/cgpj/es/Poder-Judicial/Tribunal-Supremo/Noticias-Judiciales/El-Tribunal-Supremo-se-pronuncia-sobre-la-limitacion-de-efectos-temporales-de-la-declaracion-de-inconstitucionalidad-del-impuesto-de-plusvalia-municipal
+ECLI:ES:TS:2023:3294
+
+# ----- Tribunal Supremo · IRPF -----------------------------------------------
+# STS 211/2021, de 17 feb: reinversión en vivienda habitual en construcción —
+# basta reinvertir el importe dentro de 2 años; no exige adquisición dominical.
+# https://www.poderjudicial.es/cgpj/es/Poder-Judicial/Noticias-Judiciales/El-Tribunal-Supremo-fija-que-la-reinversion-en-una-vivienda-habitual-en-fase-de-construccion-dentro-del-plazo-de-dos-anos-otorga-derecho-a-la-exencion-en-el-IRPF
+ECLI:ES:TS:2021:663
+
+# ----- Tribunal Supremo · IS -------------------------------------------------
+# STS 449/2024, de 13 mar: retribución administradores deducible aun sin
+# previsión estatutaria si está contabilizada, probada y onerosa. Rechazo
+# de la "teoría del vínculo" en lo fiscal.
+# https://www.supercontable.com/informacion/impuesto_sociedades/sts_1622-2024.la_no_prevision_en_los_estatutos_de_las_.html
+ECLI:ES:TS:2024:1622
+
+# STS 1332/2022, de 20 oct: compensación de BINs es un DERECHO (no opción
+# tributaria del art. 119.3 LGT); puede ejercerse en autoliquidación
+# extemporánea.
+# https://www.iberley.es/noticias/ts-determina-bins-derecho-no-opcion-31423
+ECLI:ES:TS:2022:3812
+
+# ----- Tribunal Supremo · LGT / responsabilidad tributaria -------------------
+# STS de 5 jun 2023 (rec. 4293/2021): naturaleza sancionadora de la
+# responsabilidad subsidiaria del art. 43.1.a) LGT — exige culpabilidad
+# probada por la Administración.
+# https://www.cuatrecasas.com/es/spain/fiscalidad/art/responsabilidad-tributaria-administradores
+ECLI:ES:TS:2023:2655
+
+# STS de 2 oct 2023 (rec. 8891/2021): confirma naturaleza sancionadora del
+# art. 43.1.a) LGT; insuficiente la mera condición de administrador.
+# https://www.cuatrecasas.com/es/spain/fiscalidad/art/responsabilidad-tributaria-administradores
+ECLI:ES:TS:2023:4094
+
+
+# =============================================================================
+#  REFERENCIAS VERIFICADAS POR TEMA Y FECHA pero SIN ECLI EXACTO localizado
+# =============================================================================
+#  Para activar: localizar el ECLI correspondiente en
+#  https://www.poderjudicial.es/search/indexAN.jsp con los datos del comentario.
+#
+# STS 1528/2019, de 5 nov (rec. 2727/2017): exención art. 7.e LIRPF —
+# indemnización mínima legal del personal de alta dirección (7 días/año,
+# tope 6 mensualidades) está exenta.
+# https://periscopiofiscalylegal.pwc.es/el-supremo-sienta-doctrina-sobre-la-indemnizacion-adicional-por-despido/
+#
+# STS 553/2023, de 5 may (rec. 7851/2021): reinversión en vivienda habitual,
+# interpretación integradora de requisitos; especialidades en separación/divorcio.
+# https://www.iberley.es/jurisprudencia/sentencia-contencioso-administrativo-tribunal-supremo-5-5-23-48500848
+#
+# STS de 12 jun 2023 (rec. 915/2022): valor probatorio del certificado de
+# residencia fiscal emitido conforme a CDI; reglas de desempate.
+# https://www.iberley.es/jurisprudencia/sentencia-contencioso-administrativo-tribunal-supremo-12-6-23-48515258
+
+
+# =============================================================================
+#  HITOS DEL TRIBUNAL CONSTITUCIONAL — VERIFICADOS PERO REQUIEREN VALIDACIÓN
+#  DEL INGESTOR (CENDOJ tradicionalmente NO sirve STC; el TC publica en BOE)
+# =============================================================================
+#  Las STC no llevan ECLI:ES:TS sino ECLI:ES:TC. LocalCendojClient/
+#  HttpCendojClient pueden no resolverlas. Recomendado:
+#    1. Probar UNO en dry-run (`scripts/ingest_cendoj.py --ecli ... --dry-run`).
+#    2. Si el cliente acepta el formato TC y descarga del BOE-TC, activar.
+#    3. Si no, valorar ingesta vía workflow ingest-boe.yml apuntando al
+#       BOE-A correspondiente (las 3 están publicadas en el BOE).
+#
+# STC 182/2021, de 26 oct (cuestión 4433-2020): inconstitucional el método
+# objetivo de la base imponible del IIVTNU (arts. 107.1, 107.2.a, 107.4 TRLHL).
+# Hito que obligó al RDL 26/2021.
+# https://www.boe.es/buscar/doc.php?id=BOE-A-2021-19511
+# ECLI:ES:TC:2021:182
+#
+# STC 59/2017, de 11 may (cuestión 4864-2016): inconstitucionalidad parcial
+# del IIVTNU cuando no hay incremento de valor (arts. 107.1, 107.2.a, 110.4 TRLHL).
+# https://www.boe.es/buscar/doc.php?id=BOE-A-2017-6855
+# ECLI:ES:TC:2017:59
+#
+# STC 26/2017, de 16 feb (cuestión 1012-2015): antecedente foral (NF Guipúzcoa)
+# de la doctrina IIVTNU sin plusvalía.
+# https://www.boe.es/buscar/doc.php?id=BOE-A-2017-3255
+# ECLI:ES:TC:2017:26
+
+
+# =============================================================================
+#  TJUE — VERIFICADOS PERO REQUIEREN VALIDACIÓN DEL INGESTOR
+# =============================================================================
+#  Las STJUE llevan ECLI europeo (ECLI:EU:C:...). El ingestor está pensado
+#  para órganos españoles (TS/AN/TSJ). Mismo proceso de prueba que con TC:
+#  probar uno en dry-run antes de activar.
+#
+# STJUE 15 sep 2016, asunto C-516/14 (Barlis 06): factura defectuosa no
+# impide deducir si se cumplen requisitos materiales (neutralidad).
+# https://eur-lex.europa.eu/legal-content/ES/TXT/?uri=CELEX:62014CJ0516
+# ECLI:EU:C:2016:690
+#
+# STJUE 15 sep 2016, asunto C-518/14 (Senatex): rectificación de factura
+# con efectos retroactivos al ejercicio inicial del derecho a deducir.
+# https://eur-lex.europa.eu/legal-content/ES/TXT/?uri=CELEX:62014CJ0518
+
+
+# =============================================================================
+#  BÚSQUEDAS PENDIENTES — el operador localiza el ECLI exacto antes de activar
+# =============================================================================
 
 
 # -----------------------------------------------------------------------------

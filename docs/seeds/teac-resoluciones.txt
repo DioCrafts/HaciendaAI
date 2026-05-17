@@ -25,6 +25,57 @@
 # =============================================================================
 
 
+# =============================================================================
+#  REFERENCIAS VERIFICADAS — LISTAS PARA DISPATCH
+# =============================================================================
+#  Cada R.G. activo ha sido verificado el 2026-05-17 contra DYCTEA o
+#  fuente jurídica que cita literalmente el número. Las 5 son resoluciones
+#  de unificación de criterio o equivalentes — máximo peso doctrinal.
+#
+#  Antes del primer dispatch: probar UNA en dry-run para confirmar que
+#  el parser DYCTEA acepta el formato `00/NNNNN/AAAA`.
+# =============================================================================
+
+# R.G. 01351/2024 (TEAC, 22 abr 2025) — UNIFICACIÓN DE CRITERIO. IRPF
+# art. 19.2.f) LIRPF: gasto adicional por trabajador activo con discapacidad
+# (3.500/7.750 EUR) NO se prorratea temporalmente y solo minora rendimientos
+# del trabajo obtenidos como trabajador activo discapacitado.
+# https://www.iberley.es/resoluciones/resolucion-teac-00-01351-2024-00-00-22-04-2025-11673846
+00/01351/2024
+
+# R.G. 08923/2022 (TEAC, 30 oct 2023) — UNIFICACIÓN DE CRITERIO.
+# Procedimiento: admisibilidad en vía de revisión (reposición y
+# económico-administrativa) de pruebas no aportadas en comprobación pese
+# a requerimiento, salvo conducta abusiva o maliciosa acreditada.
+# https://serviciostelematicosext.hacienda.gob.es/TEAC/DYCTEA/criterio.aspx?id=00%2F08923%2F2022%2F00%2F0%2F1
+00/08923/2022
+
+# R.G. 08822/2023 (TEAC, 21 oct 2024) — UNIFICACIÓN DE CRITERIO. IRPF:
+# aplica la reducción del 30% del art. 18.2 LIRPF a la prestación por
+# desempleo en pago único cuando el periodo de cotización subyacente
+# excede de 2 años (CAMBIA criterio anterior DGT).
+# https://www.supercontable.com/informacion/impuesto_renta_IRPF/resolucion_no_8822-2023_teac.aplicacion_reduccion_30-_.html
+00/08822/2023
+
+# R.G. 07833/2023 (TEAC, 25 feb 2025) — UNIFICACIÓN DE CRITERIO. IS:
+# operaciones vinculadas con doble vinculación, método del coste
+# incrementado; condiciones para tomar como dato dado los ingresos de la
+# sociedad intermedia.
+# https://www.iberley.es/resoluciones/resolucion-teac-00-07833-2023-00-00-25-02-2025-11672149
+00/07833/2023
+
+# R.G. 06484/2022 (TEAC, 25 sep 2023) — Sancionador: exigencias de
+# motivación de la culpabilidad; insuficiencia de fórmulas genéricas y
+# estereotipadas.
+# https://www.iberley.es/resoluciones/resolucion-teac-00-06484-2022-00-00-25-09-2023-11639130
+00/06484/2022
+
+
+# =============================================================================
+#  BÚSQUEDAS PENDIENTES — el operador localiza el R.G. exacto antes de activar
+# =============================================================================
+
+
 # -----------------------------------------------------------------------------
 # TEAC — UNIFICACIÓN DE CRITERIO (art. 242 LGT) — MÁXIMA PRIORIDAD
 # -----------------------------------------------------------------------------
