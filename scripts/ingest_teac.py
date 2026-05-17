@@ -42,6 +42,13 @@ from hacienda_ai.rag.teac import (  # noqa: E402
     run_ingest_for_numeros,
     tipo_breakdown,
 )
+from hacienda_ai.rag.vector import (  # noqa: E402
+    IngestIndexConfigError,
+    build_provider_from_args,
+    build_store_from_args,
+    build_vector_store_args,
+    index_teac_resoluciones,
+)
 
 DEFAULT_ROOT_DIR = REPO_ROOT / "src" / "hacienda_ai" / "data" / "teac_resoluciones"
 DEFAULT_CACHE_DIR = REPO_ROOT / ".cache" / "teac"
@@ -74,6 +81,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT_DIR)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--report", type=Path, default=None)
+    build_vector_store_args(parser)
     args = parser.parse_args(argv)
 
     numeros: list[str] = list(args.numero)
@@ -141,6 +149,52 @@ def main(argv: list[str] | None = None) -> int:
         + " ".join(f"{k}={v}" for k, v in by_imp.items() if v > 0)
     )
 
+    index_errors: list[str] = []
+    if args.index:
+        accepted_resoluciones = [
+            o.resolucion for o in report.accepted if o.resolucion is not None
+        ]
+        if not accepted_resoluciones:
+            print(
+                "  · --index: sin resoluciones aceptadas; nada que indexar."
+            )
+        else:
+            try:
+                provider = build_provider_from_args(args)
+                store = build_store_from_args(args)
+            except IngestIndexConfigError as exc:
+                print(f"ERROR --index: {exc}", file=sys.stderr)
+                return 2
+            print(
+                f"Indexando {len(accepted_resoluciones)} resoluciones TEAC "
+                f"en colección {args.collection!r} (provider={args.provider} "
+                f"store={args.store})..."
+            )
+            try:
+                index_report = index_teac_resoluciones(
+                    accepted_resoluciones,
+                    collection=args.collection,
+                    provider=provider,
+                    store=store,
+                    batch_size=args.index_batch_size,
+                )
+            except Exception as exc:  # noqa: BLE001
+                print(
+                    f"ERROR indexando: {exc}. Los items siguen "
+                    "persistidos en disco; reintenta con "
+                    "scripts/index_vector_store.py.",
+                    file=sys.stderr,
+                )
+                return 1
+            print(
+                f"  + indexed total={index_report.total_chunks} "
+                f"upserted={index_report.upserted} "
+                f"errores={len(index_report.errors)}"
+            )
+            for err in index_report.errors[:10]:
+                print(f"    ✗ {err}", file=sys.stderr)
+            index_errors = list(index_report.errors)
+
     if args.report is not None:
         payload = {
             "today": today.isoformat(),
@@ -148,6 +202,7 @@ def main(argv: list[str] | None = None) -> int:
                 "accepted": len(report.accepted),
                 "errored": len(report.errored),
                 "newly_persisted": len(report.newly_persisted),
+                "index_errors": len(index_errors),
             },
             "by_tipo": by_tipo,
             "by_impuesto": by_imp,

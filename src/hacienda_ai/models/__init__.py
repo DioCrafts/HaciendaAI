@@ -13,6 +13,10 @@ from ._common import (
     require_iso_date,
     validate_content_hash,
 )
+from .article_version import (
+    ArticleRegistry,
+    VersionArticulo,
+)
 from .consulta_dgt import (
     ConsultaDGT,
     CriterioConfidence,
@@ -59,6 +63,7 @@ from .sentencia import (
 )
 
 __all__ = [
+    "ArticleRegistry",
     "Calculation",
     "ConsultaDGT",
     "CriterioConfidence",
@@ -91,6 +96,7 @@ __all__ = [
     "Tier",
     "ValidationError",
     "ValidationStatus",
+    "VersionArticulo",
     "VersionNorma",
     "is_regional_bulletin_id",
     "is_state_bulletin_id",

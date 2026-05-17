@@ -31,6 +31,14 @@ from ...models import (
     ResolucionTEAC,
     Sentencia,
 )
+from ...safety.jurisprudence_registry import (
+    DoctrineWeight,
+    JurisprudenceTier,
+    compute_sentencia_weights,
+    compute_teac_weights,
+    tier_for_sentencia,
+    tier_for_teac,
+)
 from .embedded_chunk import IndexableChunk, SourceType
 
 
@@ -119,16 +127,27 @@ def iter_sentencia_chunks(jurisprudencia_dir: Path) -> Iterator[IndexableChunk]:
     razonamiento decisivo (ratio decidendi + fallo). Indexar el cuerpo
     completo es ruidoso para corpus medianos; si hace falta, se puede
     añadir como chunks secundarios en iteraciones futuras.
+
+    Cada chunk lleva `tier` (jerarquía: TC=1, TS=2, AN=3, TSJ=4, AP=6)
+    y `doctrine_weight` (binding/consolidated/isolated) en la metadata
+    para que el reranker pueda priorizar fuentes de mayor peso a igualdad
+    de relevancia semántica. La doctrina reiterada (CONSOLIDATED) se
+    detecta comparando todas las sentencias del corpus en bloque, así
+    que la cargamos primero y luego emitimos los chunks.
     """
+    sentencias: list[tuple[Path, Sentencia]] = []
     for path in _iter_jsons(jurisprudencia_dir):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            sentencia = Sentencia.from_dict(data)
+            sentencias.append((path, Sentencia.from_dict(data)))
         except Exception as exc:  # noqa: BLE001
             raise CorpusLoadError(
                 f"no se pudo cargar sentencia {path}: {exc}"
             ) from exc
 
+    weight_by_ecli = compute_sentencia_weights([s for _, s in sentencias])
+
+    for _, sentencia in sentencias:
         text_parts = [
             f"{sentencia.tribunal_codigo} {sentencia.numero_resolucion or ''} ({sentencia.fecha.isoformat()})",
         ]
@@ -138,6 +157,10 @@ def iter_sentencia_chunks(jurisprudencia_dir: Path) -> Iterator[IndexableChunk]:
             text_parts.append(f"Ratio: {sentencia.ratio_decidendi}")
         text_parts.append(f"Fallo: {sentencia.fallo_texto}")
 
+        tier = tier_for_sentencia(sentencia)
+        weight = weight_by_ecli.get(
+            sentencia.ecli, DoctrineWeight.ISOLATED
+        )
         metadata: dict[str, Any] = {
             "ecli": sentencia.ecli,
             "organo": sentencia.organo.value,
@@ -145,6 +168,9 @@ def iter_sentencia_chunks(jurisprudencia_dir: Path) -> Iterator[IndexableChunk]:
             "fecha": sentencia.fecha.isoformat(),
             "fallo_sentido": sentencia.fallo_sentido.value,
             "ratio_confidence": sentencia.ratio_confidence.value,
+            "tier": int(tier),
+            "tier_label": tier.name,
+            "doctrine_weight": weight.value,
         }
         if sentencia.sala:
             metadata["sala"] = sentencia.sala
@@ -163,7 +189,13 @@ def iter_sentencia_chunks(jurisprudencia_dir: Path) -> Iterator[IndexableChunk]:
 
 
 def iter_dgt_chunks(dgt_dir: Path) -> Iterator[IndexableChunk]:
-    """Itera chunks por cada consulta DGT del corpus."""
+    """Itera chunks por cada consulta DGT del corpus.
+
+    Las consultas DGT vinculantes son criterio administrativo (art. 89
+    LGT). Llevan tier `DGT_VINCULANTE` (=5) en metadata para que el
+    reranker las posicione bajo TC/TS/TEAC pero sobre TEAR cuando dos
+    fuentes empatan en relevancia.
+    """
     for path in _iter_jsons(dgt_dir):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -191,6 +223,11 @@ def iter_dgt_chunks(dgt_dir: Path) -> Iterator[IndexableChunk]:
             "impuesto": consulta.impuesto.value,
             "fecha": consulta.fecha_salida.isoformat(),
             "criterio_confidence": consulta.criterio_confidence.value,
+            "tier": int(JurisprudenceTier.DGT_VINCULANTE),
+            "tier_label": JurisprudenceTier.DGT_VINCULANTE.name,
+            # DGT vinculante: binding solo en el supuesto del consultante
+            # (art. 89 LGT). ISOLATED por defecto; el LLM puede matizar.
+            "doctrine_weight": DoctrineWeight.ISOLATED.value,
         }
         if consulta.normativa:
             metadata["normativa"] = list(consulta.normativa)
@@ -207,16 +244,27 @@ def iter_dgt_chunks(dgt_dir: Path) -> Iterator[IndexableChunk]:
 
 
 def iter_teac_chunks(teac_dir: Path) -> Iterator[IndexableChunk]:
-    """Itera chunks por cada resolución TEAC/TEAR del corpus."""
+    """Itera chunks por cada resolución TEAC/TEAR del corpus.
+
+    El tier diferencia TEAC unifica criterio (=2, equivalente a TS para
+    la AEAT) de TEAC extiende efectos (=3), TEAC ordinaria (=4) y TEAR
+    (=6). El `doctrine_weight` marca como BINDING las unificaciones de
+    criterio y extensiones de efectos por su efecto vinculante legal
+    (arts. 242 y 244 LGT).
+    """
+    resoluciones: list[tuple[Path, ResolucionTEAC]] = []
     for path in _iter_jsons(teac_dir):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            resolucion = ResolucionTEAC.from_dict(data)
+            resoluciones.append((path, ResolucionTEAC.from_dict(data)))
         except Exception as exc:  # noqa: BLE001
             raise CorpusLoadError(
                 f"no se pudo cargar resolución TEAC {path}: {exc}"
             ) from exc
 
+    weight_by_numero = compute_teac_weights([r for _, r in resoluciones])
+
+    for _, resolucion in resoluciones:
         text_parts = [
             f"{resolucion.organo.value.upper()} {resolucion.numero} "
             f"({resolucion.fecha.isoformat()}, {resolucion.tipo.value}) — {resolucion.asunto}",
@@ -224,6 +272,10 @@ def iter_teac_chunks(teac_dir: Path) -> Iterator[IndexableChunk]:
         if resolucion.criterio:
             text_parts.append(f"Criterio: {resolucion.criterio}")
 
+        tier = tier_for_teac(resolucion)
+        weight = weight_by_numero.get(
+            resolucion.numero, DoctrineWeight.ISOLATED
+        )
         metadata: dict[str, Any] = {
             "numero": resolucion.numero,
             "organo": resolucion.organo.value,
@@ -232,6 +284,9 @@ def iter_teac_chunks(teac_dir: Path) -> Iterator[IndexableChunk]:
             "impuesto": resolucion.impuesto.value,
             "fecha": resolucion.fecha.isoformat(),
             "criterio_confidence": resolucion.criterio_confidence.value,
+            "tier": int(tier),
+            "tier_label": tier.name,
+            "doctrine_weight": weight.value,
         }
         if resolucion.sede:
             metadata["sede"] = resolucion.sede

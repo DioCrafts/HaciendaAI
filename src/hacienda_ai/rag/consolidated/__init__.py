@@ -33,18 +33,30 @@ el BOE de la víspera.
 
 from __future__ import annotations
 
+from .article_snapshot import (
+    ArticleSnapshotError,
+    ArticleVersionSnapshot,
+    article_snapshot_path,
+    load_article_snapshot,
+    save_article_snapshot,
+)
 from .articles import (
     NON_NORMATIVE_CSS_CLASSES,
     BlockHash,
     all_block_hashes,
+    iter_article_versions,
     iter_precept_blocks,
     normalize_version_text,
     select_version_for_date,
 )
 from .drift import (
     ArticleDrift,
+    ArticleVersionDrift,
+    ArticleVersionDriftKind,
+    ArticleVersionDriftReport,
     DriftKind,
     NormaDriftReport,
+    compute_article_version_drift,
     compute_norma_drift,
 )
 from .fetcher import (
@@ -68,6 +80,11 @@ from .snapshot import (
 
 __all__ = [
     "ArticleDrift",
+    "ArticleSnapshotError",
+    "ArticleVersionDrift",
+    "ArticleVersionDriftKind",
+    "ArticleVersionDriftReport",
+    "ArticleVersionSnapshot",
     "BlockHash",
     "CheckRunReport",
     "ConsolidatedFetchError",
@@ -79,12 +96,17 @@ __all__ = [
     "NormaSnapshot",
     "SnapshotError",
     "all_block_hashes",
+    "article_snapshot_path",
     "check_norma",
+    "compute_article_version_drift",
     "compute_norma_drift",
+    "iter_article_versions",
     "iter_precept_blocks",
+    "load_article_snapshot",
     "load_snapshot",
     "normalize_version_text",
     "run_check_for_registry",
+    "save_article_snapshot",
     "save_snapshot",
     "select_version_for_date",
     "serialize_report",

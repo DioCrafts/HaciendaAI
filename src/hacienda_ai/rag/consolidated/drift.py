@@ -20,6 +20,15 @@ drift: devolvemos un report con `has_changes=False` aunque
 `added=todos_los_bloques`. El criterio operativo es "¿hay que abrir
 issue?", y para una norma que se está incorporando al sistema la
 respuesta es no — solo crear el snapshot por primera vez.
+
+`compute_article_version_drift` (más abajo) extiende esta lógica al
+**timeline completo por artículo**: en lugar de comparar el hash de la
+versión vigente en una fecha, compara los conjuntos de versiones por
+artículo. Detecta versiones añadidas (nueva redacción tras una reforma),
+versiones eliminadas (raro: corrección editorial BOE) y versiones
+modificadas (mismo `(article_id, effective_from)` con texto distinto —
+indica corrección oficial del texto histórico, casi siempre un fix
+tipográfico pero merece revisión humana).
 """
 
 from __future__ import annotations
@@ -28,6 +37,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Literal
 
+from ...models import VersionArticulo
 from .snapshot import NormaSnapshot
 
 DriftKind = Literal["added", "removed", "modified"]
@@ -150,4 +160,171 @@ def compute_norma_drift(
         removed=removed,
         modified=modified,
         new_snapshot=new_snapshot,
+    )
+
+
+# ---------- Drift por timeline completo de artículos ----------
+
+
+ArticleVersionDriftKind = Literal[
+    "added",      # versión nueva en el timeline (reforma)
+    "removed",    # versión que estaba y ya no está (correción editorial)
+    "rewritten",  # mismo (article_id, effective_from) con texto distinto
+    "shifted",    # mismo (article_id, effective_from) pero cambio en
+                  # effective_to (cierre de versión activa anteriormente)
+]
+
+
+@dataclass(frozen=True)
+class ArticleVersionDrift:
+    """Una divergencia detectada en el timeline de un artículo concreto.
+
+    `key = (article_id, effective_from)` identifica una versión en el
+    timeline. Las tres `kind`s capturan los tipos de cambio que el BOE
+    consolidado realmente produce:
+
+    - `added`: hay una versión con `(article_id, effective_from)` nuevo.
+      Lo típico tras un RDL que reforma un artículo.
+    - `removed`: una versión que registramos antes ya no aparece. Suele
+      ser una corrección editorial del BOE (versión publicada por
+      error). Conviene investigar manualmente.
+    - `rewritten`: la versión tiene la misma `effective_from` pero el
+      texto cambió. Es un fix tipográfico oficial; aún así dispara
+      drift porque rompe la línea base del corpus.
+    - `shifted`: `effective_to` cambió (típicamente de `None` a una
+      fecha, porque se modificó posteriormente y BOE cierra la versión
+      vigente).
+    """
+
+    article_id: str
+    effective_from: date
+    kind: ArticleVersionDriftKind
+    previous: VersionArticulo | None
+    current: VersionArticulo | None
+
+
+@dataclass(frozen=True)
+class ArticleVersionDriftReport:
+    """Resumen de comparar dos timelines completos por artículo.
+
+    `is_bootstrap=True` indica que `previous` estaba vacío: el caller
+    debe persistir el nuevo timeline sin notificar. Mismo criterio que
+    `NormaDriftReport`."""
+
+    boe_id: str
+    is_bootstrap: bool
+    has_changes: bool
+    added: tuple[ArticleVersionDrift, ...]
+    removed: tuple[ArticleVersionDrift, ...]
+    rewritten: tuple[ArticleVersionDrift, ...]
+    shifted: tuple[ArticleVersionDrift, ...]
+
+    @property
+    def all_changes(self) -> tuple[ArticleVersionDrift, ...]:
+        return self.added + self.removed + self.rewritten + self.shifted
+
+    @property
+    def affected_article_ids(self) -> tuple[str, ...]:
+        return tuple(sorted({d.article_id for d in self.all_changes}))
+
+
+def compute_article_version_drift(
+    *,
+    boe_id: str,
+    previous_versions: list[VersionArticulo],
+    current_versions: list[VersionArticulo],
+) -> ArticleVersionDriftReport:
+    """Compara dos timelines de `VersionArticulo` por artículo.
+
+    La clave de comparación es `(article_id, effective_from)`: dos
+    versiones con la misma clave en `previous` y `current` se
+    consideran "la misma versión" y se comparan por `text_hash` (para
+    `rewritten`) y `effective_to` (para `shifted`). Versiones con
+    claves distintas son `added` o `removed`.
+
+    NO comparamos por `text_hash` puro porque una versión nueva con
+    texto idéntico a una anterior es semánticamente una versión nueva
+    (BOE re-publica el mismo texto en una norma posterior cuando una
+    derogación es luego revertida, por ejemplo).
+    """
+    if not previous_versions:
+        return ArticleVersionDriftReport(
+            boe_id=boe_id,
+            is_bootstrap=True,
+            has_changes=False,
+            added=(),
+            removed=(),
+            rewritten=(),
+            shifted=(),
+        )
+
+    prev_by_key: dict[tuple[str, date], VersionArticulo] = {
+        (v.article_id, v.effective_from): v for v in previous_versions
+    }
+    curr_by_key: dict[tuple[str, date], VersionArticulo] = {
+        (v.article_id, v.effective_from): v for v in current_versions
+    }
+
+    added: list[ArticleVersionDrift] = []
+    removed: list[ArticleVersionDrift] = []
+    rewritten: list[ArticleVersionDrift] = []
+    shifted: list[ArticleVersionDrift] = []
+
+    for key in sorted(set(curr_by_key) - set(prev_by_key)):
+        article_id, effective_from = key
+        added.append(
+            ArticleVersionDrift(
+                article_id=article_id,
+                effective_from=effective_from,
+                kind="added",
+                previous=None,
+                current=curr_by_key[key],
+            )
+        )
+    for key in sorted(set(prev_by_key) - set(curr_by_key)):
+        article_id, effective_from = key
+        removed.append(
+            ArticleVersionDrift(
+                article_id=article_id,
+                effective_from=effective_from,
+                kind="removed",
+                previous=prev_by_key[key],
+                current=None,
+            )
+        )
+    for key in sorted(set(prev_by_key) & set(curr_by_key)):
+        prev_v = prev_by_key[key]
+        curr_v = curr_by_key[key]
+        if prev_v.text_hash != curr_v.text_hash:
+            rewritten.append(
+                ArticleVersionDrift(
+                    article_id=key[0],
+                    effective_from=key[1],
+                    kind="rewritten",
+                    previous=prev_v,
+                    current=curr_v,
+                )
+            )
+        elif prev_v.effective_to != curr_v.effective_to:
+            # Texto idéntico, pero `effective_to` cambió: típicamente
+            # una versión que estaba abierta (None) ahora se ha
+            # cerrado (otra norma la sustituye).
+            shifted.append(
+                ArticleVersionDrift(
+                    article_id=key[0],
+                    effective_from=key[1],
+                    kind="shifted",
+                    previous=prev_v,
+                    current=curr_v,
+                )
+            )
+
+    return ArticleVersionDriftReport(
+        boe_id=boe_id,
+        is_bootstrap=False,
+        has_changes=bool(added or removed or rewritten or shifted),
+        added=tuple(added),
+        removed=tuple(removed),
+        rewritten=tuple(rewritten),
+        shifted=tuple(shifted),
     )

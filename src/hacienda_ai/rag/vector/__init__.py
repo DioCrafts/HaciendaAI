@@ -42,6 +42,15 @@ from .embedded_chunk import (
     VectorMatch,
     VectorQuery,
 )
+from .ingest_index import (
+    IngestIndexConfigError,
+    build_provider_from_args,
+    build_store_from_args,
+    build_vector_store_args,
+    index_dgt_consultas,
+    index_sentencias,
+    index_teac_resoluciones,
+)
 from .memory import InMemoryVectorStore
 from .provider import (
     DeterministicHashEmbeddings,
@@ -67,6 +76,7 @@ __all__ = [
     "InMemoryVectorStore",
     "IndexReport",
     "IndexableChunk",
+    "IngestIndexConfigError",
     "QdrantVectorStore",
     "QueryReport",
     "SourceType",
@@ -75,7 +85,13 @@ __all__ = [
     "VectorStore",
     "VectorStoreError",
     "VoyageEmbeddings",
+    "build_provider_from_args",
+    "build_store_from_args",
+    "build_vector_store_args",
     "index_corpus",
+    "index_dgt_consultas",
+    "index_sentencias",
+    "index_teac_resoluciones",
     "iter_corpus_chunks",
     "iter_dgt_chunks",
     "iter_manual_chunks",
