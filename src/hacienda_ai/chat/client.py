@@ -191,6 +191,7 @@ class FakeLLMClient:
     ) -> LLMTurn:
         self.calls.append(
             {
+                "system": system,
                 "system_len": len(system),
                 "messages": list(messages),
                 "tool_names": [t["name"] for t in tools],

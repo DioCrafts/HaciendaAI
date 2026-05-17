@@ -432,15 +432,17 @@ def test_chat_endpoint_with_injected_fake_llm() -> None:
         assert len(r2.json()["history"]) >= 3
 
 
-def test_chat_endpoint_blocks_hallucinated_response() -> None:
-    """Si el LLM cierra con un artículo inventado, el endpoint sustituye
-    la respuesta por el mensaje seguro y devuelve verdict=block. El
-    cliente NUNCA ve el texto alucinado en `assistant` (sí en
-    `blocked_text` para auditoría)."""
-    from hacienda_ai.chat import FakeLLMClient, FakeTurn
+def test_chat_endpoint_blocks_hallucinated_response_after_retries() -> None:
+    """Si el LLM insiste en una cita alucinada incluso tras el feedback
+    del verificador, el endpoint agota los reintentos y sustituye la
+    respuesta por el mensaje seguro. El cliente nunca ve el texto
+    alucinado en `assistant` (sí en `blocked_text` para auditoría) y
+    `verify_history` registra los veredictos consecutivos."""
+    from hacienda_ai.chat import MAX_VERIFY_RETRIES, FakeLLMClient, FakeTurn
 
+    bad_text = "Aplicamos el art. 999 LIRPF: nueva deducción de 500 €."
     fake = FakeLLMClient(
-        [FakeTurn(text="Aplicamos el art. 999 LIRPF: nueva deducción de 500 €.")]
+        [FakeTurn(text=bad_text) for _ in range(MAX_VERIFY_RETRIES + 1)]
     )
     app = create_app(db_path=":memory:", llm_client=fake)
     with TestClient(app) as c:
@@ -450,6 +452,9 @@ def test_chat_endpoint_blocks_hallucinated_response() -> None:
         assert data["citation_check"]["verdict"] == "block"
         assert "art. 999" not in data["assistant"]
         assert "art. 999" in data["blocked_text"]
+        # Una verificación por turno problemático (incluida la primera).
+        assert data["verify_attempts"] == MAX_VERIFY_RETRIES + 1
+        assert all(v["verdict"] == "block" for v in data["verify_history"])
 
 
 def test_chat_endpoint_continues_existing_session() -> None:
@@ -864,3 +869,125 @@ def test_create_app_uses_in_memory_db_for_tests() -> None:
             "tax_year": 2025,
             "region": "Madrid",
         }).status_code == 201
+
+
+def test_chat_endpoint_uses_injected_retriever_for_rag() -> None:
+    """Con un retriever inyectado a `create_app`, el endpoint /chat:
+
+    1. Pre-fetches contexto antes del primer turno (chunk_ids quedan
+       reportados al cliente).
+    2. Expone la tool `retrieve_legal_context` al LLM (vía la registry).
+
+    Verificamos ambos: que el `FakeLLMClient` ve el system con RAG y
+    que el modelo puede llamar a la tool durante el loop.
+    """
+    from pathlib import Path
+
+    from hacienda_ai.chat import FakeLLMClient, FakeTurn
+    from hacienda_ai.rag.factory import (
+        RetrieverConfig,
+        build_retriever_from_config,
+    )
+
+    fixtures = Path(__file__).parent / "fixtures" / "vector" / "corpus"
+    retriever, _ = build_retriever_from_config(RetrieverConfig(data_dir=fixtures))
+
+    fake = FakeLLMClient(
+        [
+            FakeTurn(
+                tool_calls=[
+                    (
+                        "retrieve_legal_context",
+                        {"query": "dietas manutencion IRPF", "top_k": 3},
+                    )
+                ]
+            ),
+            FakeTurn(
+                text=(
+                    "Las dietas por manutención están exoneradas según [FUENTE 1]. "
+                    "Este análisis no sustituye a un asesor fiscal colegiado."
+                )
+            ),
+        ]
+    )
+    app = create_app(
+        db_path=":memory:",
+        llm_client=fake,
+        retriever=retriever,
+    )
+    with TestClient(app) as c:
+        r = c.post(
+            "/chat",
+            json={
+                "message": "¿Tributan las dietas por manutención?",
+                "devengo_date": "2024-12-31",
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+
+        # 1. La tool retrieve_legal_context se invocó durante el loop.
+        tools_called = [ti["tool"] for ti in data["tool_invocations"]]
+        assert "retrieve_legal_context" in tools_called
+
+        # 2. El pre-fetch del orquestador inyectó contexto en el system.
+        seen_system = fake.calls[0]["system"]
+        assert "=== CONTEXTO LEGAL RECUPERADO ===" in seen_system
+        assert "[FUENTE 1]" in seen_system
+
+        # 3. La respuesta final pasó el guard.
+        assert data["citation_check"]["verdict"] in ("safe", "warn")
+
+
+def test_chat_endpoint_uses_explicit_devengo_date_when_provided() -> None:
+    """Si el body trae `devengo_date`, el endpoint lo respeta y lo
+    devuelve en `resolved_devengo` con `devengo_source='explicit'`."""
+    from hacienda_ai.chat import FakeLLMClient, FakeTurn
+
+    fake = FakeLLMClient([FakeTurn(text="Listo.")])
+    app = create_app(db_path=":memory:", llm_client=fake)
+    with TestClient(app) as c:
+        r = c.post(
+            "/chat",
+            json={"message": "Hola", "devengo_date": "2023-12-31"},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["resolved_devengo"] == "2023-12-31"
+        assert data["devengo_source"] == "explicit"
+
+
+def test_chat_endpoint_autoresolves_devengo_when_absent() -> None:
+    """Sin `devengo_date` en el body, el endpoint autoresuelve usando
+    `resolve_current_fiscal_year()` y devuelve la fecha efectiva en
+    `resolved_devengo` con `devengo_source='auto'`. Ese año debe ser
+    el último cerrado por devengo IRPF (= year actual - 1)."""
+    from datetime import date
+
+    from hacienda_ai.chat import FakeLLMClient, FakeTurn
+
+    fake = FakeLLMClient([FakeTurn(text="Listo.")])
+    app = create_app(db_path=":memory:", llm_client=fake)
+    with TestClient(app) as c:
+        r = c.post("/chat", json={"message": "¿Cuánto pago de IRPF?"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["devengo_source"] == "auto"
+        # El devengo recomendado por defecto es 31-dic del año anterior.
+        expected_year = date.today().year - 1
+        assert data["resolved_devengo"] == f"{expected_year}-12-31"
+
+
+def test_chat_endpoint_rejects_malformed_devengo_date() -> None:
+    """Una `devengo_date` mal formada sigue devolviendo 422 (no se cae
+    silenciosamente a la autoresolución)."""
+    from hacienda_ai.chat import FakeLLMClient, FakeTurn
+
+    fake = FakeLLMClient([FakeTurn(text="Listo.")])
+    app = create_app(db_path=":memory:", llm_client=fake)
+    with TestClient(app) as c:
+        r = c.post(
+            "/chat",
+            json={"message": "Hola", "devengo_date": "31/12/2024"},
+        )
+        assert r.status_code == 422

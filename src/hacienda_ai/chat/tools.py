@@ -21,13 +21,27 @@ from datetime import date
 from typing import Any
 
 from ..deductions import load_deductions
+from ..fiscal_calendar import (
+    TaxpayerSegment,
+    get_upcoming_events,
+    resolve_current_fiscal_year,
+)
 from ..irpf import compute_quota, load_tax_scales
 from ..irpf.quota import quota_to_dict
 from ..irpf.scales import TaxScale
+from ..iva import (
+    IVAComputationError,
+    IVATipo,
+    compute_iva_quota,
+    lookup_iva_operations,
+)
 from ..models import Deduction, NormaRegistry, TaxProfile, ValidationError
 from ..normas import load_norma_registry
+from ..rag.grounding import build_llm_context
+from ..rag.vector import SourceType, VectorMatch, VectorQuery
 from ..rules import evaluate_deductions
 from ..safety import verify_citations
+from .retriever import LegalContextRetriever
 
 ToolHandler = Callable[[dict[str, Any]], dict[str, Any]]
 
@@ -263,6 +277,323 @@ def _make_verify_citation(
     return handler
 
 
+def _citation_hint(match: VectorMatch) -> str:
+    """Genera la cita pinpoint sugerida para que el LLM la copie verbatim.
+
+    Cada familia de fuente tiene su formato canónico distinto:
+
+    - Norma: `art. 19.2.e) (BOE-A-2006-20764)`
+    - Sentencia: `STS ECLI:ES:TS:2024:1234`
+    - Consulta DGT: `Consulta DGT V0123-24 (30/01/2024)`
+    - Resolución TEAC: `TEAC 00/12345/2023`
+    - Manual AEAT: `Manual AEAT manual_irpf 2024`
+
+    Vivir aquí —y no en `context_builder.py`— mantiene la responsabilidad
+    en la capa que lo expone al LLM como tool result; el grounding sigue
+    siendo agnóstico del formato de cita textual.
+    """
+    meta = match.chunk.metadata
+    st = match.chunk.source_type
+    if st == SourceType.NORMA:
+        boe_id = meta.get("boe_id")
+        articulo = meta.get("articulo")
+        apartado = meta.get("apartado")
+        pin = ""
+        if articulo:
+            pin = str(articulo)
+            if apartado:
+                pin = f"{pin}.{apartado}" if pin and not pin.endswith(".") else f"{pin}{apartado}"
+        if boe_id and pin:
+            return f"{pin} ({boe_id})"
+        if boe_id:
+            return str(boe_id)
+        return pin
+    if st == SourceType.SENTENCIA:
+        ecli = meta.get("ecli")
+        tribunal = meta.get("tribunal_codigo")
+        if ecli and tribunal:
+            return f"{tribunal} {ecli}"
+        return str(ecli or tribunal or "")
+    if st == SourceType.CONSULTA_DGT:
+        numero = meta.get("numero")
+        fecha = meta.get("fecha")
+        if numero and fecha:
+            return f"Consulta DGT {numero} ({fecha})"
+        if numero:
+            return f"Consulta DGT {numero}"
+        return "Consulta DGT"
+    if st == SourceType.RESOLUCION_TEAC:
+        numero = meta.get("numero")
+        organo = meta.get("organo")
+        if numero and organo:
+            return f"{str(organo).upper()} {numero}"
+        return str(numero or organo or "")
+    if st == SourceType.MANUAL:
+        fuente = meta.get("fuente")
+        ejercicio = meta.get("ejercicio")
+        if fuente and ejercicio:
+            return f"Manual AEAT {fuente} {ejercicio}"
+        if fuente:
+            return f"Manual AEAT {fuente}"
+        return "Manual AEAT"
+    return ""
+
+
+_RETRIEVE_MIN_TOP_K = 1
+_RETRIEVE_MAX_TOP_K = 25
+_RETRIEVE_DEFAULT_TOP_K = 6
+_SOURCE_TYPE_VALUES = tuple(st.value for st in SourceType)
+
+
+def _make_retrieve_legal_context(retriever: LegalContextRetriever) -> ToolHandler:
+    def handler(args: dict[str, Any]) -> dict[str, Any]:
+        query_text = args.get("query")
+        if not isinstance(query_text, str) or not query_text.strip():
+            return {"error": "'query' (string no vacía) es obligatorio"}
+
+        impuesto = args.get("impuesto")
+        if impuesto is not None and (
+            not isinstance(impuesto, str) or not impuesto.strip()
+        ):
+            return {"error": "'impuesto' debe ser string no vacío o estar ausente"}
+        impuesto_eff: str | None = impuesto.strip().lower() if impuesto else None
+
+        devengo_raw = args.get("devengo_date")
+        devengo: date | None = None
+        if devengo_raw is not None:
+            if not isinstance(devengo_raw, str) or not devengo_raw:
+                return {
+                    "error": "'devengo_date' debe ser string ISO 8601 (YYYY-MM-DD)"
+                }
+            try:
+                devengo = date.fromisoformat(devengo_raw)
+            except ValueError:
+                return {
+                    "error": "'devengo_date' inválida; usa formato ISO 8601 (YYYY-MM-DD)"
+                }
+
+        source_types_raw = args.get("source_types")
+        source_types: tuple[SourceType, ...] | None = None
+        if source_types_raw is not None:
+            if not isinstance(source_types_raw, list) or not source_types_raw:
+                return {
+                    "error": (
+                        "'source_types' debe ser una lista no vacía con valores en "
+                        f"{list(_SOURCE_TYPE_VALUES)}"
+                    )
+                }
+            collected: list[SourceType] = []
+            for raw in source_types_raw:
+                if not isinstance(raw, str) or raw not in _SOURCE_TYPE_VALUES:
+                    return {
+                        "error": (
+                            f"'source_types' contiene un valor inválido: {raw!r}. "
+                            f"Permitidos: {list(_SOURCE_TYPE_VALUES)}"
+                        )
+                    }
+                collected.append(SourceType(raw))
+            source_types = tuple(collected)
+
+        top_k_raw = args.get("top_k", _RETRIEVE_DEFAULT_TOP_K)
+        if (
+            not isinstance(top_k_raw, int)
+            or isinstance(top_k_raw, bool)
+            or top_k_raw < _RETRIEVE_MIN_TOP_K
+            or top_k_raw > _RETRIEVE_MAX_TOP_K
+        ):
+            return {
+                "error": (
+                    f"'top_k' debe ser entero entre {_RETRIEVE_MIN_TOP_K} y "
+                    f"{_RETRIEVE_MAX_TOP_K}"
+                )
+            }
+
+        query = VectorQuery(
+            text=query_text.strip(),
+            top_k=top_k_raw,
+            source_types=source_types,
+            impuesto=impuesto_eff,
+            fecha_devengo=devengo,
+            min_score=0.0,
+        )
+        try:
+            matches = retriever.search(query)
+        except Exception as exc:  # noqa: BLE001 — superficie hacia el LLM
+            return {"error": f"Fallo del retriever: {exc}"}
+
+        if not matches:
+            return {
+                "count": 0,
+                "sources": [],
+                "rendered_context": "",
+                "filters": {
+                    "impuesto": impuesto_eff,
+                    "devengo_date": devengo.isoformat() if devengo else None,
+                    "source_types": (
+                        [st.value for st in source_types] if source_types else None
+                    ),
+                    "top_k": top_k_raw,
+                },
+            }
+
+        context = build_llm_context(matches, max_sources=top_k_raw)
+        sources_payload: list[dict[str, Any]] = []
+        for source, match in zip(context.sources, matches, strict=False):
+            sources_payload.append(
+                {
+                    "index": source.index,
+                    "chunk_id": source.chunk_id,
+                    "source_type": source.source_type.value,
+                    "header": source.header,
+                    "metadata_lines": list(source.metadata_lines),
+                    "body": source.body,
+                    "rendered": source.render(),
+                    "score": match.score,
+                    "citation_hint": _citation_hint(match),
+                }
+            )
+        return {
+            "count": len(sources_payload),
+            "sources": sources_payload,
+            "rendered_context": context.rendered,
+            "filters": {
+                "impuesto": impuesto_eff,
+                "devengo_date": devengo.isoformat() if devengo else None,
+                "source_types": (
+                    [st.value for st in source_types] if source_types else None
+                ),
+                "top_k": top_k_raw,
+            },
+        }
+
+    return handler
+
+
+_IVA_TIPO_VALUES = tuple(t.value for t in IVATipo)
+_IVA_LOOKUP_MAX_MATCHES = 25
+
+
+def _make_lookup_iva_type() -> ToolHandler:
+    def handler(args: dict[str, Any]) -> dict[str, Any]:
+        query = args.get("query")
+        if not isinstance(query, str) or not query.strip():
+            return {"error": "'query' (string no vacía) es obligatorio"}
+        matches = lookup_iva_operations(query)
+        return {
+            "query": query.strip(),
+            "count": len(matches),
+            "matches": [op.to_dict() for op in matches[:_IVA_LOOKUP_MAX_MATCHES]],
+            "truncated": len(matches) > _IVA_LOOKUP_MAX_MATCHES,
+        }
+
+    return handler
+
+
+def _make_compute_iva_quota() -> ToolHandler:
+    def handler(args: dict[str, Any]) -> dict[str, Any]:
+        base_raw = args.get("base_imponible")
+        if (
+            not isinstance(base_raw, (int, float))
+            or isinstance(base_raw, bool)
+        ):
+            return {
+                "error": "'base_imponible' debe ser numérica (int o float)"
+            }
+        tipo_raw = args.get("tipo")
+        if not isinstance(tipo_raw, str) or tipo_raw not in _IVA_TIPO_VALUES:
+            return {
+                "error": (
+                    f"'tipo' es obligatorio y debe estar en "
+                    f"{list(_IVA_TIPO_VALUES)}"
+                )
+            }
+        try:
+            quota = compute_iva_quota(float(base_raw), IVATipo(tipo_raw))
+        except IVAComputationError as exc:
+            return {"error": str(exc)}
+        return quota.to_dict()
+
+    return handler
+
+
+_FISCAL_CALENDAR_MIN_WINDOW = 1
+_FISCAL_CALENDAR_MAX_WINDOW = 365
+_FISCAL_CALENDAR_DEFAULT_WINDOW = 90
+_SEGMENT_VALUES = tuple(s.value for s in TaxpayerSegment)
+
+
+def _make_get_fiscal_calendar() -> ToolHandler:
+    def handler(args: dict[str, Any]) -> dict[str, Any]:
+        today_raw = args.get("today_override")
+        today: date | None = None
+        if today_raw is not None:
+            if not isinstance(today_raw, str) or not today_raw:
+                return {
+                    "error": "'today_override' debe ser string ISO 8601 (YYYY-MM-DD)"
+                }
+            try:
+                today = date.fromisoformat(today_raw)
+            except ValueError:
+                return {
+                    "error": "'today_override' inválida; usa formato ISO 8601 (YYYY-MM-DD)"
+                }
+        if today is None:
+            today = date.today()
+
+        window_raw = args.get("window_days", _FISCAL_CALENDAR_DEFAULT_WINDOW)
+        if (
+            not isinstance(window_raw, int)
+            or isinstance(window_raw, bool)
+            or window_raw < _FISCAL_CALENDAR_MIN_WINDOW
+            or window_raw > _FISCAL_CALENDAR_MAX_WINDOW
+        ):
+            return {
+                "error": (
+                    f"'window_days' debe ser entero entre "
+                    f"{_FISCAL_CALENDAR_MIN_WINDOW} y "
+                    f"{_FISCAL_CALENDAR_MAX_WINDOW}"
+                )
+            }
+
+        segments_raw = args.get("segments")
+        segments: tuple[TaxpayerSegment, ...] | None = None
+        if segments_raw is not None:
+            if not isinstance(segments_raw, list) or not segments_raw:
+                return {
+                    "error": (
+                        "'segments' debe ser una lista no vacía con valores "
+                        f"en {list(_SEGMENT_VALUES)}"
+                    )
+                }
+            parsed: list[TaxpayerSegment] = []
+            for raw in segments_raw:
+                if not isinstance(raw, str) or raw not in _SEGMENT_VALUES:
+                    return {
+                        "error": (
+                            f"'segments' contiene un valor inválido: {raw!r}. "
+                            f"Permitidos: {list(_SEGMENT_VALUES)}"
+                        )
+                    }
+                parsed.append(TaxpayerSegment(raw))
+            segments = tuple(parsed)
+
+        resolution = resolve_current_fiscal_year(today)
+        events = get_upcoming_events(
+            today, window_days=window_raw, segments=segments
+        )
+        return {
+            "today": today.isoformat(),
+            "fiscal_year_resolution": resolution.to_dict(),
+            "upcoming_events": [e.to_dict() for e in events],
+            "filters": {
+                "window_days": window_raw,
+                "segments": [s.value for s in segments] if segments else None,
+            },
+        }
+
+    return handler
+
+
 # ---------- Builder ----------
 
 
@@ -283,8 +614,17 @@ def build_default_registry(
     deductions: list[Deduction] | None = None,
     registry: NormaRegistry | None = None,
     scales: list[TaxScale] | None = None,
+    retriever: LegalContextRetriever | None = None,
 ) -> ToolRegistry:
-    """Construye el set de tools por defecto, cargando del disco si no se inyectan."""
+    """Construye el set de tools por defecto, cargando del disco si no se inyectan.
+
+    Si se pasa `retriever`, se añade la tool `retrieve_legal_context`
+    sobre las cinco deterministas: el LLM podrá pedir contexto RAG
+    reactivo (con `[FUENTE N]` y `citation_hint`) durante el loop,
+    complementando el pre-fetch que hace `run_chat` antes del primer
+    turno. Sin retriever, la registry queda como hasta Fase 0 (cinco
+    tools puramente locales sobre corpus + registry + escalas).
+    """
     deductions = deductions if deductions is not None else load_deductions()
     registry = registry if registry is not None else load_norma_registry()
     scales = scales if scales is not None else load_tax_scales()
@@ -401,6 +741,214 @@ def build_default_registry(
             handler=_make_verify_citation(deductions, registry, scales),
         )
     )
+    reg.register(
+        Tool(
+            name="get_fiscal_calendar",
+            description=(
+                "Devuelve las próximas obligaciones fiscales (modelos AEAT: "
+                "100, 130, 131, 303, 390, 111, 115, 190, 202, 200, 347, 349, "
+                "720, 721) dentro de una ventana temporal, junto con la "
+                "resolución del ejercicio fiscal en curso (campaña de Renta "
+                "abierta/cerrada, último ejercicio cerrado, recomendación "
+                "para preguntas genéricas). LLÁMALA cuando el usuario pregunte "
+                "sobre plazos, calendario, ejercicio aplicable o cuando no "
+                "especifique el año fiscal y necesites saber cuál asumir."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "today_override": {
+                        "type": "string",
+                        "description": (
+                            "Fecha ISO 8601 (YYYY-MM-DD) usada como 'hoy'. "
+                            "Opcional: por defecto se usa la fecha actual "
+                            "del sistema. Útil para simular escenarios."
+                        ),
+                    },
+                    "window_days": {
+                        "type": "integer",
+                        "minimum": _FISCAL_CALENDAR_MIN_WINDOW,
+                        "maximum": _FISCAL_CALENDAR_MAX_WINDOW,
+                        "default": _FISCAL_CALENDAR_DEFAULT_WINDOW,
+                        "description": (
+                            "Días hacia adelante para listar obligaciones "
+                            f"(entre {_FISCAL_CALENDAR_MIN_WINDOW} y "
+                            f"{_FISCAL_CALENDAR_MAX_WINDOW}, default "
+                            f"{_FISCAL_CALENDAR_DEFAULT_WINDOW})."
+                        ),
+                    },
+                    "segments": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": list(_SEGMENT_VALUES),
+                        },
+                        "description": (
+                            "Filtra por segmento de contribuyente "
+                            "(particular, autonomo, autonomo_modulos, "
+                            "empresa, gran_empresa). Omítelo para vista "
+                            "panorámica."
+                        ),
+                    },
+                },
+            },
+            handler=_make_get_fiscal_calendar(),
+        )
+    )
+    reg.register(
+        Tool(
+            name="lookup_iva_type",
+            description=(
+                "Busca en el catálogo de operaciones típicas el tipo de IVA "
+                "aplicable y su cita pinpoint a LIVA (Ley 37/1992). Úsala "
+                "cuando el usuario describa una operación ('libros', 'servicios "
+                "de un abogado', 'alquiler de vivienda', 'medicamentos') y "
+                "necesites saber si tributa al 21% / 10% / 4% / 0% o está "
+                "exenta. Si no hay coincidencia exacta, dilo en lugar de "
+                "inventar; muchas operaciones requieren reglas adicionales "
+                "(localización, destinatario) que esta tool NO contempla."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "Descripción de la operación en español: usa "
+                            "términos concretos ('libros impresos', 'gafas "
+                            "graduadas', 'restauración', 'alquiler vivienda')."
+                        ),
+                    },
+                },
+                "required": ["query"],
+            },
+            handler=_make_lookup_iva_type(),
+        )
+    )
+    reg.register(
+        Tool(
+            name="compute_iva_quota",
+            description=(
+                "Calcula la cuota de IVA: base × tipo. Devuelve cuota y "
+                "total (base + cuota), junto con la cita LIVA correspondiente "
+                "(art. 90 general, art. 91 reducido/superreducido, art. 20 "
+                "exenciones, art. 21 cero). Para operaciones EXENTAS la "
+                "cuota es `null` y se indica que no se devenga IVA (no se "
+                "puede deducir el soportado, salvo excepciones art. 20.tres). "
+                "Para tipo CERO la cuota es 0 € y SÍ hay derecho a deducir. "
+                "Esta es la ÚNICA forma legítima de obtener importes IVA: no "
+                "los calcules de cabeza."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "base_imponible": {
+                        "type": "number",
+                        "minimum": 0,
+                        "description": (
+                            "Base imponible de la operación en euros "
+                            "(no negativa). NO incluye el IVA."
+                        ),
+                    },
+                    "tipo": {
+                        "type": "string",
+                        "enum": list(_IVA_TIPO_VALUES),
+                        "description": (
+                            "Tipo aplicable: general (21%), reducido (10%), "
+                            "superreducido (4%), cero (0% gravado), exento "
+                            "(no sujeto). Identifícalo previamente con "
+                            "`lookup_iva_type` si el usuario describe la "
+                            "operación sin indicar el tipo."
+                        ),
+                    },
+                },
+                "required": ["base_imponible", "tipo"],
+            },
+            handler=_make_compute_iva_quota(),
+        )
+    )
+    if retriever is not None:
+        reg.register(
+            Tool(
+                name="retrieve_legal_context",
+                description=(
+                    "Busca semánticamente en el corpus auditable (normativa BOE "
+                    "consolidada, consultas DGT vinculantes, resoluciones TEAC, "
+                    "jurisprudencia TS/AN/TSJ, manuales AEAT) y devuelve hasta "
+                    "`top_k` FUENTES con sus pinpoints. ÚSALA SIEMPRE que vayas "
+                    "a afirmar algo legal cuyo texto exacto no figura ya en el "
+                    "contexto: no debes citar normativa, consultas ni "
+                    "jurisprudencia sin haberlas recuperado antes con esta tool. "
+                    "Cada FUENTE incluye `citation_hint` con la cita pinpoint "
+                    "lista para copiar verbatim al cerrar la respuesta."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": (
+                                "Consulta libre en español. Reformúlala para "
+                                "optimizar el retrieval: añade términos legales "
+                                "clave (ej. 'gastos defensa jurídica trabajo "
+                                "rendimientos netos IRPF art 19') en lugar del "
+                                "lenguaje coloquial del usuario."
+                            ),
+                        },
+                        "impuesto": {
+                            "type": "string",
+                            "enum": [
+                                "irpf",
+                                "iva",
+                                "is",
+                                "irnr",
+                                "isd",
+                                "itp",
+                                "ip",
+                            ],
+                            "description": (
+                                "Filtra por figura tributaria. Omítelo si la "
+                                "pregunta es transversal."
+                            ),
+                        },
+                        "devengo_date": {
+                            "type": "string",
+                            "description": (
+                                "Fecha ISO 8601 (YYYY-MM-DD) del hecho "
+                                "imponible. Solo se devolverán fuentes "
+                                "vigentes en esa fecha — pásala SIEMPRE que "
+                                "exista, evita citar normativa derogada."
+                            ),
+                        },
+                        "source_types": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": list(_SOURCE_TYPE_VALUES),
+                            },
+                            "description": (
+                                "Restringe a familias concretas (ej. solo "
+                                "'consulta_dgt' para doctrina vinculante). "
+                                "Omítelo para buscar en todo el corpus."
+                            ),
+                        },
+                        "top_k": {
+                            "type": "integer",
+                            "minimum": _RETRIEVE_MIN_TOP_K,
+                            "maximum": _RETRIEVE_MAX_TOP_K,
+                            "default": _RETRIEVE_DEFAULT_TOP_K,
+                            "description": (
+                                "Número máximo de fuentes a devolver "
+                                f"(entre {_RETRIEVE_MIN_TOP_K} y "
+                                f"{_RETRIEVE_MAX_TOP_K})."
+                            ),
+                        },
+                    },
+                    "required": ["query"],
+                },
+                handler=_make_retrieve_legal_context(retriever),
+            )
+        )
     return reg
 
 

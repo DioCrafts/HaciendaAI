@@ -28,11 +28,16 @@ from .client import (
 )
 from .orchestrator import (
     MAX_ITERATIONS,
+    MAX_VERIFY_RETRIES,
+    RAG_CONTEXT_INTRO,
+    RAG_CONTEXT_OUTRO,
+    RAG_DEFAULT_TOP_K,
     SAFE_FALLBACK_MESSAGE,
     ChatResult,
     run_chat,
 )
 from .prompts import SYSTEM_PROMPT
+from .retriever import LegalContextRetriever
 from .tools import ToolRegistry, build_default_registry
 
 __all__ = [
@@ -43,7 +48,12 @@ __all__ = [
     "LLMClient",
     "LLMTurn",
     "LLMUnavailable",
+    "LegalContextRetriever",
     "MAX_ITERATIONS",
+    "MAX_VERIFY_RETRIES",
+    "RAG_CONTEXT_INTRO",
+    "RAG_CONTEXT_OUTRO",
+    "RAG_DEFAULT_TOP_K",
     "SAFE_FALLBACK_MESSAGE",
     "SYSTEM_PROMPT",
     "ToolRegistry",

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import time
 import uuid
@@ -40,14 +41,17 @@ from hacienda_ai.api.pdf import render_evaluation_report_pdf
 from hacienda_ai.chat import (
     SYSTEM_PROMPT,
     AnthropicClient,
+    LegalContextRetriever,
     LLMClient,
     LLMUnavailable,
     build_default_registry,
     run_chat,
 )
 from hacienda_ai.deductions import load_deductions
+from hacienda_ai.fiscal_calendar import resolve_current_fiscal_year
 from hacienda_ai.irpf import compute_quota, load_tax_scales
 from hacienda_ai.irpf.quota import quota_to_dict
+from hacienda_ai.iva import iva_documented_sources
 from hacienda_ai.models import (
     Deduction,
     NormaRegistry,
@@ -57,6 +61,11 @@ from hacienda_ai.models import (
     is_state_bulletin_id,
 )
 from hacienda_ai.normas import load_norma_registry
+from hacienda_ai.rag.factory import (
+    RetrieverBuildReport,
+    RetrieverFactoryError,
+    build_retriever_from_env,
+)
 from hacienda_ai.rules import evaluate_deductions
 from hacienda_ai.safety import verify_citations
 from hacienda_ai.storage import (
@@ -65,6 +74,8 @@ from hacienda_ai.storage import (
     ProfilesRepo,
     init_db,
 )
+
+logger = logging.getLogger(__name__)
 
 DISCLAIMER = (
     "Esta herramienta ofrece ayuda informativa. No sustituye a un asesor "
@@ -227,10 +238,48 @@ def _corpus_fingerprint(deductions: list[Deduction]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _resolve_retriever(
+    explicit: LegalContextRetriever | None,
+) -> tuple[LegalContextRetriever | None, RetrieverBuildReport | None]:
+    """Decide qué retriever usar y devuelve también el report de arranque.
+
+    Si `explicit` está, gana (típico en tests). Si no, se intenta la
+    factoría de entorno: si está deshabilitada → `(None, None)`; si
+    falla (config inválida, store inalcanzable) → `(None, None)` con
+    log a nivel error, NUNCA propagamos para no tirar el app entero
+    por un fallo del RAG.
+    """
+    if explicit is not None:
+        return explicit, None
+    try:
+        built = build_retriever_from_env()
+    except RetrieverFactoryError as exc:
+        logger.error("No se pudo construir el retriever RAG: %s", exc)
+        return None, None
+    except Exception as exc:  # noqa: BLE001 — el RAG no debe tirar el app
+        logger.exception("Error inesperado construyendo el retriever RAG: %s", exc)
+        return None, None
+    if built is None:
+        return None, None
+    retriever, report = built
+    logger.info(
+        "RAG activo: provider=%s store=%s corpus=%s chunks_indexados=%d "
+        "bm25_documents=%d errores=%d",
+        report.provider_model_id,
+        report.store_kind,
+        report.config.data_dir,
+        report.indexed,
+        report.bm25_documents,
+        len(report.errors),
+    )
+    return retriever, report
+
+
 def create_app(
     db_path: str | Path | None = None,
     *,
     llm_client: LLMClient | None = None,
+    retriever: LegalContextRetriever | None = None,
 ) -> FastAPI:
     """Construye una instancia nueva del app, útil para tests aislados.
 
@@ -244,6 +293,20 @@ def create_app(
     determinista). En producción se deja `None`: el endpoint /chat
     intentará crear un `AnthropicClient` real con la API key del
     entorno; si no está disponible, devuelve 503 con motivo.
+
+    `retriever`: activa el cableado RAG en /chat. Resolución por
+    prioridad:
+
+    1. Si se pasa explícitamente (tests, integradores), se usa tal cual.
+    2. Si no, se intenta construir vía `build_retriever_from_env()`
+       leyendo `HACIENDA_AI_RAG_ENABLED` + `HACIENDA_AI_CORPUS_DIR`
+       (+ provider/store opcionales). Si la variable de entorno está
+       activa pero la config falla, /chat arranca SIN retriever y se
+       loguea el error (no abortamos el app entero por un fallo del
+       RAG: el resto de endpoints siguen siendo útiles).
+    3. Si `HACIENDA_AI_RAG_ENABLED` está ausente o vacío, /chat
+       arranca sin retriever — comportamiento por defecto, igual que
+       antes de Fase 1. No hay regresión.
     """
     app = FastAPI(
         title="HaciendaAI — Demo API",
@@ -258,8 +321,18 @@ def create_app(
     deductions = load_deductions()
     registry = load_norma_registry()
     tax_scales = load_tax_scales()
+    # Sources documentadas adicionales (IVA, IS, IRNR…): se concatenan al
+    # corpus al verificar citas para que el guard reconozca como
+    # `safe` las citas correctas a esas leyes. Sin esto, una respuesta
+    # con "art. 90 LIVA" pasaría como `WARN`/`BLOCK` por no figurar en
+    # el corpus IRPF de deducciones.
+    extra_sources: list[Source] = list(iva_documented_sources())
+    effective_retriever, retriever_report = _resolve_retriever(retriever)
     chat_tools = build_default_registry(
-        deductions=deductions, registry=registry, scales=tax_scales
+        deductions=deductions,
+        registry=registry,
+        scales=tax_scales,
+        retriever=effective_retriever,
     )
     last_reviewed = max(
         (d.last_reviewed_at for d in deductions if d.last_reviewed_at),
@@ -409,6 +482,7 @@ def create_app(
             scales=tax_scales,
             registry=registry,
             devengo=devengo,
+            extra_documented_sources=extra_sources,
         )
         return {
             "verdict": result.verdict,
@@ -464,6 +538,13 @@ def create_app(
               "devengo_date": "YYYY-MM-DD"  (opcional)
             }
 
+        Si `devengo_date` se omite, el endpoint lo autoresuelve con
+        `resolve_current_fiscal_year(date.today())` y usa la
+        `recommended_devengo` (31-dic del último ejercicio cerrado). El
+        valor efectivo se devuelve al cliente en `resolved_devengo`
+        junto con `devengo_source` ("explicit" | "auto") para que el
+        consumidor sepa qué fecha verificó el guard.
+
         Respuesta:
             {
               "session_id": "...",
@@ -471,7 +552,13 @@ def create_app(
               "blocked_text": "texto que el guard rechazó (si hubo block)",
               "tool_invocations": [...],
               "citation_check": {verdict, blocking_issues, warnings},
+              "verify_attempts": N,
+              "verify_history": [...],
+              "retrieved_chunk_ids": [...],
               "iterations": N,
+              "stop_reason": "...",
+              "resolved_devengo": "YYYY-MM-DD",
+              "devengo_source": "explicit" | "auto",
               "disclaimer": "..."
             }
         """
@@ -483,6 +570,7 @@ def create_app(
             raise HTTPException(status_code=422, detail="session_id debe ser string")
         session_id = session_id_raw or uuid.uuid4().hex
         devengo: date | None = None
+        devengo_source: str = "explicit"
         devengo_raw = body.get("devengo_date")
         if isinstance(devengo_raw, str) and devengo_raw:
             try:
@@ -492,6 +580,17 @@ def create_app(
                     status_code=422,
                     detail="devengo_date debe ser ISO 8601 (YYYY-MM-DD)",
                 ) from exc
+        if devengo is None:
+            # Autoresolución: si el cliente no especifica devengo, usamos
+            # el ejercicio recomendado por `resolve_current_fiscal_year`
+            # (último ejercicio cerrado por devengo, típicamente el que
+            # el usuario pregunta cuando no precisa año). Esto hace que
+            # el guard verifique vigencia contra la fecha correcta —
+            # sin esto, citar una norma derogada el año pasado pasaría
+            # como `safe` contra `date.today()`.
+            resolution = resolve_current_fiscal_year()
+            devengo = resolution.recommended_devengo
+            devengo_source = "auto"
 
         history = chat_repo.get(session_id) or []
         llm = _resolve_llm()
@@ -506,17 +605,28 @@ def create_app(
             corpus=deductions,
             registry=registry,
             scales=tax_scales,
+            retriever=effective_retriever,
+            extra_documented_sources=extra_sources,
         )
         chat_repo.save(session_id, result.history)
 
+        # Reutilizamos `to_dict` para serializar citation_check +
+        # verify_history (mantiene un único punto de codificación de
+        # esos veredictos y evita drifts cuando cambien los campos).
+        payload = result.to_dict()
         return {
             "session_id": session_id,
             "assistant": result.assistant_text,
             "blocked_text": result.blocked_text,
             "tool_invocations": result.tool_invocations,
-            "citation_check": result.to_dict()["citation_check"],
+            "citation_check": payload["citation_check"],
+            "verify_attempts": payload["verify_attempts"],
+            "verify_history": payload["verify_history"],
+            "retrieved_chunk_ids": payload["retrieved_chunk_ids"],
             "iterations": result.iterations,
             "stop_reason": result.stop_reason,
+            "resolved_devengo": devengo.isoformat(),
+            "devengo_source": devengo_source,
             "disclaimer": DISCLAIMER,
         }
 

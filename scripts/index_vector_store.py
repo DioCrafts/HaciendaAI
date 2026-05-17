@@ -18,10 +18,13 @@ Modos:
         --provider hash --store memory \\
         --only manuales --dump out.json
 
+    # Inventario sin embeber ni upsertear (rápido, sin coste).
+    python scripts/index_vector_store.py --dry-run
+
 Códigos de salida:
-    0 — indexado correcto.
+    0 — indexado correcto (o dry-run con al menos un chunk).
     1 — errores parciales en batches (algunos chunks no se embebieron).
-    2 — error fatal (config inválida, store inalcanzable).
+    2 — error fatal (config inválida, store inalcanzable, corpus vacío).
 """
 
 from __future__ import annotations
@@ -72,6 +75,15 @@ def _build_store(args: argparse.Namespace) -> VectorStore:
             api_key=args.qdrant_api_key,
         )
     raise ValueError(f"store desconocido: {args.store}")
+
+
+def _count_by_source_type(chunks: list[IndexableChunk]) -> dict[str, int]:
+    """Cuenta cuántos chunks hay por `SourceType`. Solo para informe."""
+    counts: dict[str, int] = {}
+    for chunk in chunks:
+        key = chunk.source_type.value
+        counts[key] = counts.get(key, 0) + 1
+    return counts
 
 
 def _build_chunks_iter(args: argparse.Namespace):
@@ -130,7 +142,52 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Si --store=memory, dumpea el contenido a este JSON (debug).",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Inventaría el corpus sin embeber ni upsertear nada. "
+            "Útil para validar el tamaño de la cola y los conteos por "
+            "familia antes de pagar embeddings o tocar Qdrant."
+        ),
+    )
     args = parser.parse_args(argv)
+
+    if not args.data_dir.exists():
+        print(
+            f"ERROR: --data-dir {args.data_dir} no existe. "
+            "Ajusta la ruta o ingesta primero el corpus.",
+            file=sys.stderr,
+        )
+        return 2
+
+    chunks_iter = _build_chunks_iter(args)
+    try:
+        chunks: list[IndexableChunk] = list(chunks_iter)
+    except Exception as exc:  # noqa: BLE001
+        print(f"ERROR cargando el corpus desde disco: {exc}", file=sys.stderr)
+        return 2
+
+    if not chunks:
+        print(
+            f"ERROR: 0 chunks indexables en {args.data_dir} "
+            f"(filtro --only={args.only}). Comprueba que el corpus está "
+            "ingerido y que los subdirectorios esperados existen.",
+            file=sys.stderr,
+        )
+        return 2
+
+    counts_by_type = _count_by_source_type(chunks)
+    print(f"Inventario de {len(chunks)} chunks por tipo:")
+    for source_type, count in sorted(counts_by_type.items()):
+        print(f"  - {source_type}: {count}")
+
+    if args.dry_run:
+        print(
+            "--dry-run: no se construye provider ni store. "
+            "Salgo sin embeber ni upsertear."
+        )
+        return 0
 
     try:
         provider = _build_provider(args)
@@ -139,10 +196,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR construyendo provider/store: {exc}", file=sys.stderr)
         return 2
 
-    chunks_iter = _build_chunks_iter(args)
-    # Materializamos para tener el conteo total previo a indexar
-    # (con el iterador perezoso solo veríamos el total al final).
-    chunks: list[IndexableChunk] = list(chunks_iter)
     print(
         f"Indexando {len(chunks)} chunks con provider={args.provider} "
         f"(dim={provider.dim}, model={provider.model_id}) "
