@@ -20,9 +20,23 @@ import pytest
 
 from hacienda_ai.deductions import load_deductions
 from hacienda_ai.irpf import load_tax_scales
+from hacienda_ai.models import (
+    ConsultaDGT,
+    CriterioConfidence,
+    FalloSentido,
+    Impuesto,
+    Organo,
+    OrganoTEA,
+    RatioConfidence,
+    ResolucionTEAC,
+    Sentencia,
+    SentidoResolucion,
+    TipoResolucion,
+)
 from hacienda_ai.normas import load_norma_registry
 from hacienda_ai.safety import (
     CitationCheckResult,
+    JurisprudenceRegistry,
     extract_citations,
     verify_citations,
 )
@@ -308,3 +322,222 @@ def test_result_helpers_classify_issues(corpus, scales, registry) -> None:
     assert r.blocking_issues
     assert r.warnings
     assert not r.is_safe
+
+
+# ---------- Jurisprudence registry: verificación dura por ID canónico ----------
+
+
+@pytest.fixture(scope="module")
+def jurisprudence_registry() -> JurisprudenceRegistry:
+    """Registry de prueba con UN ítem de cada familia, identificadores
+    canónicos verificables."""
+    senten = Sentencia(
+        ecli="ECLI:ES:TS:2024:1234",
+        organo=Organo.TS,
+        tribunal_codigo="TS",
+        sala="Tercera",
+        seccion="Segunda",
+        fecha=date(2024, 6, 15),
+        ponente=None,
+        numero_resolucion="987/2024",
+        numero_recurso="1234/2022",
+        fallo_sentido=FalloSentido.DESESTIMATORIA,
+        fallo_texto="Desestimamos el recurso.",
+        ratio_decidendi="Las dietas en IRPF.",
+        ratio_confidence=RatioConfidence.AUTO,
+        resumen="Dietas IRPF carga prueba",
+        url=None,
+        content_hash="a" * 64,
+        last_fetched_at=date(2024, 9, 1),
+    )
+    dgt = ConsultaDGT(
+        numero="V0123-24",
+        fecha_salida=date(2024, 1, 30),
+        fecha_entrada=None,
+        impuesto=Impuesto.IRPF,
+        asunto="Dietas IRPF",
+        cuestion_planteada="Empleado desplazado.",
+        contestacion_completa="Procede exoneración.",
+        criterio="Dietas exoneradas con desplazamiento real.",
+        criterio_confidence=CriterioConfidence.AUTO,
+        normativa=("Ley 35/2006 art. 19",),
+        url=None,
+        content_hash="b" * 64,
+        last_fetched_at=date(2024, 9, 1),
+    )
+    teac = ResolucionTEAC(
+        numero="00/12345/2023",
+        organo=OrganoTEA.TEAC,
+        sede="Madrid",
+        fecha=date(2023, 6, 15),
+        tipo=TipoResolucion.UNIFICA_CRITERIO,
+        sentido=SentidoResolucion.DESESTIMATORIA,
+        impuesto=Impuesto.IRPF,
+        asunto="Carga prueba dietas IRPF",
+        criterio="La prueba corresponde al pagador.",
+        criterio_confidence=CriterioConfidence.AUTO,
+        normativa=("Ley 35/2006 art. 17",),
+        resolucion_texto="Texto resolución.",
+        url=None,
+        content_hash="c" * 64,
+        last_fetched_at=date(2024, 9, 1),
+    )
+    return JurisprudenceRegistry.from_items(
+        sentencias=[senten],
+        dgt_consultas=[dgt],
+        teac_resoluciones=[teac],
+    )
+
+
+def test_ecli_in_corpus_is_safe(
+    corpus, scales, registry, jurisprudence_registry
+) -> None:
+    r = verify_citations(
+        "Como afirmó ECLI:ES:TS:2024:1234, la carga de la prueba recae en el pagador.",
+        corpus=corpus,
+        scales=scales,
+        registry=registry,
+        devengo=date(2024, 12, 31),
+        jurisprudence_registry=jurisprudence_registry,
+    )
+    assert r.verdict == "safe", [i.message for i in r.issues]
+
+
+def test_ecli_not_in_corpus_blocks(
+    corpus, scales, registry, jurisprudence_registry
+) -> None:
+    r = verify_citations(
+        "Según ECLI:ES:TS:2099:9999 procede la exoneración.",
+        corpus=corpus,
+        scales=scales,
+        registry=registry,
+        devengo=date(2024, 12, 31),
+        jurisprudence_registry=jurisprudence_registry,
+    )
+    assert r.verdict == "block"
+    assert any(i.code == "ECLI_NOT_IN_CORPUS" for i in r.blocking_issues)
+
+
+def test_dgt_canonical_in_corpus_is_safe(
+    corpus, scales, registry, jurisprudence_registry
+) -> None:
+    r = verify_citations(
+        "La consulta V0123-24 confirma la exoneración de dietas.",
+        corpus=corpus,
+        scales=scales,
+        registry=registry,
+        devengo=date(2024, 12, 31),
+        jurisprudence_registry=jurisprudence_registry,
+    )
+    assert r.verdict == "safe", [i.message for i in r.issues]
+
+
+def test_dgt_canonical_not_in_corpus_blocks(
+    corpus, scales, registry, jurisprudence_registry
+) -> None:
+    r = verify_citations(
+        "Según la DGT V9999-99 la situación es otra.",
+        corpus=corpus,
+        scales=scales,
+        registry=registry,
+        devengo=date(2024, 12, 31),
+        jurisprudence_registry=jurisprudence_registry,
+    )
+    assert r.verdict == "block"
+    assert any(i.code == "DGT_NOT_IN_CORPUS" for i in r.blocking_issues)
+
+
+def test_teac_canonical_in_corpus_is_safe(
+    corpus, scales, registry, jurisprudence_registry
+) -> None:
+    r = verify_citations(
+        "El TEAC en 00/12345/2023 unificó el criterio sobre dietas.",
+        corpus=corpus,
+        scales=scales,
+        registry=registry,
+        devengo=date(2024, 12, 31),
+        jurisprudence_registry=jurisprudence_registry,
+    )
+    assert r.verdict == "safe", [i.message for i in r.issues]
+
+
+def test_teac_canonical_not_in_corpus_blocks(
+    corpus, scales, registry, jurisprudence_registry
+) -> None:
+    r = verify_citations(
+        "El TEAC 00/99999/2099 unificó un criterio.",
+        corpus=corpus,
+        scales=scales,
+        registry=registry,
+        devengo=date(2024, 12, 31),
+        jurisprudence_registry=jurisprudence_registry,
+    )
+    assert r.verdict == "block"
+    assert any(i.code == "TEAC_NOT_IN_CORPUS" for i in r.blocking_issues)
+
+
+def test_teac_rg_form_in_corpus_is_safe(
+    corpus, scales, registry, jurisprudence_registry
+) -> None:
+    """La forma corta R.G. NNNN/AAAA debe normalizarse a 00/NNNNN/AAAA y
+    encontrar la resolución."""
+    r = verify_citations(
+        "Como sentó la resolución R.G. 12345/2023, la carga es del pagador.",
+        corpus=corpus,
+        scales=scales,
+        registry=registry,
+        devengo=date(2024, 12, 31),
+        jurisprudence_registry=jurisprudence_registry,
+    )
+    assert r.verdict == "safe", [i.message for i in r.issues]
+
+
+def test_jurisprudence_ambiguous_reference_warns(
+    corpus, scales, registry, jurisprudence_registry
+) -> None:
+    """STS 1234/2020 sin ECLI: cita ambigua → warn, NO block."""
+    r = verify_citations(
+        "La STS 1234/2020 sentó doctrina.",
+        corpus=corpus,
+        scales=scales,
+        registry=registry,
+        devengo=date(2024, 12, 31),
+        jurisprudence_registry=jurisprudence_registry,
+    )
+    assert r.verdict == "warn"
+    assert any(
+        i.code == "JURISPRUDENCE_AMBIGUOUS_REFERENCE" for i in r.warnings
+    )
+
+
+def test_jurisprudence_without_registry_warns_not_indexed(
+    corpus, scales, registry
+) -> None:
+    """Sin registry inyectado, comportamiento previo: warn not indexed."""
+    r = verify_citations(
+        "Como dijo ECLI:ES:TS:2024:1234 sobre dietas.",
+        corpus=corpus,
+        scales=scales,
+        registry=registry,
+        devengo=date(2024, 12, 31),
+    )
+    assert r.verdict == "warn"
+    assert any(i.code == "JURISPRUDENCE_NOT_INDEXED" for i in r.warnings)
+
+
+def test_ecli_in_text_overrides_loose_sts_regex(
+    corpus, scales, registry, jurisprudence_registry
+) -> None:
+    """El extractor canónico (ECLI) precede al genérico (STS): debe emitirse
+    una única cita verificable, no una warning ambigua adicional."""
+    r = verify_citations(
+        "Como dijo ECLI:ES:TS:2024:1234, esto es correcto.",
+        corpus=corpus,
+        scales=scales,
+        registry=registry,
+        devengo=date(2024, 12, 31),
+        jurisprudence_registry=jurisprudence_registry,
+    )
+    juris_cits = [c for c in r.citations if c.kind == "jurisprudence"]
+    assert len(juris_cits) == 1
+    assert juris_cits[0].juris_canonical == "ECLI:ES:TS:2024:1234"

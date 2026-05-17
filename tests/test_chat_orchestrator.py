@@ -538,6 +538,129 @@ def test_orchestrator_rag_context_survives_tool_loop(_resources, tools) -> None:
         assert RAG_CONTEXT_INTRO in call["system"]
 
 
+def test_orchestrator_blocks_when_llm_cites_unknown_ecli(
+    _resources, tools
+) -> None:
+    """El orquestador, con `jurisprudence_registry` inyectado, debe bloquear
+    una respuesta que cite un ECLI canónico ausente del corpus auditable."""
+    from hacienda_ai.safety import JurisprudenceRegistry
+
+    corpus, registry, scales = _resources
+    # Añadimos UN ítem al registry para que `bool(reg)` sea True y se
+    # aplique la política estricta. Cualquier ECLI distinto a ese se bloquea.
+    from datetime import date as _date
+
+    from hacienda_ai.models import (
+        FalloSentido,
+        Organo,
+        RatioConfidence,
+        Sentencia,
+    )
+
+    known = Sentencia(
+        ecli="ECLI:ES:TS:2024:0001",
+        organo=Organo.TS,
+        tribunal_codigo="TS",
+        sala=None,
+        seccion=None,
+        fecha=_date(2024, 1, 1),
+        ponente=None,
+        numero_resolucion=None,
+        numero_recurso=None,
+        fallo_sentido=FalloSentido.DESCONOCIDO,
+        fallo_texto=".",
+        ratio_decidendi=None,
+        ratio_confidence=RatioConfidence.AUTO,
+        resumen=None,
+        url=None,
+        content_hash="a" * 64,
+        last_fetched_at=_date(2024, 1, 1),
+    )
+    juris_reg = JurisprudenceRegistry.from_items(sentencias=[known])
+
+    # El LLM cita un ECLI inventado en su respuesta final. El guard
+    # debería bloquear; con max_verify_retries=0 cae al fallback al
+    # primer block.
+    fake = FakeLLMClient(
+        [
+            FakeTurn(text="Según ECLI:ES:TS:2099:9999, la conclusión es X.")
+        ]
+    )
+    res = run_chat(
+        user_message="¿Qué dice la jurisprudencia?",
+        history=None,
+        llm=fake,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        devengo=date(2024, 12, 31),
+        corpus=corpus,
+        registry=registry,
+        scales=scales,
+        max_verify_retries=0,
+        jurisprudence_registry=juris_reg,
+    )
+    assert res.assistant_text == SAFE_FALLBACK_MESSAGE
+    assert res.blocked_text == "Según ECLI:ES:TS:2099:9999, la conclusión es X."
+    assert res.citation_check.verdict == "block"
+    assert any(
+        i.code == "ECLI_NOT_IN_CORPUS"
+        for i in res.citation_check.blocking_issues
+    )
+
+
+def test_orchestrator_allows_known_ecli(_resources, tools) -> None:
+    """ECLI presente en el corpus → pasa al usuario sin bloqueo."""
+    from datetime import date as _date
+
+    from hacienda_ai.models import (
+        FalloSentido,
+        Organo,
+        RatioConfidence,
+        Sentencia,
+    )
+    from hacienda_ai.safety import JurisprudenceRegistry
+
+    corpus, registry, scales = _resources
+    senten = Sentencia(
+        ecli="ECLI:ES:TS:2024:1234",
+        organo=Organo.TS,
+        tribunal_codigo="TS",
+        sala=None,
+        seccion=None,
+        fecha=_date(2024, 6, 15),
+        ponente=None,
+        numero_resolucion=None,
+        numero_recurso=None,
+        fallo_sentido=FalloSentido.DESESTIMATORIA,
+        fallo_texto=".",
+        ratio_decidendi=None,
+        ratio_confidence=RatioConfidence.AUTO,
+        resumen=None,
+        url=None,
+        content_hash="a" * 64,
+        last_fetched_at=_date(2024, 9, 1),
+    )
+    juris_reg = JurisprudenceRegistry.from_items(sentencias=[senten])
+    fake = FakeLLMClient(
+        [FakeTurn(text="Como dijo ECLI:ES:TS:2024:1234, la respuesta es así.")]
+    )
+    res = run_chat(
+        user_message="¿Y la STS?",
+        history=None,
+        llm=fake,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        devengo=date(2024, 12, 31),
+        corpus=corpus,
+        registry=registry,
+        scales=scales,
+        jurisprudence_registry=juris_reg,
+    )
+    assert res.citation_check.verdict == "safe"
+    assert res.blocked_text is None
+    assert "ECLI:ES:TS:2024:1234" in res.assistant_text
+
+
 def test_orchestrator_preserves_initial_history(_resources, tools) -> None:
     corpus, registry, scales = _resources
     prev_history = [

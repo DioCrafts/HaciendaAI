@@ -107,3 +107,38 @@ def test_chunks_son_indexable_chunk() -> None:
         assert chunk.text  # no vacío.
         assert isinstance(chunk.metadata, dict)
         assert isinstance(chunk.source_type, SourceType)
+
+
+# ---------- Tier / doctrine_weight para filtrado jerárquico ----------
+
+
+def test_sentencia_chunk_lleva_tier_y_doctrine_weight() -> None:
+    """Una sentencia del TS debe llevar tier=TS y doctrine_weight=ISOLATED
+    (única sentencia en el fixture, sin compañera para reiterada)."""
+    chunks = list(iter_sentencia_chunks(CORPUS / "jurisprudencia"))
+    assert len(chunks) == 1
+    meta = chunks[0].metadata
+    # TS es tier=20 según JurisprudenceTier.
+    assert meta["tier"] == 20
+    assert meta["tier_label"] == "TS"
+    assert meta["doctrine_weight"] == "isolated"
+
+
+def test_dgt_chunk_lleva_tier_dgt_vinculante() -> None:
+    chunks = list(iter_dgt_chunks(CORPUS / "dgt_consultas"))
+    assert len(chunks) == 1
+    meta = chunks[0].metadata
+    # DGT_VINCULANTE = 50.
+    assert meta["tier"] == 50
+    assert meta["tier_label"] == "DGT_VINCULANTE"
+    assert meta["doctrine_weight"] == "isolated"
+
+
+def test_teac_unifica_chunk_lleva_tier_alto_y_binding() -> None:
+    """TEAC unifica criterio (art. 242 LGT) → tier=21 (entre TS y AN) y BINDING."""
+    chunks = list(iter_teac_chunks(CORPUS / "teac_resoluciones"))
+    assert len(chunks) == 1
+    meta = chunks[0].metadata
+    assert meta["tier"] == 21
+    assert meta["tier_label"] == "TEAC_UNIFICA"
+    assert meta["doctrine_weight"] == "binding"

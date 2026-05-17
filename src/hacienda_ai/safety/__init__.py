@@ -18,13 +18,27 @@ from .citation_guard import (
     extract_citations,
     verify_citations,
 )
+from .jurisprudence_registry import (
+    DgtEntry,
+    DoctrineWeight,
+    JurisprudenceRegistry,
+    JurisprudenceTier,
+    SentenciaEntry,
+    TeacEntry,
+)
 
 __all__ = [
     "Citation",
     "CitationCheckResult",
     "CitationIssue",
     "CitationKind",
+    "DgtEntry",
+    "DoctrineWeight",
     "IssueLevel",
+    "JurisprudenceRegistry",
+    "JurisprudenceTier",
+    "SentenciaEntry",
+    "TeacEntry",
     "Verdict",
     "extract_citations",
     "verify_citations",

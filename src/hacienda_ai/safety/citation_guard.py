@@ -11,9 +11,16 @@ jurisprudencia TS/TEAC/DGT) y las cruza contra el corpus auditable:
 - Corpus de deducciones + escalas: para cada artículo citado asociado a una
   norma del corpus, ¿existe algún `Source` documentado con ese
   `boe_id + article`? Si no, es una cita potencialmente alucinada.
-- Jurisprudencia / doctrina administrativa: hoy no hay corpus indexado de
-  STS/TEAC/DGT, así que cualquier cita de esa familia se marca como
-  `warning` honesto, no como `safe`.
+- `JurisprudenceRegistry` (opcional): cruza ECLI, número canónico DGT
+  (`V0123-24`) y número canónico TEAC (`00/12345/2023`) contra el
+  corpus indexado de sentencias / consultas vinculantes / resoluciones
+  TEAC. Si la cita es un identificador canónico y NO existe en el
+  corpus → `block` (cita potencialmente alucinada). Si es una
+  referencia jurisprudencial sin identificador canónico (p.ej.,
+  "STS 1234/2020") → `warn` ambigua: el motor no puede verificar y
+  el LLM debería citar con ECLI/numero canónico para ser auditable.
+  Sin registry inyectado, las citas jurisprudenciales se quedan en
+  `warn` (corpus no indexado) — comportamiento previo.
 
 El módulo no es responsable de validar afirmaciones sin cita explícita —
 para eso hace falta otra capa de razonamiento sobre el contenido. Aquí solo
@@ -29,6 +36,7 @@ from typing import Literal
 
 from ..irpf.scales import TaxScale
 from ..models import Deduction, NormaRegistry, NormaStatus, Source
+from .jurisprudence_registry import JurisprudenceRegistry
 
 Verdict = Literal["safe", "warn", "block"]
 IssueLevel = Literal["blocking", "warning"]
@@ -112,6 +120,31 @@ _RE_JURISPRUDENCE = re.compile(
     r"(?:\s+(V?\d+(?:[\-/]\d{2,4})?))?",
     re.IGNORECASE,
 )
+# Identificador ECLI canónico (European Case Law Identifier). Aceptamos el
+# formato español `ECLI:ES:<tribunal>:<año>:<id>` con sufijos opcionales
+# (`.S2`, `:S2`). Solo ECLIs estructuralmente válidos: el verificador
+# decidirá si existen en el corpus de jurisprudencia.
+_RE_ECLI = re.compile(
+    r"\bECLI:ES:[A-Z]+[A-Z0-9]*:\d{4}:[A-Z0-9.]+(?:[:.][A-Z0-9]+)?\b",
+    re.IGNORECASE,
+)
+# Número canónico de consulta DGT vinculante: V<NNNN>-<YY|YYYY>. La 'V'
+# se exige (las no vinculantes empiezan por C y no están en corpus).
+# `(?<![A-Z])` evita capturar partes de otras palabras como "PROV0123-24".
+_RE_DGT_CANONICAL = re.compile(
+    r"(?<![A-Za-z])V\d{1,5}-\d{2,4}\b",
+)
+# Número canónico de resolución TEAC: DD/NNNNN/AAAA con sufijos opcionales.
+# Forma corta R.G. también aceptada. Para evitar capturar fechas, exigimos
+# que el "AAAA" tenga 4 dígitos cuando va sin DD (forma R.G.). Cuando va
+# con DD/NNNNN/AAAA, AAAA puede ser de 2 o 4 dígitos.
+_RE_TEAC_CANONICAL = re.compile(
+    r"\b\d{1,2}/\d{1,7}/\d{4}(?:/\d{1,3})?(?:/\d{1,3})?\b"
+)
+_RE_TEAC_RG = re.compile(
+    r"\bR\.?\s*G\.?[\.:/\s]+\d{1,7}\s*/\s*\d{2,4}\b",
+    re.IGNORECASE,
+)
 
 # Año "razonable" para un identificador BOE-A. Permitimos un año futuro como
 # margen (la norma puede haberse publicado a finales del año previo al fiscal
@@ -133,6 +166,15 @@ class Citation:
     por proximidad). Una `Citation` puede tener `boe_id=None` (artículo
     huérfano que no se ha podido asociar a ninguna norma) — en ese caso el
     verificador la marca como `warning` por no poder cruzarla.
+
+    `juris_kind` distingue la familia de jurisprudencia/doctrina cuando
+    `kind == "jurisprudence"`: `ECLI`, `DGT`, `TEAC`, o las formas
+    ambiguas (`STS`, `STC`, `SAN`, `STSJ`, `TJUE`, `CONSULTA_DGT`).
+    `juris_canonical` contiene el identificador en forma canónica para
+    lookup directo en el `JurisprudenceRegistry` cuando la cita lo
+    permite (ECLI completo, `V0123-24`, `00/12345/2023`). Cuando la
+    cita es ambigua (p.ej. "STS 1234/2020") `juris_canonical` queda en
+    `None` y el verificador la marca como `warn` ambiguo.
     """
 
     kind: CitationKind
@@ -145,6 +187,7 @@ class Citation:
     law_label: str | None = None
     juris_kind: str | None = None
     juris_ref: str | None = None
+    juris_canonical: str | None = None
 
 
 @dataclass(frozen=True)
@@ -276,6 +319,78 @@ def extract_citations(text: str) -> list[Citation]:
             )
         )
 
+    # Identificadores canónicos verificables: ECLI, DGT V0123-24,
+    # TEAC 00/12345/2023, TEAC R.G. NNNN/YYYY. Se emiten ANTES del
+    # regex genérico de jurisprudencia y se "cubren" para que el
+    # genérico no los duplique.
+    for m in _RE_ECLI.finditer(text):
+        span = m.span()
+        if _is_covered(span):
+            continue
+        raw_ecli = m.group(0)
+        citations.append(
+            Citation(
+                kind="jurisprudence",
+                raw=raw_ecli,
+                span=span,
+                juris_kind="ECLI",
+                juris_ref=raw_ecli,
+                juris_canonical=raw_ecli.upper(),
+            )
+        )
+        covered.append(span)
+
+    for m in _RE_DGT_CANONICAL.finditer(text):
+        span = m.span()
+        if _is_covered(span):
+            continue
+        raw_v = m.group(0)
+        citations.append(
+            Citation(
+                kind="jurisprudence",
+                raw=raw_v,
+                span=span,
+                juris_kind="DGT",
+                juris_ref=raw_v,
+                juris_canonical=_normalize_dgt(raw_v),
+            )
+        )
+        covered.append(span)
+
+    for m in _RE_TEAC_RG.finditer(text):
+        span = m.span()
+        if _is_covered(span):
+            continue
+        raw_rg = m.group(0)
+        citations.append(
+            Citation(
+                kind="jurisprudence",
+                raw=raw_rg,
+                span=span,
+                juris_kind="TEAC",
+                juris_ref=raw_rg,
+                juris_canonical=_normalize_teac(raw_rg),
+            )
+        )
+        covered.append(span)
+
+    for m in _RE_TEAC_CANONICAL.finditer(text):
+        span = m.span()
+        if _is_covered(span):
+            continue
+        raw_teac = m.group(0)
+        citations.append(
+            Citation(
+                kind="jurisprudence",
+                raw=raw_teac,
+                span=span,
+                juris_kind="TEAC",
+                juris_ref=raw_teac,
+                juris_canonical=_normalize_teac(raw_teac),
+            )
+        )
+        covered.append(span)
+
     for m in _RE_JURISPRUDENCE.finditer(text):
         span = m.span()
         if _is_covered(span):
@@ -290,8 +405,94 @@ def extract_citations(text: str) -> list[Citation]:
             )
         )
 
+    citations = _drop_redundant_family_tokens(citations)
     citations.sort(key=lambda c: c.span[0])
     return citations
+
+
+def _drop_redundant_family_tokens(citations: list[Citation]) -> list[Citation]:
+    """Elimina citas jurisprudenciales redundantes "familia desnuda".
+
+    Un match loose como "TEAC" o "STS" sin `juris_ref` aporta solo ruido
+    si junto a él aparece un identificador canónico (ECLI / `V0123-24` /
+    `00/12345/2023`) — el LLM está usando la palabra como artículo del
+    identificador, no como cita independiente. Sin este filtro, una
+    respuesta correcta "El TEAC en 00/12345/2023 unificó criterio"
+    generaría una warning `AMBIGUOUS_REFERENCE` espuria por el "TEAC"
+    pelado.
+
+    Regla: descartar citas con `juris_canonical=None` y `juris_ref=None`
+    si existe otra cita jurisprudencial con `juris_canonical != None`
+    cuya separación textual sea <= 80 caracteres.
+    """
+    canonical_spans = [
+        c.span
+        for c in citations
+        if c.kind == "jurisprudence" and c.juris_canonical is not None
+    ]
+    if not canonical_spans:
+        return citations
+    out: list[Citation] = []
+    for c in citations:
+        if (
+            c.kind == "jurisprudence"
+            and c.juris_canonical is None
+            and c.juris_ref is None
+        ):
+            redundant = False
+            for cs in canonical_spans:
+                gap = max(0, max(c.span[0], cs[0]) - min(c.span[1], cs[1]))
+                if gap <= 80:
+                    redundant = True
+                    break
+            if redundant:
+                continue
+        out.append(c)
+    return out
+
+
+def _normalize_dgt(raw: str) -> str:
+    """Normaliza `V0123-24` o `V123-2024` a `V0123-24` (padding canónico)."""
+    cleaned = raw.strip().upper().replace(" ", "")
+    if "-" not in cleaned:
+        return cleaned
+    prefix, _, anyo = cleaned.partition("-")
+    try:
+        num = int(prefix[1:])
+        anyo_int = int(anyo)
+    except ValueError:
+        return cleaned
+    yy = anyo_int % 100 if anyo_int >= 100 else anyo_int
+    return f"V{num:04d}-{yy:02d}"
+
+
+def _normalize_teac(raw: str) -> str:
+    """Normaliza variantes TEAC a `DD/NNNNN/AAAA`. Asume TEAC central (00)
+    cuando no viene el código de TEA explícito (forma R.G.)."""
+    cleaned = raw.strip().upper()
+    cleaned = re.sub(r"^R\.?\s*G\.?[\.:/\s]+", "", cleaned)
+    parts = [p.strip() for p in cleaned.split("/") if p.strip()]
+    if len(parts) == 2:
+        try:
+            num = int(parts[0])
+            anyo = int(parts[1])
+        except ValueError:
+            return cleaned
+        anyo_full = anyo if anyo >= 100 else 2000 + anyo
+        return f"00/{num:05d}/{anyo_full:04d}"
+    if len(parts) >= 3:
+        try:
+            tea = int(parts[0])
+            num = int(parts[1])
+            anyo = int(parts[2])
+        except ValueError:
+            return cleaned
+        anyo_full = anyo if anyo >= 100 else 2000 + anyo
+        base = f"{tea:02d}/{num:05d}/{anyo_full:04d}"
+        for s in parts[3:]:
+            base += f"/{s}"
+        return base
+    return cleaned
 
 
 def _associate_articles_with_normas(citations: list[Citation]) -> list[Citation]:
@@ -410,6 +611,7 @@ def verify_citations(
     registry: NormaRegistry | None = None,
     devengo: date | None = None,
     extra_documented_sources: list[Source] | None = None,
+    jurisprudence_registry: JurisprudenceRegistry | None = None,
 ) -> CitationCheckResult:
     """Verifica todas las citas detectadas en `text`.
 
@@ -421,6 +623,19 @@ def verify_citations(
     de verificación. Útil para tributos modelados en módulos separados
     (`iva`, `is`, …) que no figuran en el `corpus` principal de
     deducciones IRPF pero cuyas citas el LLM puede emitir legítimamente.
+
+    `jurisprudence_registry` activa la verificación dura de citas
+    jurisprudenciales/doctrinales. Política aplicada cuando la cita es
+    un identificador canónico (ECLI, `V0123-24`, `00/12345/2023`):
+
+    - Identificador canónico EN corpus → `safe`.
+    - Identificador canónico NO en corpus → `block` (potencial alucinación).
+
+    Para citas no canónicas (`STS 1234/2020`, `consulta DGT` genérica) →
+    `warn` ambiguo: el motor no puede confirmar y el LLM debería citar
+    con identificador canónico para ser auditable. Sin registry
+    inyectado, todo se queda en `warn` indicando corpus no indexado
+    (comportamiento previo).
     """
     citations = _associate_articles_with_normas(extract_citations(text))
     sources_index = _index_sources(corpus, scales, extra_documented_sources)
@@ -429,19 +644,9 @@ def verify_citations(
 
     for citation in citations:
         if citation.kind == "jurisprudence":
-            issues.append(
-                CitationIssue(
-                    level="warning",
-                    code="JURISPRUDENCE_NOT_INDEXED",
-                    message=(
-                        f"Cita a {citation.juris_kind}"
-                        + (f" {citation.juris_ref}" if citation.juris_ref else "")
-                        + " sin corpus de jurisprudencia indexado: el motor "
-                        "no puede verificar su existencia ni vigencia."
-                    ),
-                    citation=citation,
-                )
-            )
+            juris_issue = _verify_jurisprudence(citation, jurisprudence_registry)
+            if juris_issue is not None:
+                issues.append(juris_issue)
             continue
 
         if citation.kind == "boe_regional":
@@ -639,4 +844,107 @@ def verify_citations(
         verdict=verdict,
         citations=tuple(citations),
         issues=tuple(issues),
+    )
+
+
+def _verify_jurisprudence(
+    citation: Citation,
+    jurisprudence_registry: JurisprudenceRegistry | None,
+) -> CitationIssue | None:
+    """Aplica la política de verificación a una cita jurisprudencial.
+
+    Devuelve `None` si la cita es `safe` (identificador canónico presente
+    en el corpus). En cualquier otro caso devuelve el `CitationIssue`
+    correspondiente.
+
+    La distinción canónico vs ambiguo se basa en `juris_canonical`: las
+    citas con ECLI completo o número canónico DGT/TEAC llevan ese campo
+    relleno; las formas ambiguas como `STS 1234/2020` lo dejan en None.
+    """
+    juris_kind = citation.juris_kind or "JURISPRUDENCE"
+    juris_ref = citation.juris_ref or ""
+    raw_label = f"{juris_kind} {juris_ref}".strip() if juris_ref else juris_kind
+
+    canonical = citation.juris_canonical
+
+    # Sin registry: comportamiento previo — todo `warn` corpus no indexado.
+    if jurisprudence_registry is None:
+        return CitationIssue(
+            level="warning",
+            code="JURISPRUDENCE_NOT_INDEXED",
+            message=(
+                f"Cita a {raw_label} sin corpus de jurisprudencia "
+                "indexado: el motor no puede verificar su existencia "
+                "ni vigencia."
+            ),
+            citation=citation,
+        )
+
+    # Con registry pero sin identificador canónico: cita ambigua.
+    if canonical is None:
+        return CitationIssue(
+            level="warning",
+            code="JURISPRUDENCE_AMBIGUOUS_REFERENCE",
+            message=(
+                f"Cita a {raw_label} sin identificador canónico (ECLI, "
+                "V0123-24 o número TEAC). El motor no puede verificarla "
+                "contra el corpus auditable; cita con ECLI/numero canónico "
+                "para que sea contrastable."
+            ),
+            citation=citation,
+        )
+
+    # Identificador canónico: cruzar contra registry según familia.
+    if juris_kind == "ECLI":
+        if jurisprudence_registry.knows_ecli(canonical):
+            return None
+        return CitationIssue(
+            level="blocking",
+            code="ECLI_NOT_IN_CORPUS",
+            message=(
+                f"El ECLI {canonical} no figura en el corpus de "
+                "jurisprudencia indexado. Posible cita alucinada — "
+                "verifica el identificador en CENDOJ antes de citarlo."
+            ),
+            citation=citation,
+        )
+
+    if juris_kind == "DGT":
+        if jurisprudence_registry.knows_dgt(canonical):
+            return None
+        return CitationIssue(
+            level="blocking",
+            code="DGT_NOT_IN_CORPUS",
+            message=(
+                f"La consulta DGT {canonical} no figura en el corpus "
+                "indexado. Posible cita alucinada — verifica el número "
+                "en el buscador de consultas vinculantes de la AEAT."
+            ),
+            citation=citation,
+        )
+
+    if juris_kind == "TEAC":
+        if jurisprudence_registry.knows_teac(canonical):
+            return None
+        return CitationIssue(
+            level="blocking",
+            code="TEAC_NOT_IN_CORPUS",
+            message=(
+                f"La resolución TEAC {canonical} no figura en el corpus "
+                "indexado. Posible cita alucinada — verifica la "
+                "reclamación en DYCTEA antes de citarla."
+            ),
+            citation=citation,
+        )
+
+    # Familia con canonical pero no DGT/TEAC/ECLI: tratar como ambigua.
+    return CitationIssue(
+        level="warning",
+        code="JURISPRUDENCE_AMBIGUOUS_REFERENCE",
+        message=(
+            f"Cita a {raw_label} con identificador no soportado por el "
+            "verificador. Cita con ECLI para sentencias o número canónico "
+            "para DGT/TEAC."
+        ),
+        citation=citation,
     )

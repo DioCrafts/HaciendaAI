@@ -44,7 +44,11 @@ from ..irpf.scales import TaxScale
 from ..models import Deduction, NormaRegistry, Source
 from ..rag.grounding import build_llm_context
 from ..rag.vector import VectorQuery
-from ..safety import CitationCheckResult, verify_citations
+from ..safety import (
+    CitationCheckResult,
+    JurisprudenceRegistry,
+    verify_citations,
+)
 from .client import LLMClient
 from .retriever import LegalContextRetriever
 from .tools import ToolRegistry, serialize_tool_result
@@ -151,6 +155,7 @@ def run_chat(
     rag_top_k: int = RAG_DEFAULT_TOP_K,
     rag_min_score: float = 0.0,
     extra_documented_sources: list[Source] | None = None,
+    jurisprudence_registry: JurisprudenceRegistry | None = None,
 ) -> ChatResult:
     """Ejecuta un turno de chat completo (potencialmente con varias llamadas
     al LLM si el modelo encadena tool_use y/o reformula tras un block).
@@ -183,6 +188,13 @@ def run_chat(
     presupuesto compartido `max_iterations` protege ambos modos. Con
     `max_verify_retries=0` el comportamiento es legacy: el primer
     block dispara el fallback de inmediato.
+
+    `jurisprudence_registry` activa la verificación dura de citas a
+    jurisprudencia y doctrina administrativa. Si se inyecta, el guard
+    bloquea respuestas que citen ECLI/DGT/TEAC canónicos no presentes
+    en el corpus auditable y degrada a `warn` las citas ambiguas
+    (`STS 1234/2020` sin ECLI). Sin registry el comportamiento es el
+    previo: cualquier cita jurisprudencial queda en `warn` no indexado.
     """
     if max_verify_retries < 0:
         raise ValueError("max_verify_retries debe ser >= 0")
@@ -231,6 +243,7 @@ def run_chat(
                 registry=registry,
                 devengo=devengo,
                 extra_documented_sources=extra_documented_sources,
+                jurisprudence_registry=jurisprudence_registry,
             )
             verify_history.append(last_guard)
             final_reached = True
@@ -272,6 +285,7 @@ def run_chat(
             registry=registry,
             devengo=devengo,
             extra_documented_sources=extra_documented_sources,
+            jurisprudence_registry=jurisprudence_registry,
         )
         verify_history.append(last_guard)
 
@@ -322,6 +336,7 @@ def run_chat(
             registry=registry,
             devengo=devengo,
             extra_documented_sources=extra_documented_sources,
+            jurisprudence_registry=jurisprudence_registry,
         )
         verify_history.append(last_guard)
 

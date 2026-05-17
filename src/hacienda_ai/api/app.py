@@ -67,7 +67,7 @@ from hacienda_ai.rag.factory import (
     build_retriever_from_env,
 )
 from hacienda_ai.rules import evaluate_deductions
-from hacienda_ai.safety import verify_citations
+from hacienda_ai.safety import JurisprudenceRegistry, verify_citations
 from hacienda_ai.storage import (
     ChatSessionsRepo,
     EvaluationsRepo,
@@ -238,6 +238,43 @@ def _corpus_fingerprint(deductions: list[Deduction]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _load_jurisprudence_registry() -> JurisprudenceRegistry:
+    """Carga el registry auditable de jurisprudencia y doctrina.
+
+    Lee de los subdirectorios canónicos del corpus
+    (`jurisprudencia/`, `dgt_consultas/`, `teac_resoluciones/`) dentro
+    de la ruta indicada por `HACIENDA_AI_CORPUS_DIR`. Si la variable no
+    está configurada (escenario por defecto sin RAG), devuelve un
+    registry vacío: el `citation_guard` lo detecta y aplica las reglas
+    "sin corpus jurisprudencial indexado" (todo `warn` no `block`),
+    igual que antes.
+
+    Cualquier fallo de carga se loguea y se ignora silenciosamente: el
+    chat sigue funcionando con un registry vacío.
+    """
+    import os
+
+    corpus_dir_raw = os.environ.get("HACIENDA_AI_CORPUS_DIR")
+    if not corpus_dir_raw:
+        return JurisprudenceRegistry()
+    corpus_dir = Path(corpus_dir_raw)
+    try:
+        return JurisprudenceRegistry.from_disk(
+            jurisprudencia_dir=corpus_dir / "jurisprudencia",
+            dgt_dir=corpus_dir / "dgt_consultas",
+            teac_dir=corpus_dir / "teac_resoluciones",
+        )
+    except Exception as exc:  # noqa: BLE001 — defensa en profundidad
+        logger.warning(
+            "No se pudo cargar JurisprudenceRegistry desde %s: %s. "
+            "El guard funcionará sin verificación de citas a "
+            "jurisprudencia (warn no block).",
+            corpus_dir,
+            exc,
+        )
+        return JurisprudenceRegistry()
+
+
 def _resolve_retriever(
     explicit: LegalContextRetriever | None,
 ) -> tuple[LegalContextRetriever | None, RetrieverBuildReport | None]:
@@ -328,6 +365,7 @@ def create_app(
     # el corpus IRPF de deducciones.
     extra_sources: list[Source] = list(iva_documented_sources())
     effective_retriever, retriever_report = _resolve_retriever(retriever)
+    jurisprudence_registry = _load_jurisprudence_registry()
     chat_tools = build_default_registry(
         deductions=deductions,
         registry=registry,
@@ -483,6 +521,9 @@ def create_app(
             registry=registry,
             devengo=devengo,
             extra_documented_sources=extra_sources,
+            jurisprudence_registry=(
+                jurisprudence_registry if jurisprudence_registry else None
+            ),
         )
         return {
             "verdict": result.verdict,
@@ -607,6 +648,9 @@ def create_app(
             scales=tax_scales,
             retriever=effective_retriever,
             extra_documented_sources=extra_sources,
+            jurisprudence_registry=(
+                jurisprudence_registry if jurisprudence_registry else None
+            ),
         )
         chat_repo.save(session_id, result.history)
 
