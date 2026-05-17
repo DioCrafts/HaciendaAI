@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import time
 import uuid
@@ -58,6 +59,11 @@ from hacienda_ai.models import (
     is_state_bulletin_id,
 )
 from hacienda_ai.normas import load_norma_registry
+from hacienda_ai.rag.factory import (
+    RetrieverBuildReport,
+    RetrieverFactoryError,
+    build_retriever_from_env,
+)
 from hacienda_ai.rules import evaluate_deductions
 from hacienda_ai.safety import verify_citations
 from hacienda_ai.storage import (
@@ -66,6 +72,8 @@ from hacienda_ai.storage import (
     ProfilesRepo,
     init_db,
 )
+
+logger = logging.getLogger(__name__)
 
 DISCLAIMER = (
     "Esta herramienta ofrece ayuda informativa. No sustituye a un asesor "
@@ -228,6 +236,43 @@ def _corpus_fingerprint(deductions: list[Deduction]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _resolve_retriever(
+    explicit: LegalContextRetriever | None,
+) -> tuple[LegalContextRetriever | None, RetrieverBuildReport | None]:
+    """Decide qué retriever usar y devuelve también el report de arranque.
+
+    Si `explicit` está, gana (típico en tests). Si no, se intenta la
+    factoría de entorno: si está deshabilitada → `(None, None)`; si
+    falla (config inválida, store inalcanzable) → `(None, None)` con
+    log a nivel error, NUNCA propagamos para no tirar el app entero
+    por un fallo del RAG.
+    """
+    if explicit is not None:
+        return explicit, None
+    try:
+        built = build_retriever_from_env()
+    except RetrieverFactoryError as exc:
+        logger.error("No se pudo construir el retriever RAG: %s", exc)
+        return None, None
+    except Exception as exc:  # noqa: BLE001 — el RAG no debe tirar el app
+        logger.exception("Error inesperado construyendo el retriever RAG: %s", exc)
+        return None, None
+    if built is None:
+        return None, None
+    retriever, report = built
+    logger.info(
+        "RAG activo: provider=%s store=%s corpus=%s chunks_indexados=%d "
+        "bm25_documents=%d errores=%d",
+        report.provider_model_id,
+        report.store_kind,
+        report.config.data_dir,
+        report.indexed,
+        report.bm25_documents,
+        len(report.errors),
+    )
+    return retriever, report
+
+
 def create_app(
     db_path: str | Path | None = None,
     *,
@@ -247,11 +292,19 @@ def create_app(
     intentará crear un `AnthropicClient` real con la API key del
     entorno; si no está disponible, devuelve 503 con motivo.
 
-    `retriever`: si se inyecta, activa el cableado RAG en /chat. La
-    tool `retrieve_legal_context` queda disponible para el LLM y el
-    orquestador hace pre-fetch antes del primer turno. Sin retriever
-    (defecto actual), /chat sigue funcionando solo con las cinco
-    tools deterministas — no hay regresión.
+    `retriever`: activa el cableado RAG en /chat. Resolución por
+    prioridad:
+
+    1. Si se pasa explícitamente (tests, integradores), se usa tal cual.
+    2. Si no, se intenta construir vía `build_retriever_from_env()`
+       leyendo `HACIENDA_AI_RAG_ENABLED` + `HACIENDA_AI_CORPUS_DIR`
+       (+ provider/store opcionales). Si la variable de entorno está
+       activa pero la config falla, /chat arranca SIN retriever y se
+       loguea el error (no abortamos el app entero por un fallo del
+       RAG: el resto de endpoints siguen siendo útiles).
+    3. Si `HACIENDA_AI_RAG_ENABLED` está ausente o vacío, /chat
+       arranca sin retriever — comportamiento por defecto, igual que
+       antes de Fase 1. No hay regresión.
     """
     app = FastAPI(
         title="HaciendaAI — Demo API",
@@ -266,11 +319,12 @@ def create_app(
     deductions = load_deductions()
     registry = load_norma_registry()
     tax_scales = load_tax_scales()
+    effective_retriever, retriever_report = _resolve_retriever(retriever)
     chat_tools = build_default_registry(
         deductions=deductions,
         registry=registry,
         scales=tax_scales,
-        retriever=retriever,
+        retriever=effective_retriever,
     )
     last_reviewed = max(
         (d.last_reviewed_at for d in deductions if d.last_reviewed_at),
@@ -517,7 +571,7 @@ def create_app(
             corpus=deductions,
             registry=registry,
             scales=tax_scales,
-            retriever=retriever,
+            retriever=effective_retriever,
         )
         chat_repo.save(session_id, result.history)
 

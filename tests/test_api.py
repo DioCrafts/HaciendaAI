@@ -864,3 +864,71 @@ def test_create_app_uses_in_memory_db_for_tests() -> None:
             "tax_year": 2025,
             "region": "Madrid",
         }).status_code == 201
+
+
+def test_chat_endpoint_uses_injected_retriever_for_rag() -> None:
+    """Con un retriever inyectado a `create_app`, el endpoint /chat:
+
+    1. Pre-fetches contexto antes del primer turno (chunk_ids quedan
+       reportados al cliente).
+    2. Expone la tool `retrieve_legal_context` al LLM (vía la registry).
+
+    Verificamos ambos: que el `FakeLLMClient` ve el system con RAG y
+    que el modelo puede llamar a la tool durante el loop.
+    """
+    from pathlib import Path
+
+    from hacienda_ai.chat import FakeLLMClient, FakeTurn
+    from hacienda_ai.rag.factory import (
+        RetrieverConfig,
+        build_retriever_from_config,
+    )
+
+    fixtures = Path(__file__).parent / "fixtures" / "vector" / "corpus"
+    retriever, _ = build_retriever_from_config(RetrieverConfig(data_dir=fixtures))
+
+    fake = FakeLLMClient(
+        [
+            FakeTurn(
+                tool_calls=[
+                    (
+                        "retrieve_legal_context",
+                        {"query": "dietas manutencion IRPF", "top_k": 3},
+                    )
+                ]
+            ),
+            FakeTurn(
+                text=(
+                    "Las dietas por manutención están exoneradas según [FUENTE 1]. "
+                    "Este análisis no sustituye a un asesor fiscal colegiado."
+                )
+            ),
+        ]
+    )
+    app = create_app(
+        db_path=":memory:",
+        llm_client=fake,
+        retriever=retriever,
+    )
+    with TestClient(app) as c:
+        r = c.post(
+            "/chat",
+            json={
+                "message": "¿Tributan las dietas por manutención?",
+                "devengo_date": "2024-12-31",
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+
+        # 1. La tool retrieve_legal_context se invocó durante el loop.
+        tools_called = [ti["tool"] for ti in data["tool_invocations"]]
+        assert "retrieve_legal_context" in tools_called
+
+        # 2. El pre-fetch del orquestador inyectó contexto en el system.
+        seen_system = fake.calls[0]["system"]
+        assert "=== CONTEXTO LEGAL RECUPERADO ===" in seen_system
+        assert "[FUENTE 1]" in seen_system
+
+        # 3. La respuesta final pasó el guard.
+        assert data["citation_check"]["verdict"] in ("safe", "warn")
