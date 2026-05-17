@@ -51,6 +51,7 @@ from hacienda_ai.deductions import load_deductions
 from hacienda_ai.fiscal_calendar import resolve_current_fiscal_year
 from hacienda_ai.irpf import compute_quota, load_tax_scales
 from hacienda_ai.irpf.quota import quota_to_dict
+from hacienda_ai.iva import iva_documented_sources
 from hacienda_ai.models import (
     Deduction,
     NormaRegistry,
@@ -320,6 +321,12 @@ def create_app(
     deductions = load_deductions()
     registry = load_norma_registry()
     tax_scales = load_tax_scales()
+    # Sources documentadas adicionales (IVA, IS, IRNR…): se concatenan al
+    # corpus al verificar citas para que el guard reconozca como
+    # `safe` las citas correctas a esas leyes. Sin esto, una respuesta
+    # con "art. 90 LIVA" pasaría como `WARN`/`BLOCK` por no figurar en
+    # el corpus IRPF de deducciones.
+    extra_sources: list[Source] = list(iva_documented_sources())
     effective_retriever, retriever_report = _resolve_retriever(retriever)
     chat_tools = build_default_registry(
         deductions=deductions,
@@ -475,6 +482,7 @@ def create_app(
             scales=tax_scales,
             registry=registry,
             devengo=devengo,
+            extra_documented_sources=extra_sources,
         )
         return {
             "verdict": result.verdict,
@@ -598,6 +606,7 @@ def create_app(
             registry=registry,
             scales=tax_scales,
             retriever=effective_retriever,
+            extra_documented_sources=extra_sources,
         )
         chat_repo.save(session_id, result.history)
 

@@ -44,6 +44,8 @@ def test_registry_exposes_expected_tools(registry) -> None:
         "compute_irpf_quota",
         "verify_citation",
         "get_fiscal_calendar",
+        "lookup_iva_type",
+        "compute_iva_quota",
     }
 
 
@@ -492,3 +494,70 @@ def test_fiscal_calendar_tool_payload_is_json_serializable(registry) -> None:
     decoded = json.loads(serialize_tool_result(r))
     assert decoded["today"] == "2026-05-17"
     assert "upcoming_events" in decoded
+
+
+# ---------- lookup_iva_type / compute_iva_quota ----------
+
+
+def test_lookup_iva_type_returns_matches_with_pinpoint(registry) -> None:
+    r = registry.dispatch("lookup_iva_type", {"query": "libros"})
+    assert r["count"] >= 1
+    sample = r["matches"][0]
+    assert sample["tipo"] == "superreducido"
+    assert sample["source"]["boe_id"] == "BOE-A-1992-28740"
+    assert sample["source"]["article"].startswith("art. 91")
+
+
+def test_lookup_iva_type_rejects_empty_query(registry) -> None:
+    assert "error" in registry.dispatch("lookup_iva_type", {"query": ""})
+    assert "error" in registry.dispatch("lookup_iva_type", {})
+
+
+def test_lookup_iva_type_no_match_returns_zero(registry) -> None:
+    r = registry.dispatch("lookup_iva_type", {"query": "xyzwxyz123"})
+    assert r["count"] == 0
+    assert r["matches"] == []
+
+
+def test_compute_iva_quota_general(registry) -> None:
+    r = registry.dispatch(
+        "compute_iva_quota",
+        {"base_imponible": 100, "tipo": "general"},
+    )
+    assert r["rate"] == 0.21
+    assert r["cuota"] == 21.0
+    assert r["total"] == 121.0
+    assert r["source"]["article"] == "art. 90"
+
+
+def test_compute_iva_quota_exento_returns_null_cuota(registry) -> None:
+    r = registry.dispatch(
+        "compute_iva_quota",
+        {"base_imponible": 1000, "tipo": "exento"},
+    )
+    assert r["rate"] is None
+    assert r["cuota"] is None
+    assert "exenta" in r["note"].lower()
+
+
+def test_compute_iva_quota_rejects_negative_base(registry) -> None:
+    r = registry.dispatch(
+        "compute_iva_quota",
+        {"base_imponible": -50, "tipo": "general"},
+    )
+    assert "error" in r and "negativa" in r["error"].lower()
+
+
+def test_compute_iva_quota_rejects_unknown_tipo(registry) -> None:
+    r = registry.dispatch(
+        "compute_iva_quota",
+        {"base_imponible": 100, "tipo": "fantasia"},
+    )
+    assert "error" in r and "tipo" in r["error"].lower()
+
+
+def test_compute_iva_quota_rejects_missing_fields(registry) -> None:
+    assert "error" in registry.dispatch("compute_iva_quota", {})
+    assert "error" in registry.dispatch(
+        "compute_iva_quota", {"base_imponible": 100}
+    )

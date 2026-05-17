@@ -41,7 +41,7 @@ from datetime import date
 from typing import Any
 
 from ..irpf.scales import TaxScale
-from ..models import Deduction, NormaRegistry
+from ..models import Deduction, NormaRegistry, Source
 from ..rag.grounding import build_llm_context
 from ..rag.vector import VectorQuery
 from ..safety import CitationCheckResult, verify_citations
@@ -150,6 +150,7 @@ def run_chat(
     impuesto: str | None = None,
     rag_top_k: int = RAG_DEFAULT_TOP_K,
     rag_min_score: float = 0.0,
+    extra_documented_sources: list[Source] | None = None,
 ) -> ChatResult:
     """Ejecuta un turno de chat completo (potencialmente con varias llamadas
     al LLM si el modelo encadena tool_use y/o reformula tras un block).
@@ -229,6 +230,7 @@ def run_chat(
                 scales=scales,
                 registry=registry,
                 devengo=devengo,
+                extra_documented_sources=extra_documented_sources,
             )
             verify_history.append(last_guard)
             final_reached = True
@@ -269,6 +271,7 @@ def run_chat(
             scales=scales,
             registry=registry,
             devengo=devengo,
+            extra_documented_sources=extra_documented_sources,
         )
         verify_history.append(last_guard)
 
@@ -318,6 +321,7 @@ def run_chat(
             scales=scales,
             registry=registry,
             devengo=devengo,
+            extra_documented_sources=extra_documented_sources,
         )
         verify_history.append(last_guard)
 

@@ -1,0 +1,24 @@
+{
+  "_meta": {
+    "norma_principal": "Ley 37/1992 del Impuesto sobre el Valor Añadido (LIVA)",
+    "boe_id": "BOE-A-1992-28740",
+    "alcance": "Registro de la norma principal del IVA con vigencia desde 1 de enero de 1993. Las múltiples modificaciones posteriores (PGE anuales, RD-Leyes coyunturales, transposiciones de directivas UE) no se desgranan en este seed inicial: para preguntas sobre IVA cuyo devengo cae en una ventana específica, conviene contrastar con BOE consolidado antes de afirmar vigencia de una redacción concreta.",
+    "fuente_consolidacion": "https://www.boe.es/buscar/act.php?id=BOE-A-1992-28740"
+  },
+  "normas": [
+    {
+      "boe_id": "BOE-A-1992-28740",
+      "kind": "ley",
+      "title": "Ley 37/1992, de 28 de diciembre, del Impuesto sobre el Valor Añadido",
+      "enacted_at": "1992-12-28"
+    }
+  ],
+  "versions": [
+    {
+      "norma_boe_id": "BOE-A-1992-28740",
+      "effective_from": "1993-01-01",
+      "status": "vigente",
+      "notes": "Vigente desde 1 de enero de 1993. Modificada en múltiples ocasiones (PGE anuales, RD-Leyes, transposiciones de directivas IVA UE); este registro no desglosa cada versión por simplicidad — el guard solo verifica existencia, no la redacción concreta del artículo en cada devengo."
+    }
+  ]
+}

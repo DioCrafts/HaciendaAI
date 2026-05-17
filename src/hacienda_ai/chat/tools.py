@@ -29,6 +29,12 @@ from ..fiscal_calendar import (
 from ..irpf import compute_quota, load_tax_scales
 from ..irpf.quota import quota_to_dict
 from ..irpf.scales import TaxScale
+from ..iva import (
+    IVAComputationError,
+    IVATipo,
+    compute_iva_quota,
+    lookup_iva_operations,
+)
 from ..models import Deduction, NormaRegistry, TaxProfile, ValidationError
 from ..normas import load_norma_registry
 from ..rag.grounding import build_llm_context
@@ -463,6 +469,53 @@ def _make_retrieve_legal_context(retriever: LegalContextRetriever) -> ToolHandle
     return handler
 
 
+_IVA_TIPO_VALUES = tuple(t.value for t in IVATipo)
+_IVA_LOOKUP_MAX_MATCHES = 25
+
+
+def _make_lookup_iva_type() -> ToolHandler:
+    def handler(args: dict[str, Any]) -> dict[str, Any]:
+        query = args.get("query")
+        if not isinstance(query, str) or not query.strip():
+            return {"error": "'query' (string no vacía) es obligatorio"}
+        matches = lookup_iva_operations(query)
+        return {
+            "query": query.strip(),
+            "count": len(matches),
+            "matches": [op.to_dict() for op in matches[:_IVA_LOOKUP_MAX_MATCHES]],
+            "truncated": len(matches) > _IVA_LOOKUP_MAX_MATCHES,
+        }
+
+    return handler
+
+
+def _make_compute_iva_quota() -> ToolHandler:
+    def handler(args: dict[str, Any]) -> dict[str, Any]:
+        base_raw = args.get("base_imponible")
+        if (
+            not isinstance(base_raw, (int, float))
+            or isinstance(base_raw, bool)
+        ):
+            return {
+                "error": "'base_imponible' debe ser numérica (int o float)"
+            }
+        tipo_raw = args.get("tipo")
+        if not isinstance(tipo_raw, str) or tipo_raw not in _IVA_TIPO_VALUES:
+            return {
+                "error": (
+                    f"'tipo' es obligatorio y debe estar en "
+                    f"{list(_IVA_TIPO_VALUES)}"
+                )
+            }
+        try:
+            quota = compute_iva_quota(float(base_raw), IVATipo(tipo_raw))
+        except IVAComputationError as exc:
+            return {"error": str(exc)}
+        return quota.to_dict()
+
+    return handler
+
+
 _FISCAL_CALENDAR_MIN_WINDOW = 1
 _FISCAL_CALENDAR_MAX_WINDOW = 365
 _FISCAL_CALENDAR_DEFAULT_WINDOW = 90
@@ -740,6 +793,78 @@ def build_default_registry(
                 },
             },
             handler=_make_get_fiscal_calendar(),
+        )
+    )
+    reg.register(
+        Tool(
+            name="lookup_iva_type",
+            description=(
+                "Busca en el catálogo de operaciones típicas el tipo de IVA "
+                "aplicable y su cita pinpoint a LIVA (Ley 37/1992). Úsala "
+                "cuando el usuario describa una operación ('libros', 'servicios "
+                "de un abogado', 'alquiler de vivienda', 'medicamentos') y "
+                "necesites saber si tributa al 21% / 10% / 4% / 0% o está "
+                "exenta. Si no hay coincidencia exacta, dilo en lugar de "
+                "inventar; muchas operaciones requieren reglas adicionales "
+                "(localización, destinatario) que esta tool NO contempla."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "Descripción de la operación en español: usa "
+                            "términos concretos ('libros impresos', 'gafas "
+                            "graduadas', 'restauración', 'alquiler vivienda')."
+                        ),
+                    },
+                },
+                "required": ["query"],
+            },
+            handler=_make_lookup_iva_type(),
+        )
+    )
+    reg.register(
+        Tool(
+            name="compute_iva_quota",
+            description=(
+                "Calcula la cuota de IVA: base × tipo. Devuelve cuota y "
+                "total (base + cuota), junto con la cita LIVA correspondiente "
+                "(art. 90 general, art. 91 reducido/superreducido, art. 20 "
+                "exenciones, art. 21 cero). Para operaciones EXENTAS la "
+                "cuota es `null` y se indica que no se devenga IVA (no se "
+                "puede deducir el soportado, salvo excepciones art. 20.tres). "
+                "Para tipo CERO la cuota es 0 € y SÍ hay derecho a deducir. "
+                "Esta es la ÚNICA forma legítima de obtener importes IVA: no "
+                "los calcules de cabeza."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "base_imponible": {
+                        "type": "number",
+                        "minimum": 0,
+                        "description": (
+                            "Base imponible de la operación en euros "
+                            "(no negativa). NO incluye el IVA."
+                        ),
+                    },
+                    "tipo": {
+                        "type": "string",
+                        "enum": list(_IVA_TIPO_VALUES),
+                        "description": (
+                            "Tipo aplicable: general (21%), reducido (10%), "
+                            "superreducido (4%), cero (0% gravado), exento "
+                            "(no sujeto). Identifícalo previamente con "
+                            "`lookup_iva_type` si el usuario describe la "
+                            "operación sin indicar el tipo."
+                        ),
+                    },
+                },
+                "required": ["base_imponible", "tipo"],
+            },
+            handler=_make_compute_iva_quota(),
         )
     )
     if retriever is not None:

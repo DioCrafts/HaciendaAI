@@ -343,10 +343,18 @@ def _associate_articles_with_normas(citations: list[Citation]) -> list[Citation]
 def _index_sources(
     corpus: list[Deduction] | None,
     scales: list[TaxScale] | None,
+    extra_documented_sources: list[Source] | None = None,
 ) -> dict[str, set[tuple[str, str | None]]]:
     """Construye un índice `boe_id -> {(article_number, suffix), ...}` con todos
     los pinpoints documentados en el corpus. Una cita BOE-A + artículo se
     considera "documentada" si su (número, sufijo) está en ese conjunto.
+
+    `extra_documented_sources` permite añadir pinpoints documentados que
+    no figuran en el corpus principal de deducciones — por ejemplo, las
+    `Source` del módulo IVA (`iva.iva_documented_sources()`) o de otros
+    tributos que se modelen como módulos separados. Sin esto, una cita
+    correcta a LIVA art. 90 sería marcada como `ARTICLE_NOT_IN_CORPUS`
+    porque el corpus de deducciones IRPF no la incluye.
     """
     index: dict[str, set[tuple[str, str | None]]] = {}
     sources: list[Source] = []
@@ -356,6 +364,8 @@ def _index_sources(
     if scales:
         for s in scales:
             sources.extend(s.sources)
+    if extra_documented_sources:
+        sources.extend(extra_documented_sources)
     for src in sources:
         if not src.boe_id or not src.article:
             continue
@@ -399,15 +409,21 @@ def verify_citations(
     scales: list[TaxScale] | None = None,
     registry: NormaRegistry | None = None,
     devengo: date | None = None,
+    extra_documented_sources: list[Source] | None = None,
 ) -> CitationCheckResult:
     """Verifica todas las citas detectadas en `text`.
 
     `devengo` se usa para evaluar la vigencia de las normas en esa fecha. Si
     no se proporciona, se evalúa contra `date.today()` con un mensaje
     explícito en el motivo si una norma resulta derogada.
+
+    `extra_documented_sources` añade pinpoints documentados al índice
+    de verificación. Útil para tributos modelados en módulos separados
+    (`iva`, `is`, …) que no figuran en el `corpus` principal de
+    deducciones IRPF pero cuyas citas el LLM puede emitir legítimamente.
     """
     citations = _associate_articles_with_normas(extract_citations(text))
-    sources_index = _index_sources(corpus, scales)
+    sources_index = _index_sources(corpus, scales, extra_documented_sources)
     devengo_eff = devengo or date.today()
     issues: list[CitationIssue] = []
 
